@@ -79,8 +79,8 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 | `trick_level` | Choice: `disabled`/`beginner`/`intermediate`/`advanced`/`expert`/`ludicrous` | `disabled` | Default difficulty of tricks logic is allowed to require; applies to every individual trick left at "use global setting" (see the Tricks table below). |
 | `damage_strictness` | Choice: `strict`/`medium`/`lenient` | `medium` | How strictly damage requirements are calculated — higher leniency assumes less incoming damage, so logic needs fewer energy tanks / less reduction to cross hazards. |
 | `energy_per_tank` | Range 50-500 | `100` | How much energy (health) each Energy Tank is worth. |
-| `dark_aether_damage` | Range 1-60 | `6` | Damage per second taken in a dark world without appropriate suit protection. |
-| `dark_suit_damage` | Range 0-60 | `1` | Damage per second taken in a dark world with the Dark Suit (but not the Light Suit). |
+| `dark_aether_damage` | Range 10-600 (tenths of a point/second) | `60` (6.0/sec) | Damage per second taken in a dark world without appropriate suit protection. |
+| `dark_suit_damage` | Range 0-600 (tenths of a point/second) | `12` (1.2/sec) | Damage per second taken in a dark world with the Dark Suit (but not the Light Suit). |
 | `dangerous_energy_tanks` | Toggle | off | Allow some Energy Tanks to be placed behind their own dark-world/damage requirement, without another tank to make the trip safe. |
 
 ### Entrance randomization

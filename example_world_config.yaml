@@ -1,10 +1,259 @@
 # Metroid Prime 2: Echoes player config for a 4-game multiworld:
 # Metroid Prime, Metroid Prime 2: Echoes, Metroid Fusion, Metroid: Zero Mission
 #
-# All options left at their defaults for this slot.
+# Every option below is spelled out with a comment and set to its default
+# value (see metroidprime2/options.py and the "Config options" section of
+# README.md). You can delete any option you don't want to change -- leaving
+# it out is equivalent to leaving it at its default.
 name: MP2Echoes
-description: "Metroid Prime 2: Echoes - default settings"
+description: "Metroid Prime 2: Echoes - all options at their defaults"
 game: "Metroid Prime 2: Echoes"
 requires:
   version: 0.6.3
-"Metroid Prime 2: Echoes": {}
+"Metroid Prime 2: Echoes":
+  # ------------------------------------------------------------------
+  # Goal / item pool
+  # ------------------------------------------------------------------
+
+  # How many of the 9 Sky Temple Keys are shuffled into the general item
+  # pool vs. pre-placed/pre-collected.
+  # Options: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, all_bosses, all_guardians
+  #   0-9: puts keys 1..N into the pool and pre-collects the rest (0 means
+  #        all 9 start collected; 9 is a normal fully-shuffled key).
+  #   all_bosses: pre-places one key on each of the 9 boss/guardian
+  #        pickup locations instead of shuffling them into the pool.
+  #   all_guardians: pre-places keys 1-3 on the 3 dark temple guardians
+  #        (Amorbis, Chykka, Quadraxis) and pre-collects keys 4-9.
+  sky_temple_keys: 9
+
+  # Combine Dark Suit and Light Suit into two copies of a single
+  # Progressive Suit item (first copy grants Dark Suit, second grants
+  # Light Suit).
+  # Options: true, false
+  progressive_suit: true
+
+  # Combine Grapple Beam and Screw Attack into two copies of a single
+  # Progressive Grapple item (first copy grants Grapple Beam, second
+  # grants Screw Attack).
+  # Options: true, false
+  progressive_grapple: false
+
+  # ------------------------------------------------------------------
+  # Logic
+  # ------------------------------------------------------------------
+
+  # Default difficulty of tricks logic is allowed to require. Applies to
+  # every individual trick below that is left at "use_global" (0).
+  # Options: disabled, beginner, intermediate, advanced, expert, ludicrous
+  trick_level: disabled
+
+  # How strictly damage requirements are calculated. Higher leniency
+  # assumes less incoming damage, so logic needs fewer energy tanks /
+  # less damage reduction to cross hazards.
+  # Options: strict, medium, lenient
+  damage_strictness: medium
+
+  # How much energy (health) each Energy Tank is worth.
+  # Range: 50-500
+  energy_per_tank: 100
+
+  # Damage per second taken in a dark world without appropriate suit
+  # protection. NOTE: stored in TENTHS of a point per second, so the
+  # default of 60 == 6.0 damage/second (matches randovania's
+  # varia_suit_damage: 6.0).
+  # Range: 10-600
+  dark_aether_damage: 60
+
+  # Damage per second taken in a dark world with the Dark Suit (but not
+  # the Light Suit). NOTE: also stored in TENTHS of a point per second,
+  # so the default of 12 == 1.2 damage/second (matches randovania's
+  # dark_suit_damage: 1.2).
+  # Range: 0-600
+  dark_suit_damage: 12
+
+  # Allow some Energy Tanks to be placed behind their own dark-world/
+  # damage requirement, without another tank to make the trip safe.
+  # Options: true, false
+  dangerous_energy_tanks: false
+
+  # ------------------------------------------------------------------
+  # Entrance randomization
+  # ------------------------------------------------------------------
+
+  # Shuffle certain door locks (beam-colored doors, blast shields) among
+  # a vetted pool of lock types instead of each door's vanilla lock.
+  # Options: true, false
+  door_lock_rando: false
+
+  # Shuffle elevators into new two-way connections (every region stays
+  # reachable, just not necessarily via the same elevator). The one-way
+  # trip to Sky Temple and the intra-Aerie elevator are never shuffled.
+  # Options: true, false
+  elevator_rando: false
+
+  # Shuffle the inter-region teleporters (the Great Temple/Agon/Torvus/
+  # Sanctuary Energy Controller connections) into new two-way
+  # connections.
+  # Options: true, false
+  teleporter_rando: false
+
+  # How each of the 17 translator gates' required color is chosen.
+  # Options: vanilla, full_random, full_random_unlocked
+  #   vanilla: every gate requires its vanilla translator color.
+  #   full_random: every gate independently requires a random one of the
+  #        four translator colors.
+  #   full_random_unlocked: like full_random, but each gate may also
+  #        independently come up "Unlocked" (open with just Scan Visor,
+  #        no translator at all).
+  translator_gate_rando: vanilla
+
+  # ------------------------------------------------------------------
+  # Tricks
+  #
+  # trick_level (above) sets the default for every trick below; set an
+  # individual trick_* option to override just that one trick. Every
+  # trick option shares the same scale, where "use_global" defers to
+  # trick_level instead of picking a difficulty of its own.
+  # Options: use_global, disabled, beginner, intermediate, advanced,
+  #          expert, ludicrous
+  # ------------------------------------------------------------------
+
+  # Air Underwater: morph on the frame the camera crosses a water
+  # surface to trick movement logic about whether Samus is underwater.
+  trick_airunderwater: use_global
+
+  # Bomb Space Jump: bomb jump + fast unmorph for an instant-unmorph
+  # height boost.
+  trick_bsj: use_global
+
+  # Bomb Jump: chain bomb jumps to reach otherwise-unattainable heights.
+  trick_bombjump: use_global
+
+  # Bomb Slot without Bombs: activate some Bomb Slots with Darkburst/
+  # Sunburst/Sonic Boom instead of Bombs.
+  trick_bomblessslot: use_global
+
+  # Boost Jump: morph, desync the camera, and Boost Ball jump for extra
+  # distance.
+  trick_boostjump: use_global
+
+  # Combat: defeat enemies/bosses with fewer items and less health than
+  # intended.
+  trick_combat: use_global
+
+  # Combat/Scan Dash: lock onto an enemy or scan point and strafe-dash
+  # to preserve momentum across gaps.
+  trick_dash: use_global
+
+  # Extended Dash: strafe dash interrupted mid-jump for a large speed
+  # boost.
+  trick_edash: use_global
+
+  # Jump Off Enemy: jump off enemies for extra height.
+  trick_enemyhop: use_global
+
+  # Instant Morph: morph near a wall/ceiling to skip the morph animation
+  # and enter tunnels from the wrong side.
+  trick_instantmorph: use_global
+
+  # Invisible Objects: interact with objects (e.g. Dark Visor platforms)
+  # without the visor needed to see them.
+  trick_invisibleobjects: use_global
+
+  # Knowledge: use non-obvious vulnerabilities of destructible objects
+  # (e.g. Super Missiles on rubble meant for Screw Attack).
+  trick_knowledge: use_global
+
+  # Movement: catch-all for non-obvious precise movement and traversal
+  # optimizations.
+  trick_movement: use_global
+
+  # Suitless Dark Aether: traverse Dark Aether, or tank Ingclaw/Ingstorm
+  # damage, without the matching suit.
+  trick_nosuits: use_global
+
+  # Single Room Out of Bounds: leave a room's boundaries to reach
+  # otherwise-unreachable areas within that room.
+  trick_oob: use_global
+
+  # Roll Jump: roll off a ledge into an instant unmorph and jump for
+  # extra speed/distance.
+  trick_rolljump: use_global
+
+  # Screw Attack at Z-Axis: Screw Attack without Space Jump in rooms
+  # where Samus's Z-position isn't 0 (mainly upper Sanctuary Fortress).
+  trick_sanosj: use_global
+
+  # Open Gates from Behind: open one-way gates from the wrong side via
+  # scan posts or beam combos.
+  trick_scanpost: use_global
+
+  # Screw Attack into Tunnels/Openings: use Screw Attack's small hitbox
+  # to fit into tunnels and tight gaps.
+  trick_screwattacktunnels: use_global
+
+  # Seeker Locks without Seeker Missiles: break some Seeker Locks using
+  # standard Missiles + Screw Attack instead of Seeker Missiles.
+  trick_seekerlesslocks: use_global
+
+  # Slope Jump: jump into sloped surfaces for extra height via a physics
+  # quirk.
+  trick_slopejump: use_global
+
+  # Standable Terrain: stand on unlikely scenery (small ledges, vines,
+  # railings) to reach new places.
+  trick_standableterrain: use_global
+
+  # Terminal Fall Abuse: abuse fall-void triggers to warp into
+  # unintended parts of a room.
+  trick_terminalfall: use_global
+
+  # Underwater Dash: hold L+R while swimming to lock speed and reach
+  # some areas early.
+  trick_underwaterdash: use_global
+
+  # Wall Boost: boost on wall contact to partially scale terrain,
+  # typically in Morph Ball tunnels.
+  trick_wallboost: use_global
+
+  # ------------------------------------------------------------------
+  # Cosmetic
+  # ------------------------------------------------------------------
+
+  # Whether items belonging to other Echoes players show a matching
+  # in-game model, or a generic model.
+  # Options: none, match_game
+  display_nonlocal_items: match_game
+
+  # Start with the in-game map fully revealed (rooms still need to be
+  # visited for name/details).
+  # Options: true, false
+  reveal_map: false
+
+  # Show room names on the map for rooms not yet visited.
+  # Options: true, false
+  unvisited_room_names: true
+
+  # ------------------------------------------------------------------
+  # Common Archipelago options
+  # ------------------------------------------------------------------
+
+  # Share deaths with every other Death Link player in the multiworld.
+  # Options: true, false
+  death_link: false
+
+  # Start with the given items already collected, removing that many
+  # copies from the shuffled pool. Keys are exact in-game item names,
+  # values are how many copies to start with.
+  start_inventory_from_pool: {}
+
+  # Standard core Archipelago option: nudges progression items earlier
+  # in the item pool to reduce being stuck without checks to do.
+  # Range: 0-99
+  progression_balancing: 50
+
+  # Standard core Archipelago option: whether generation must guarantee
+  # every item/location is reachable, or only what's needed to reach
+  # the goal.
+  # Options: full, minimal
+  accessibility: full
