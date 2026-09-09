@@ -1,0 +1,8 @@
+MultiWorldGG
+__pycache__/
+*.pyc
+build/
+dist/
+randovania
+open-prime-rando
+multiworld_config/
