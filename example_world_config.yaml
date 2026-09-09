@@ -1,0 +1,10 @@
+# Metroid Prime 2: Echoes player config for a 4-game multiworld:
+# Metroid Prime, Metroid Prime 2: Echoes, Metroid Fusion, Metroid: Zero Mission
+#
+# All options left at their defaults for this slot.
+name: MP2Echoes
+description: "Metroid Prime 2: Echoes - default settings"
+game: "Metroid Prime 2: Echoes"
+requires:
+  version: 0.6.3
+"Metroid Prime 2: Echoes": {}
