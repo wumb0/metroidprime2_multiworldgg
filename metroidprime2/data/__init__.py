@@ -14,7 +14,7 @@ import json
 from typing import Any
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def load_json(relative: str) -> Any:
     """Load and parse a JSON file stored under this package, by relative path.
 

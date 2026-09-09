@@ -28,7 +28,8 @@ import json
 import os
 import struct
 import zipfile
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from .. import constants
 from ..utils import get_output_path
@@ -54,7 +55,7 @@ _NKIT_MAGIC = b"NKIT"
 _GCZ_MAGIC = 0xB10B
 
 
-def detect_iso_version(iso_path: "str | os.PathLike[str]") -> str:
+def detect_iso_version(iso_path: str | os.PathLike[str]) -> str:
     """Returns ``"NTSC"`` or ``"PAL"`` for a supported Metroid Prime 2:
     Echoes ISO, or raises ``ValueError`` explaining why it isn't one
     (wrong game, Japanese release, or a compressed/derived disc image
@@ -102,7 +103,7 @@ def detect_iso_version(iso_path: "str | os.PathLike[str]") -> str:
 _GOAL_SENTINEL_AMOUNT = 120
 
 
-def _add_goal_trigger(editor: "PatcherEditor", mlvl: Any, area: "Area") -> None:
+def _add_goal_trigger(editor: PatcherEditor, mlvl: Any, area: Area) -> None:
     """Raw ``AreaPatcher`` function (PLAN.md section J): adds a one-shot
     Timer wired to a ``SetInventoryAmount`` SpecialFunction that sets item
     74 (``PersistentCounter8``, the multiworld magic counter) to
@@ -167,7 +168,7 @@ def goal_trigger_installed():
     original_register_world_changes = opr_patcher.register_world_changes
 
     def _register_world_changes_with_goal_trigger(
-        area_patcher: "AreaPatcher", world_changes: list[Any]
+        area_patcher: AreaPatcher, world_changes: list[Any]
     ) -> None:
         original_register_world_changes(area_patcher, world_changes)
         area_patcher.add_raw_function(
@@ -188,15 +189,15 @@ def goal_trigger_installed():
 # --------------------------------------------------------------------------
 
 
-def _read_apmp2_json(apmp2_file: "str | os.PathLike[str]", member: str) -> dict[str, Any]:
+def _read_apmp2_json(apmp2_file: str | os.PathLike[str], member: str) -> dict[str, Any]:
     with zipfile.ZipFile(apmp2_file) as zf:
         with zf.open(member) as f:
             return json.loads(f.read().decode("utf-8"))
 
 
 def _load_configuration(
-    apmp2_file: "str | os.PathLike[str]", settings: dict[str, Any]
-) -> "RandoConfiguration":
+    apmp2_file: str | os.PathLike[str], settings: dict[str, Any]
+) -> RandoConfiguration:
     """Builds the ``RandoConfiguration`` for a patch run: the generation-time
     ``config.json`` embedded in the ``.apmp2``, with client-side cosmetic
     settings (host.yaml, not known at generation time) merged in (PLAN.md
@@ -230,10 +231,10 @@ def _load_configuration(
 
 
 def patch_iso_with_ap(
-    apmp2_file: "str | os.PathLike[str]",
-    input_iso: "str | os.PathLike[str]",
+    apmp2_file: str | os.PathLike[str],
+    input_iso: str | os.PathLike[str],
     settings: dict[str, Any],
-    progress: Optional[ProgressCallback] = None,
+    progress: ProgressCallback | None = None,
 ) -> str:
     """Patches ``input_iso`` per the configuration embedded in
     ``apmp2_file`` (plus cosmetic ``settings``), writing
@@ -310,7 +311,7 @@ def patch_iso_with_ap(
 # --------------------------------------------------------------------------
 
 
-def _main(argv: Optional[list[str]] = None) -> None:
+def _main(argv: list[str] | None = None) -> None:
     import argparse
     import shutil
 
@@ -324,10 +325,10 @@ def _main(argv: Optional[list[str]] = None) -> None:
     args = parser.parse_args(argv)
 
     detected = detect_iso_version(args.input_iso)
-    print(f"Detected {detected} ISO.")
+    print(f"Detected {detected} ISO.")  # noqa: T201 -- CLI entrypoint status output
 
     def _progress(text: str, percent: float) -> None:
-        print(f"[{percent * 100:5.1f}%] {text}")
+        print(f"[{percent * 100:5.1f}%] {text}")  # noqa: T201 -- CLI entrypoint status output
 
     output_path = patch_iso_with_ap(args.apmp2_file, args.input_iso, {}, _progress)
 
@@ -335,7 +336,7 @@ def _main(argv: Optional[list[str]] = None) -> None:
         shutil.move(output_path, args.output)
         output_path = args.output
 
-    print(f"Wrote {output_path}")
+    print(f"Wrote {output_path}")  # noqa: T201 -- CLI entrypoint status output
 
 
 if __name__ == "__main__":

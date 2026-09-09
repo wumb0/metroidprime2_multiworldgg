@@ -10,8 +10,9 @@ randovania or MultiWorldGG framework modules; a "state" is any object with
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import cast
 
 from .. import constants
 from . import item_mapping
@@ -30,7 +31,11 @@ def combine_and(rules: list[Rule | None]) -> Rule | None:
         return None
     if len(fs) == 1:
         return fs[0]
-    return lambda s, _fs=tuple(fs): all(f(s) for f in _fs)
+
+    def rule(s, _fs=tuple(fs)) -> bool:
+        return all(f(s) for f in _fs)
+
+    return rule
 
 
 class Impossible(Exception):
@@ -126,7 +131,7 @@ class RequirementCompiler:
     def __init__(self, db: GameDatabase, ctx: StaticContext) -> None:
         self.db = db
         self.ctx = ctx
-        self._template_cache: dict[str, Rule | None | object] = {}
+        self._template_cache: dict[str, Rule | object | None] = {}
         self._template_stack: set[str] = set()
 
     # -- public API --------------------------------------------------------
@@ -147,16 +152,24 @@ class RequirementCompiler:
         expression ``Impossible`` -- if ``req`` itself folds to False, the
         result is simply ``state.has(item_name, player)``."""
         try:
-            rule = self._compile(req)
+            compiled = self._compile(req)
         except Impossible:
             player = self.ctx.player
-            return lambda s, _n=item_name, _p=player: s.has(_n, _p)
 
-        if rule is None:
+            def has_alternative(s, _n=item_name, _p=player) -> bool:
+                return s.has(_n, _p)
+
+            return has_alternative
+
+        if compiled is None:
             return None  # req already statically True -> OR is True.
 
         player = self.ctx.player
-        return lambda s, _r=rule, _n=item_name, _p=player: _r(s) or s.has(_n, _p)
+
+        def combined(s, _r=compiled, _n=item_name, _p=player) -> bool:
+            return _r(s) or s.has(_n, _p)
+
+        return combined
 
     def compile_to_string(self, req: dict | None) -> str:
         """Debug pretty-printer: folds constant subtrees to True/False,
@@ -167,6 +180,9 @@ class RequirementCompiler:
             return "False"
         if rule is None:
             return "True"
+        # rule is not None => _compile's own `if req is None: return None`
+        # branch wasn't taken, so req can't be None here either.
+        assert req is not None
         return self._describe(req)
 
     # -- core algorithm ------------------------------------------------------
@@ -195,7 +211,11 @@ class RequirementCompiler:
             return None
         if len(rules) == 1:
             return rules[0]
-        return lambda s, _fs=tuple(rules): all(f(s) for f in _fs)
+
+        def rule(s, _fs=tuple(rules)) -> bool:
+            return all(f(s) for f in _fs)
+
+        return rule
 
     def _compile_or(self, items: list[dict]) -> Rule | None:
         rules: list[Rule] = []
@@ -208,16 +228,20 @@ class RequirementCompiler:
                 return None
             rules.append(compiled)
         if not rules:
-            raise Impossible()
+            raise Impossible
         if len(rules) == 1:
             return rules[0]
-        return lambda s, _fs=tuple(rules): any(f(s) for f in _fs)
+
+        def rule(s, _fs=tuple(rules)) -> bool:
+            return any(f(s) for f in _fs)
+
+        return rule
 
     def _compile_template(self, name: str) -> Rule | None:
         if name in self._template_cache:
             cached = self._template_cache[name]
             if cached is _TEMPLATE_IMPOSSIBLE:
-                raise Impossible()
+                raise Impossible
             return cached  # type: ignore[return-value]
 
         if name in self._template_stack:
@@ -254,7 +278,7 @@ class RequirementCompiler:
                 satisfied = not satisfied
             if satisfied:
                 return None
-            raise Impossible()
+            raise Impossible
 
         if rtype == "events":
             return self._compile_event(name, negate)
@@ -288,24 +312,28 @@ class RequirementCompiler:
         if negate:
             if NEGATED_EVENT_OVERRIDES.get(name, True):
                 return None
-            raise Impossible()
+            raise Impossible
 
         if name in self.ctx.pregranted_events:
             return None  # pregranted -> always satisfied.
 
         item_name = item_mapping.event_item_name(self.db, name)
         player = self.ctx.player
-        return lambda s, _n=item_name, _p=player: s.has(_n, _p)
+
+        def rule(s, _n=item_name, _p=player) -> bool:
+            return s.has(_n, _p)
+
+        return rule
 
     def _compile_item(self, name: str, amount: int, negate: bool) -> Rule | None:
         # Negation policy: negated items fold to False (each observed
         # negated-item edge guards a trick alternative inside an `or` that
         # has item-positive alternatives; see PLAN.md section D).
         if negate:
-            raise Impossible()
+            raise Impossible
 
         if name in self.ctx.absent_items:
-            raise Impossible()
+            raise Impossible
 
         kind, fn = item_mapping.expression(name, self.ctx.player)
 
@@ -314,19 +342,26 @@ class RequirementCompiler:
                 return None
             if amount > 1:
                 # A boolean item can never satisfy amount > 1.
-                raise Impossible()
-            return fn
+                raise Impossible
+            # item_mapping.expression's return type is deliberately kind-erased
+            # (Callable[[object], object]); "bool" is its contract for a
+            # bool-returning callable (see that module's Kind/Expression docs).
+            return cast(Rule, fn)
 
         if kind == "count":
             if amount <= 0:
                 return None
-            return lambda s, _fn=fn, _amt=amount: _fn(s) >= _amt
+
+            def rule(s, _fn=fn, _amt=amount) -> bool:
+                return cast(int, _fn(s)) >= _amt
+
+            return rule
 
         if kind == "const":
-            value = fn(None)
+            value = cast(int, fn(None))
             if value >= amount:
                 return None
-            raise Impossible()
+            raise Impossible
 
         raise ValueError(f"unknown item expression kind: {kind!r}")
 
@@ -378,13 +413,16 @@ class RequirementCompiler:
                 result.append((None, quantity, multiplier))
                 continue
             kind, fn = item_mapping.expression(item_short_name, player)
+            count_fn: Callable[[object], int]
             if kind == "bool":
-                count_fn = lambda s, _fn=fn: (1 if _fn(s) else 0)
+                def count_fn(s, _fn=fn):
+                    return 1 if _fn(s) else 0
             elif kind == "count":
-                count_fn = fn
+                count_fn = cast(Callable[[object], int], fn)
             else:  # "const"
-                const_value = fn(None)
-                count_fn = lambda s, _v=const_value: _v
+                const_value = cast(int, fn(None))
+                def count_fn(s, _v=const_value):
+                    return _v
             result.append((count_fn, quantity, multiplier))
         return result
 

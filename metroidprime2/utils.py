@@ -76,7 +76,7 @@ def setup_libs() -> None:
         return
 
     if Utils.is_frozen():
-        print(
+        print(  # noqa: T201 -- user-facing missing-dependency message
             "Metroid Prime 2: Echoes requires "
             f"open-prime-rando=={OPEN_PRIME_RANDO_VERSION}, which is not "
             "installed. Frozen MultiWorldGG builds cannot install it "

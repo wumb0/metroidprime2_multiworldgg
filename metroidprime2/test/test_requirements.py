@@ -239,6 +239,7 @@ class TestAndOrFolding(RequirementsTestBase):
         req = _and(none_leaf, item_leaf)
         rule = self.compiler.compile(req)
         self.assertTrue(callable(rule))
+        assert rule is not None  # narrows for mypy; assertTrue above is the real check
         self.assertTrue(rule(FakeState({"Dark Beam": 1})))
         self.assertFalse(rule(FakeState()))
 

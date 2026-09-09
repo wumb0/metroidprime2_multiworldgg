@@ -26,10 +26,10 @@ from BaseClasses import ItemClassification, Region
 from .. import constants
 from ..items import MetroidPrime2Item
 from ..locations import LOCATION_TABLE, MetroidPrime2Location
-from ..options import dark_damage_per_second, damage_strictness_multiplier
+from ..options import damage_strictness_multiplier, dark_damage_per_second
 from .db_reader import DockWeakness, GameDatabase, Node, NodeId, load_game_database
 from .item_mapping import event_item_name
-from .requirements import Impossible, RequirementCompiler, build_static_context, combine_and
+from .requirements import Impossible, RequirementCompiler, Rule, build_static_context, combine_and
 
 if TYPE_CHECKING:
     from .. import MetroidPrime2World
@@ -55,7 +55,7 @@ TRANSLATOR_COLORS = ("Violet", "Amber", "Emerald", "Cobalt")
 # --------------------------------------------------------------------------
 
 
-def dock_target(world: "MetroidPrime2World", node: Node) -> NodeId | None:
+def dock_target(world: MetroidPrime2World, node: Node) -> NodeId | None:
     """The node a dock connects to: the vanilla ``default_connection``,
     unless ``world.dock_rando`` has reassigned this elevator/teleporter
     (see ``logic/dock_rando.py``)."""
@@ -66,7 +66,7 @@ def dock_target(world: "MetroidPrime2World", node: Node) -> NodeId | None:
     return node.default_connection
 
 
-def dock_weakness_for(world: "MetroidPrime2World", db: GameDatabase, node: Node) -> DockWeakness:
+def dock_weakness_for(world: MetroidPrime2World, db: GameDatabase, node: Node) -> DockWeakness:
     """The DockWeakness governing a dock node: the vanilla
     ``default_dock_weakness``, unless ``world.dock_rando`` has reassigned
     this door's lock (see ``logic/dock_rando.py``)."""
@@ -74,10 +74,12 @@ def dock_weakness_for(world: "MetroidPrime2World", db: GameDatabase, node: Node)
         new_name = world.dock_rando.door_lock.get(node.id)
         if new_name is not None:
             return db.dock_weaknesses[("door", new_name)]
+    assert node.dock_type is not None, f"{node.ap_name}: dock_weakness_for called on a non-dock node"
+    assert node.default_dock_weakness is not None, f"{node.ap_name}: dock node has no default_dock_weakness"
     return db.dock_weaknesses[(node.dock_type, node.default_dock_weakness)]
 
 
-def translator_gate_requirement(world: "MetroidPrime2World", node: Node) -> dict:
+def translator_gate_requirement(world: MetroidPrime2World, node: Node) -> dict:
     """The requirement to pass a translator gate (``configurable_node``):
     Scan Visor, plus the translator color this gate currently requires --
     ``None`` (no translator at all -- an "Unlocked" gate, only possible
@@ -138,7 +140,7 @@ def _lock_broken_event_item(node: Node) -> str:
     return f"Lock Broken - {node.ap_name}"
 
 
-def _leave_requirement(world: "MetroidPrime2World", node: Node) -> dict | None:
+def _leave_requirement(world: MetroidPrime2World, node: Node) -> dict | None:
     """The additional requirement applied to every OUTGOING connection from
     ``node`` (PLAN.md section E step 3)."""
     if node.node_type == "configurable_node":
@@ -160,13 +162,13 @@ def _leave_requirement(world: "MetroidPrime2World", node: Node) -> dict | None:
 
 
 def _intra_area_edges(
-    world: "MetroidPrime2World", db: GameDatabase, compiler: RequirementCompiler, node: Node
-) -> list[tuple[NodeId, object, str]]:
+    world: MetroidPrime2World, db: GameDatabase, compiler: RequirementCompiler, node: Node
+) -> list[tuple[NodeId, Rule | None, str]]:
     """Step 4: every intra-area ``node.connections`` edge from ``node``,
     each ANDed with ``node``'s own "leave" requirement (translator gate /
     hint, if any). Skips edges whose combined requirement is Impossible."""
     leave_req = _leave_requirement(world, node)
-    edges: list[tuple[NodeId, object, str]] = []
+    edges: list[tuple[NodeId, Rule | None, str]] = []
     for target_name, req in node.connections.items():
         target_id = NodeId(node.id.region, node.id.area, target_name)
         if target_id == CREDITS_EVENT_NODE:
@@ -180,8 +182,8 @@ def _intra_area_edges(
 
 
 def _dock_edge(
-    world: "MetroidPrime2World", db: GameDatabase, compiler: RequirementCompiler, node: Node
-) -> tuple[NodeId, object, str] | None:
+    world: MetroidPrime2World, db: GameDatabase, compiler: RequirementCompiler, node: Node
+) -> tuple[NodeId, Rule | None, str] | None:
     """Step 5: ``node``'s single outgoing dock-connection edge, or
     ``None`` if ``node`` isn't a dock, has no live target, or its
     open/lock requirement compiles to Impossible. See the front-blast-
@@ -231,7 +233,7 @@ def _dock_edge(
 # --------------------------------------------------------------------------
 
 
-def create_regions(world: "MetroidPrime2World") -> None:
+def create_regions(world: MetroidPrime2World) -> None:
     db = load_game_database()
     player = world.player
     multiworld = world.multiworld

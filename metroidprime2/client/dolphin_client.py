@@ -41,7 +41,7 @@ class DolphinClient:
         try:
             self.__assert_connected()
             return True
-        except (Exception,):
+        except Exception:
             return False
 
     def connect(self) -> None:
@@ -57,14 +57,16 @@ class DolphinClient:
             self.dolphin.un_hook()
 
     def __assert_connected(self) -> None:
-        """Custom assert function that returns a DolphinException instead of a generic RuntimeError if the connection is lost"""
+        """Custom assert function that returns a DolphinException instead of a
+        generic RuntimeError if the connection is lost"""
         try:
             self.dolphin.assert_hooked()
-            # For some reason the dolphin_memory_engine.is_hooked() function doesn't recognize when the game is closed, checking if memory is available will assert the connection is alive
+            # For some reason the dolphin_memory_engine.is_hooked() function doesn't recognize when the game is
+            # closed, checking if memory is available will assert the connection is alive
             self.dolphin.read_bytes(GC_GAME_ID_ADDRESS, 1)
         except RuntimeError as e:
             self.disconnect()
-            raise DolphinException(e)
+            raise DolphinException(e) from e
 
     @staticmethod
     def verify_target_address(target_address: int, read_size: int) -> None:
@@ -91,8 +93,7 @@ class DolphinClient:
     def read_address(self, address: int, bytes_to_read: int) -> Any:
         self.__assert_connected()
         DolphinClient.verify_target_address(address, bytes_to_read)
-        result = self.dolphin.read_bytes(address, bytes_to_read)
-        return result
+        return self.dolphin.read_bytes(address, bytes_to_read)
 
     def write_pointer(self, pointer: int, offset: int, data: Any) -> Any:
         self.__assert_connected()
@@ -109,8 +110,7 @@ class DolphinClient:
 
     def write_address(self, address: int, data: Any) -> Any:
         self.__assert_connected()
-        result = self.dolphin.write_bytes(address, data)
-        return result
+        return self.dolphin.write_bytes(address, data)
 
 
 def assert_no_running_dolphin() -> bool:
@@ -127,8 +127,7 @@ def get_num_dolphin_instances() -> int:
         if Utils.is_windows:
             output = subprocess.check_output("tasklist", shell=True).decode()
             lines = output.strip().split("\n")
-            count = sum("Dolphin.exe" in line for line in lines)
-            return count
+            return sum("Dolphin.exe" in line for line in lines)
         return 0
-    except (Exception,):
+    except Exception:
         return 0

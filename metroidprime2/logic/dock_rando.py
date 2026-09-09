@@ -83,11 +83,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .. import constants
-from ..options import dark_damage_per_second, damage_strictness_multiplier
+from ..options import damage_strictness_multiplier, dark_damage_per_second
 from .db_reader import GameDatabase, Node, NodeId, load_game_database
 from .item_mapping import event_item_name
 from .regions import CREDITS_EVENT_NODE, _dock_edge, _intra_area_edges, _lock_broken_event_item, dock_weakness_for
-from .requirements import Rule, RequirementCompiler, build_static_context
+from .requirements import RequirementCompiler, Rule, build_static_context
 
 if TYPE_CHECKING:
     from .. import MetroidPrime2World
@@ -162,7 +162,7 @@ def _door_pairs(db: GameDatabase) -> dict[NodeId, NodeId]:
     return pairs
 
 
-def _global_weakness_mapping(world: "MetroidPrime2World") -> dict[str, str]:
+def _global_weakness_mapping(world: MetroidPrime2World) -> dict[str, str]:
     """A random bijection-shaped ``old_weakness_name -> new_weakness_name``
     substitution over ``DOOR_CAN_CHANGE_FROM``/``DOOR_CAN_CHANGE_TO``,
     mirroring randovania's ``_distribute_mode_weakness``: shuffle both
@@ -187,11 +187,11 @@ def _global_weakness_mapping(world: "MetroidPrime2World") -> dict[str, str]:
     world.random.shuffle(targets)
     while len(targets) < len(sources):
         targets.extend(DOOR_CAN_CHANGE_TO)
-    return dict(zip(sources, targets))
+    return dict(zip(sources, targets, strict=False))
 
 
 def _sample_door_lock_candidate(
-    world: "MetroidPrime2World", db: GameDatabase, pairs: dict[NodeId, NodeId]
+    world: MetroidPrime2World, db: GameDatabase, pairs: dict[NodeId, NodeId]
 ) -> dict[NodeId, str]:
     """One candidate ``{door_node_id: new_weakness_name}`` assignment:
     every eligible door gets ``mapping[its vanilla weakness]``, and when
@@ -304,7 +304,7 @@ def _reciprocal_pairs(
     return pairs
 
 
-def _shuffle_pairs(world: "MetroidPrime2World", pairs: list[tuple[Node, Node]]) -> dict[NodeId, NodeId]:
+def _shuffle_pairs(world: MetroidPrime2World, pairs: list[tuple[Node, Node]]) -> dict[NodeId, NodeId]:
     """A random reciprocal re-pairing of ``pairs``' endpoints: a random
     perfect matching over the 2N nodes, independent of every other pool."""
     endpoints = [node for pair in pairs for node in pair]
@@ -403,7 +403,7 @@ def _reachable_nodes(
     changed = True
     while changed:
         changed = False
-        for node_id in list(visited):
+        for node_id in list(visited):  # noqa: PERF101 -- visited is mutated inside this loop; the list() snapshot is required, not redundant
             node = db.node(node_id)
 
             if node.node_type == "event" and node.event_name is not None and node.event_name not in unlocked_events:
@@ -419,9 +419,9 @@ def _reachable_nodes(
                     changed = True
 
             if node.node_type == "dock":
-                target_id = resolve_dock_target(node)
-                if target_id is not None and target_id not in visited:
-                    visited.add(target_id)
+                dock_target_id = resolve_dock_target(node)
+                if dock_target_id is not None and dock_target_id not in visited:
+                    visited.add(dock_target_id)
                     changed = True
 
     return visited
@@ -466,7 +466,7 @@ class _ProbeWorld:
     (``world.options``, ``world.translator_gate_assignment``, ``player``,
     ``random``, ...) passes through untouched."""
 
-    def __init__(self, world: "MetroidPrime2World", dock_rando: DockRandoAssignment) -> None:
+    def __init__(self, world: MetroidPrime2World, dock_rando: DockRandoAssignment) -> None:
         self._world = world
         self.dock_rando = dock_rando
 
@@ -503,7 +503,7 @@ class _ProbeState:
 
 
 def _build_probe_graph(
-    probe_world: "MetroidPrime2World", db: GameDatabase, compiler: RequirementCompiler
+    probe_world: MetroidPrime2World, db: GameDatabase, compiler: RequirementCompiler
 ) -> tuple[dict[NodeId, list[tuple[NodeId, Rule | None]]], dict[NodeId, list[str]], frozenset[str]]:
     """``(edges, flag_triggers, event_names)`` for the candidate assignment
     on ``probe_world.dock_rando``, built with ``regions.py``'s own Step
@@ -555,7 +555,7 @@ def _probe_reachable(
     changed = True
     while changed:
         changed = False
-        for node_id in list(visited):
+        for node_id in list(visited):  # noqa: PERF101 -- visited is mutated inside this loop; the list() snapshot is required, not redundant
             for flag in flag_triggers.get(node_id, ()):
                 if flag not in state.flags:
                     state.flags.add(flag)
@@ -570,7 +570,7 @@ def _probe_reachable(
 
 
 def _meets_progression_bar(
-    world: "MetroidPrime2World",
+    world: MetroidPrime2World,
     db: GameDatabase,
     compiler: RequirementCompiler,
     pickup_ids: frozenset[NodeId],
@@ -588,7 +588,11 @@ def _meets_progression_bar(
     snapshots) -- this is a coarse, cheap-ish reject filter, same spirit
     as ``_reachable_nodes`` for elevators/teleporters, just item-aware."""
     probe_world = _ProbeWorld(world, candidate)
-    edges, flag_triggers, event_names = _build_probe_graph(probe_world, db, compiler)
+    # _ProbeWorld duck-types MetroidPrime2World via __getattr__ delegation
+    # (see its docstring); that's not something the type system can verify
+    # structurally without a Protocol shared with regions.py's several
+    # world-typed helpers, which isn't worth it for this one internal path.
+    edges, flag_triggers, event_names = _build_probe_graph(probe_world, db, compiler)  # type: ignore[arg-type]
 
     start_state = _ProbeState(mode="start", event_names=event_names, starting_names=starting_names)
     start_reached = _probe_reachable(edges, flag_triggers, db.starting_location, start_state)
@@ -600,7 +604,7 @@ def _meets_progression_bar(
     return pickup_ids <= all_reached
 
 
-def _build_compiler(world: "MetroidPrime2World", db: GameDatabase) -> RequirementCompiler:
+def _build_compiler(world: MetroidPrime2World, db: GameDatabase) -> RequirementCompiler:
     ctx = build_static_context(
         player=world.player,
         trick_levels=world.trick_levels,
@@ -614,7 +618,7 @@ def _build_compiler(world: "MetroidPrime2World", db: GameDatabase) -> Requiremen
     return RequirementCompiler(db, ctx)
 
 
-def build_door_lock_assignment(world: "MetroidPrime2World", db: GameDatabase) -> dict[NodeId, str]:
+def build_door_lock_assignment(world: MetroidPrime2World, db: GameDatabase) -> dict[NodeId, str]:
     """``{door_node_id: new_weakness_name}`` for every eligible door,
     empty when ``door_lock_rando`` is off. Reject-and-retries candidates
     (``_sample_door_lock_candidate``) against ``_meets_progression_bar``
@@ -648,7 +652,7 @@ def build_door_lock_assignment(world: "MetroidPrime2World", db: GameDatabase) ->
 
 
 def build_elevator_and_teleporter_assignment(
-    world: "MetroidPrime2World", db: GameDatabase, door_lock: dict[NodeId, str]
+    world: MetroidPrime2World, db: GameDatabase, door_lock: dict[NodeId, str]
 ) -> tuple[dict[NodeId, NodeId], dict[NodeId, NodeId]]:
     """Computes the elevator and teleporter target assignments together
     (a joint connectivity check is needed: whichever pool is off still
@@ -699,7 +703,7 @@ def build_elevator_and_teleporter_assignment(
     )
 
 
-def build_dock_rando_assignment(world: "MetroidPrime2World") -> DockRandoAssignment:
+def build_dock_rando_assignment(world: MetroidPrime2World) -> DockRandoAssignment:
     db = load_game_database()
     door_lock = build_door_lock_assignment(world, db)
     elevator, teleporter = build_elevator_and_teleporter_assignment(world, db, door_lock)

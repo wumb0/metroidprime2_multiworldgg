@@ -6,10 +6,8 @@ be unit tested directly (``test/test_deathlink.py``).
 
 from __future__ import annotations
 
-from typing import Optional
 
-
-def death_link_check(health: Optional[float], is_pending_reset: bool) -> tuple[bool, bool]:
+def death_link_check(health: float | None, is_pending_reset: bool) -> tuple[bool, bool]:
     """Given the player's current health and whether a send is already
     pending reset (debounces a multi-tick organic death -- health stays
     <= 0 for several ticks of the death animation before respawn restores

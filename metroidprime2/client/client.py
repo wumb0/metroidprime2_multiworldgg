@@ -11,13 +11,12 @@ import os
 import subprocess
 import traceback
 import zipfile
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import Utils
 from CommonClient import get_base_parser, gui_enabled, logger, server_loop
 from NetUtils import ClientStatus
 from settings import get_settings
-
-import Utils
 
 from .. import constants
 from ..locations import LOCATION_TABLE
@@ -32,15 +31,19 @@ apname = Utils.instance_name if Utils.instance_name else "Archipelago"
 
 tracker_loaded = False
 try:
-    from worlds.tracker.TrackerClient import (  # type: ignore
-        TrackerCommandProcessor as ClientCommandProcessor,
-        TrackerGameContext as CommonContext,
+    from worlds.tracker.TrackerClient import (
         UT_VERSION,
+    )
+    from worlds.tracker.TrackerClient import (
+        TrackerCommandProcessor as ClientCommandProcessor,
+    )
+    from worlds.tracker.TrackerClient import (
+        TrackerGameContext as CommonContext,
     )
 
     tracker_loaded = True
 except ImportError:
-    from CommonClient import ClientCommandProcessor, CommonContext  # type: ignore
+    from CommonClient import ClientCommandProcessor, CommonContext
 
 if TYPE_CHECKING:
     pass
@@ -52,7 +55,7 @@ _GOAL_INDEX_THRESHOLD = len(LOCATION_TABLE)
 
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
 
-_STATUS_MESSAGES: Dict[ConnectionState, str] = {
+_STATUS_MESSAGES: dict[ConnectionState, str] = {
     ConnectionState.DISCONNECTED: "Not connected to Dolphin, attempting to reconnect...",
     ConnectionState.WRONG_GAME: "Connected to Dolphin, but it isn't running Metroid Prime 2: Echoes",
     ConnectionState.WRONG_SEED: "Connected to Metroid Prime 2: Echoes, but it's running a different seed/uuid",
@@ -62,9 +65,9 @@ _STATUS_MESSAGES: Dict[ConnectionState, str] = {
 
 
 class MetroidPrime2CommandProcessor(ClientCommandProcessor):
-    ctx: "MetroidPrime2Context"
+    ctx: MetroidPrime2Context
 
-    def _cmd_export_iso(self, *_args: List[Any]) -> None:
+    def _cmd_export_iso(self, *_args: list[Any]) -> None:
         """Force-regenerate the patched ISO from the .apmp2 file, deleting
         any existing one first."""
         if not self.ctx.apmp2_file:
@@ -83,15 +86,15 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
 
         Utils.async_start(patch_and_run_game(self.ctx.apmp2_file, self.ctx.mp2_iso))
 
-    def _cmd_status(self, *_args: List[Any]) -> None:
+    def _cmd_status(self, *_args: list[Any]) -> None:
         """Display the current Dolphin connection status."""
         logger.info(f"Connection status: {_STATUS_MESSAGES[self.ctx.connection_state]}")
 
-    def _cmd_test_hud(self, *args: List[Any]) -> None:
+    def _cmd_test_hud(self, *args: list[Any]) -> None:
         """Queue a HUD message to display in-game."""
         self.ctx.notification_manager.queue_notification(" ".join(map(str, args)))
 
-    def _cmd_mp2_debug_inventory(self, *_args: List[Any]) -> None:
+    def _cmd_mp2_debug_inventory(self, *_args: list[Any]) -> None:
         """Print the raw inventory (amount/capacity per item id) read from
         game memory, skipping empty slots."""
         inventory = self.ctx.game_interface.read_inventory()
@@ -120,24 +123,24 @@ class MetroidPrime2Context(CommonContext):
     notification_manager: NotificationManager
     game = constants.GAME_NAME
     items_handling = 0b111
-    dolphin_sync_task: Optional["asyncio.Task[Any]"] = None
+    dolphin_sync_task: asyncio.Task[Any] | None = None
     connection_state: ConnectionState = ConnectionState.DISCONNECTED
-    slot_data: Dict[str, Any] = {}
-    expected_uuid: Optional[str] = None
+    slot_data: dict[str, Any] = {}  # noqa: RUF012 -- matches CommonContext.slot_data's own unannotated convention
+    expected_uuid: str | None = None
     magic_capacity_ensured: bool = False
-    last_sent_mlvl: Optional[int] = None
-    last_error_message: Optional[str] = None
-    apmp2_file: Optional[str] = None
-    mp2_iso: Optional[str] = None
+    last_sent_mlvl: int | None = None
+    last_error_message: str | None = None
+    apmp2_file: str | None = None
+    mp2_iso: str | None = None
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
 
     def __init__(
         self,
-        server_address: Optional[str],
-        password: Optional[str],
-        apmp2_file: Optional[str] = None,
-        mp2_iso: Optional[str] = None,
+        server_address: str | None,
+        password: str | None,
+        apmp2_file: str | None = None,
+        mp2_iso: str | None = None,
     ) -> None:
         super().__init__(server_address, password)
 
@@ -148,12 +151,12 @@ class MetroidPrime2Context(CommonContext):
 
     async def server_auth(self, password_requested: bool = False) -> None:
         if password_requested and not self.password:
-            await super(MetroidPrime2Context, self).server_auth(password_requested)
+            await super().server_auth(password_requested)
         await self.get_username()
-        self.tags = set()
+        self.tags: set[str] = set()
         await self.send_connect()
 
-    def on_deathlink(self, data: Dict[str, Any]) -> None:
+    def on_deathlink(self, data: dict[str, Any]) -> None:
         super().on_deathlink(data)
         self.game_interface.set_current_health(-1.0)
         # Mark this death as already reported so the next _handle_check_deathlink
@@ -165,7 +168,7 @@ class MetroidPrime2Context(CommonContext):
         # same bug in its on_deathlink; do not "restore parity" with it here.)
         self.is_pending_death_link_reset = True
 
-    def on_package(self, cmd: str, args: Dict[str, Any]) -> None:
+    def on_package(self, cmd: str, args: dict[str, Any]) -> None:
         super().on_package(cmd, args)
 
         if cmd == "Connected":
@@ -178,7 +181,7 @@ class MetroidPrime2Context(CommonContext):
                 self.death_link_enabled = bool(self.slot_data["death_link"])
                 Utils.async_start(self.update_death_link(self.death_link_enabled))
 
-    def make_gui(self):  # noqa: ANN201 -- return type is a dynamically created kvui class.
+    def make_gui(self):
         from kvui import GameManager
 
         base_class: type = GameManager
@@ -189,7 +192,7 @@ class MetroidPrime2Context(CommonContext):
             ut_title = f" | Universal Tracker {UT_VERSION}"
 
         class MetroidPrime2Manager(base_class):
-            logging_pairs = [("Client", "Archipelago")]
+            logging_pairs = [("Client", "Archipelago")]  # noqa: RUF012 -- matches kvui GameManager's own convention
             base_title = f"Metroid Prime 2: Echoes Client {get_apworld_version()}{ut_title} | {apname}"
 
         return MetroidPrime2Manager
@@ -310,7 +313,7 @@ async def _handle_magic_item_amount(ctx: MetroidPrime2Context, amount: int) -> N
     ctx.game_interface.consume_magic_item(amount)
 
 
-async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: Dict[int, tuple]) -> None:
+async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tuple]) -> None:
     if not ctx.items_received:
         return
 
@@ -356,7 +359,7 @@ async def _send_mlvl_datastorage(ctx: MetroidPrime2Context) -> None:
     )
 
 
-def get_options_from_apmp2(apmp2_file: str) -> Dict[str, Any]:
+def get_options_from_apmp2(apmp2_file: str) -> dict[str, Any]:
     with zipfile.ZipFile(apmp2_file) as zf:
         with zf.open("options.json") as f:
             return json.loads(f.read().decode("utf-8"))
@@ -376,7 +379,7 @@ async def run_game(romfile: str, mp2_settings: Any) -> None:
         )
 
 
-async def patch_and_run_game(apmp2_file: str, mp2_iso: Optional[str] = None) -> None:
+async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> None:
     from ..settings import cosmetics_dict
     from .patcher_runner import patch_iso_with_ap
 
@@ -414,7 +417,7 @@ def main(*args: str) -> None:
     Utils.init_logging("MetroidPrime2Client")
 
     async def _main(
-        connect: Optional[str], password: Optional[str], apmp2_file: Optional[str], iso: Optional[str]
+        connect: str | None, password: str | None, apmp2_file: str | None, iso: str | None
     ) -> None:
         setup_libs()
 

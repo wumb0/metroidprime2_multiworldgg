@@ -144,6 +144,7 @@ class TestVanillaPlacement(MP2TestBase):
         db = load_game_database()
         for node in db.pickup_nodes():
             item_name = _vanilla_item_name(node)
+            assert node.pickup_index is not None, f"{node.ap_name}: pickup node has no pickup_index"
             location_name = LOCATION_TABLE[node.pickup_index].name
             location = self.multiworld.get_location(location_name, self.player)
             location.place_locked_item(self.world.create_item(item_name))
@@ -157,7 +158,7 @@ class TestVanillaPlacement(MP2TestBase):
         # checked after each sphere.
         for _ in state.sweep_for_advancements(yield_each_sweep=True):
             pass
-        pickup_locations = [loc for loc in LOCATION_TABLE]
+        pickup_locations = list(LOCATION_TABLE)
         for loc in pickup_locations:
             with self.subTest(location=loc.name):
                 self.assertIn(

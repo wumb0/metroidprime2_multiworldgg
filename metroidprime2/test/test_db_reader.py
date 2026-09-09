@@ -10,10 +10,12 @@ from __future__ import annotations
 import unittest
 
 from ..constants import LANDING_SITE_MREA, REGION_MLVL_IDS
-from ..logic.db_reader import _iter_template_names, load_game_database
+from ..logic.db_reader import GameDatabase, _iter_template_names, load_game_database
 
 
 class TestDbReader(unittest.TestCase):
+    db: GameDatabase
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.db = load_game_database()
@@ -61,7 +63,7 @@ class TestDbReader(unittest.TestCase):
     def test_mlvl_ids(self) -> None:
         mlvl_ids = {self.db.mlvl_for_region(name) for name in self.db.regions}
         self.assertEqual(5, len(mlvl_ids))
-        self.assertEqual(REGION_MLVL_IDS, {mlvl for mlvl in mlvl_ids})
+        self.assertEqual(REGION_MLVL_IDS, set(mlvl_ids))
 
         # dark regions resolve to their light counterpart's MLVL
         dark_to_light = {

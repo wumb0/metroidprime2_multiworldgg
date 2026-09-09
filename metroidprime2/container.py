@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import os
 import zipfile
-from typing import Optional
 
 from worlds.Files import APPlayerContainer
 
@@ -29,7 +28,7 @@ class MetroidPrime2Container(APPlayerContainer):
         options_json: str,
         outfile_name: str,
         output_directory: str,
-        player: Optional[int] = None,
+        player: int | None = None,
         player_name: str = "",
         server: str = "",
     ) -> None:

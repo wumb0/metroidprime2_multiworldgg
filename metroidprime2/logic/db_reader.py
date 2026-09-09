@@ -31,7 +31,7 @@ class NodeId:
         return f"{self.region}/{self.area}/{self.node}"
 
     @classmethod
-    def from_dict(cls, region: str, data: dict) -> "NodeId":
+    def from_dict(cls, region: str, data: dict) -> NodeId:
         return cls(region=data.get("region", region), area=data["area"], node=data["node"])
 
 
@@ -372,7 +372,7 @@ def _validate(db: GameDatabase) -> None:
     db.pickup_nodes()
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def load_game_database() -> GameDatabase:
     header = load_json("logic_database/header.json")
     rd = header["resource_database"]

@@ -160,7 +160,7 @@ _FRONTEND_MLVL_NTSC = 0x69802220
 _FRONTEND_MLVL_PAL = 0x7B6EAA68
 
 KNOWN_MLVLS: dict[int, str] = {
-    **{mlvl: "world" for mlvl in constants.REGION_MLVL_IDS},
+    **dict.fromkeys(constants.REGION_MLVL_IDS, "world"),
     _FRONTEND_MLVL_NTSC: "menu",
     _FRONTEND_MLVL_PAL: "menu",
 }

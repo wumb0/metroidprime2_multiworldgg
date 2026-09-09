@@ -41,6 +41,7 @@ def _build_location_table() -> list[LocationData]:
         area = region.areas[node.id.area]
         mrea_id = area.asset_id
         assert mrea_id is not None, f"{node.ap_name}: area has no MREA asset_id"
+        assert node.pickup_index is not None, f"{node.ap_name}: pickup node has no pickup_index"
         table.append(
             LocationData(
                 name=f"{node.id.region}: {node.id.area} - {node.id.node}",

@@ -38,11 +38,11 @@ class _FakeWorld:
 class TestBuildTranslatorGateAssignment(unittest.TestCase):
     def test_vanilla_returns_empty(self) -> None:
         world = _FakeWorld(TranslatorGateRando.option_vanilla)
-        self.assertEqual({}, build_translator_gate_assignment(world))
+        self.assertEqual({}, build_translator_gate_assignment(world))  # type: ignore[arg-type]
 
     def test_full_random_assigns_every_gate_a_color_never_unlocked(self) -> None:
         world = _FakeWorld(TranslatorGateRando.option_full_random, seed=1)
-        assignment = build_translator_gate_assignment(world)
+        assignment = build_translator_gate_assignment(world)  # type: ignore[arg-type]
 
         db = load_game_database()
         gate_ids = {node.id for node in db.all_nodes() if node.node_type == "configurable_node"}
@@ -64,7 +64,7 @@ class TestBuildTranslatorGateAssignment(unittest.TestCase):
         saw_color = False
         for seed in range(20):
             world = _FakeWorld(TranslatorGateRando.option_full_random_unlocked, seed=seed)
-            assignment = build_translator_gate_assignment(world)
+            assignment = build_translator_gate_assignment(world)  # type: ignore[arg-type]
             self.assertEqual(17, len(assignment))
             for color in assignment.values():
                 self.assertTrue(color is None or color in TRANSLATOR_COLORS)

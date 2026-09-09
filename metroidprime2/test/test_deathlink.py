@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from typing import Any, Optional
+from typing import Any
 
 # client.client imports CommonClient, which (a) runs ModuleUpdate.update()
 # (a pip pass over every world's requirements.txt) at import time unless
@@ -33,14 +33,14 @@ from typing import Any, Optional
 # shelled out to pip and cloned from GitHub on every test run.)
 os.environ.setdefault("SKIP_REQUIREMENTS_UPDATE", "1")
 
-import worlds  # noqa: E402
+import worlds
 
 if "network_data_package" not in worlds.__dict__:
     worlds.network_data_package = {"games": {}}
     worlds.network_data_package_single_game = {}
 
-from ..client.client import MetroidPrime2Context  # noqa: E402
-from ..client.death_link import death_link_check  # noqa: E402
+from ..client.client import MetroidPrime2Context
+from ..client.death_link import death_link_check
 
 
 class TestDeathLinkCheck(unittest.TestCase):
@@ -68,7 +68,7 @@ class _FakeGameInterface:
     ``on_deathlink`` performs without touching Dolphin."""
 
     def __init__(self) -> None:
-        self.last_health_written: Optional[float] = None
+        self.last_health_written: float | None = None
 
     def set_current_health(self, new_health_amount: float) -> None:
         self.last_health_written = new_health_amount
@@ -81,7 +81,7 @@ def _bare_context() -> MetroidPrime2Context:
     ``super().on_deathlink()`` call actually touch are set by hand."""
     ctx = object.__new__(MetroidPrime2Context)
     ctx.last_death_link = 0.0
-    ctx.game_interface = _FakeGameInterface()
+    ctx.game_interface = _FakeGameInterface()  # type: ignore[assignment]
     ctx.is_pending_death_link_reset = False
     return ctx
 
@@ -99,13 +99,14 @@ class TestOnDeathlink(unittest.TestCase):
 
         ctx.on_deathlink(data)
 
-        self.assertEqual(-1.0, ctx.game_interface.last_health_written)
+        self.assertEqual(-1.0, ctx.game_interface.last_health_written)  # type: ignore[attr-defined]
         self.assertTrue(ctx.is_pending_death_link_reset)
 
         # The follow-up poll tick sees health <= 0 with the flag already
         # armed, so it must NOT decide to send a new DeathLink out.
         should_send, new_pending = death_link_check(
-            ctx.game_interface.last_health_written, ctx.is_pending_death_link_reset
+            ctx.game_interface.last_health_written,  # type: ignore[attr-defined]
+            ctx.is_pending_death_link_reset,
         )
         self.assertEqual((False, True), (should_send, new_pending))
 

@@ -19,10 +19,10 @@ import struct
 import uuid
 from enum import Enum
 from logging import Logger
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from . import versions
 from .. import constants
+from . import versions
 from .dolphin_client import DolphinClient, DolphinException
 
 if TYPE_CHECKING:
@@ -77,15 +77,15 @@ def encode_hud_message(message: str, max_message_size: int, last_encoded_size: i
 class EchoesInterface:
     logger: Logger
     dolphin_client: DolphinClient
-    version: Optional[versions.EchoesVersionInfo]
-    expected_uuid: Optional[str]
+    version: versions.EchoesVersionInfo | None
+    expected_uuid: str | None
 
     def __init__(self, logger: Logger):
         self.logger = logger
         self.dolphin_client = DolphinClient(logger)
         self.version = None
         self.expected_uuid = None
-        self._logged_wrong_game_id: Optional[bytes] = None
+        self._logged_wrong_game_id: bytes | None = None
         self._last_message_size = 0
 
     # ----------------------------------------------------------------
@@ -121,7 +121,7 @@ class EchoesInterface:
         self.dolphin_client.disconnect()
         self.version = None
 
-    def read_build_string(self) -> tuple[bool, Optional[uuid.UUID]]:
+    def read_build_string(self) -> tuple[bool, uuid.UUID | None]:
         """Returns (matches, embedded_uuid). ``matches`` is True if the
         header (bytes[:6]) and tail (bytes[22:]) of the build string at
         ``version.build_string_address`` match this version's known build
@@ -171,7 +171,7 @@ class EchoesInterface:
     # Raw state reads
     # ----------------------------------------------------------------
 
-    def _read_u32(self, address: int) -> Optional[int]:
+    def _read_u32(self, address: int) -> int | None:
         try:
             data = self.dolphin_client.read_address(address, 4)
         except DolphinException:
@@ -180,7 +180,7 @@ class EchoesInterface:
             return None
         return struct.unpack(">I", data)[0]
 
-    def current_mlvl(self) -> Optional[int]:
+    def current_mlvl(self) -> int | None:
         """u32 at *(game_state_pointer) + 4."""
         if self.version is None:
             return None
@@ -222,7 +222,7 @@ class EchoesInterface:
             self.version.cstate_manager_global + versions.PENDING_OP_OFFSET, b"\x01"
         )
 
-    def read_inventory(self) -> Optional[dict[int, tuple[int, int]]]:
+    def read_inventory(self) -> dict[int, tuple[int, int]] | None:
         """Single 109*12-byte read at *(cstate + PLAYER_STATE_OFFSET) +
         INVENTORY_OFFSET, unpacked into {item_id: (amount, capacity)}.
         Returns None if the CPlayerState pointer is currently null (e.g.
@@ -247,12 +247,12 @@ class EchoesInterface:
             inventory[item_id] = (amount, capacity)
         return inventory
 
-    def _player_state_pointer(self) -> Optional[int]:
+    def _player_state_pointer(self) -> int | None:
         if self.version is None:
             return None
         return self._read_u32(self.version.cstate_manager_global + versions.PLAYER_STATE_OFFSET) or None
 
-    def get_current_health(self) -> Optional[float]:
+    def get_current_health(self) -> float | None:
         """Current HP (``CPlayerState::CalculateHealth``'s backing field,
         ``versions.HEALTH_OFFSET``). None if the CPlayerState pointer is
         currently null (e.g. during an elevator transition) or Dolphin
@@ -292,7 +292,7 @@ class EchoesInterface:
     # OPR dataclass construction (lazy import)
     # ----------------------------------------------------------------
 
-    def _string_display_addresses(self) -> "StringDisplayPatchAddresses":
+    def _string_display_addresses(self) -> StringDisplayPatchAddresses:
         from open_prime_rando.dol_patching.all_prime_dol_patches import StringDisplayPatchAddresses
 
         assert self.version is not None
@@ -305,7 +305,7 @@ class EchoesInterface:
             max_message_size=sd.max_message_size,
         )
 
-    def _powerup_functions_addresses(self) -> "PowerupFunctionsAddresses":
+    def _powerup_functions_addresses(self) -> PowerupFunctionsAddresses:
         from open_prime_rando.dol_patching.all_prime_dol_patches import PowerupFunctionsAddresses
 
         assert self.version is not None
@@ -321,7 +321,7 @@ class EchoesInterface:
     # ----------------------------------------------------------------
 
     def _try_body(
-        self, instructions: list["BaseInstruction"], message: Optional[str]
+        self, instructions: list[BaseInstruction], message: str | None
     ) -> tuple[int, bytes]:
         """Builds the remote-execution body for ``instructions`` (plus a
         ``call_display_hud_patch`` tail if ``message`` is not None).
@@ -336,7 +336,7 @@ class EchoesInterface:
             final_instructions.extend(all_prime_dol_patches.call_display_hud_patch(string_display))
         return all_prime_dol_patches.create_remote_execution_body(Game.ECHOES, string_display, final_instructions)
 
-    def execute(self, instructions: list["BaseInstruction"], message: Optional[str] = None) -> None:
+    def execute(self, instructions: list[BaseInstruction], message: str | None = None) -> None:
         """Writes ``message`` (if any) to the message-receiver buffer,
         THEN writes the remote-execution body (``instructions`` plus a HUD
         display call when there's a message), THEN arms it by writing
@@ -355,7 +355,7 @@ class EchoesInterface:
         self.write_pending_op()
 
     def grant(
-        self, deltas: list[tuple[int, int]], message: Optional[str] = None
+        self, deltas: list[tuple[int, int]], message: str | None = None
     ) -> list[tuple[int, int]]:
         """Executes as many (item_id, delta) capacity/amount adjustments
         as fit in a single remote-execution body (batching via
@@ -367,7 +367,7 @@ class EchoesInterface:
 
         powerup_functions = self._powerup_functions_addresses()
 
-        batch_instructions: list["BaseInstruction"] = []
+        batch_instructions: list[BaseInstruction] = []
         batch_count = 0
         leftovers: list[tuple[int, int]] = []
         exhausted = False

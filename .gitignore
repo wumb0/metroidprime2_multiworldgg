@@ -6,3 +6,4 @@ dist/
 randovania
 open-prime-rando
 multiworld_config/
+.venv/

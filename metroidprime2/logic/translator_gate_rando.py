@@ -42,7 +42,7 @@ TRANSLATOR_COLORS: tuple[str, ...] = ("Violet", "Amber", "Emerald", "Cobalt")
 TranslatorGateAssignment = dict[NodeId, str | None]
 
 
-def build_translator_gate_assignment(world: "MetroidPrime2World") -> TranslatorGateAssignment:
+def build_translator_gate_assignment(world: MetroidPrime2World) -> TranslatorGateAssignment:
     """``{gate_node_id: color_or_None}`` for every one of the 17
     ``configurable_node`` translator gates, empty when ``translator_gate_rando``
     is left at "Vanilla" (its default) -- ``logic/regions.py``'s

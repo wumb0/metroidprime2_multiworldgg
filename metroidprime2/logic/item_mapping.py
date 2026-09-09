@@ -10,7 +10,8 @@ int`` (i.e. a ``CollectionState``, or the fake state used in
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .db_reader import GameDatabase
@@ -26,7 +27,7 @@ Expression = Callable[[object], object]
 EVENT_ITEM_PREFIX = "Event - "
 
 
-def event_item_name(db: "GameDatabase", short_name: str) -> str:
+def event_item_name(db: GameDatabase, short_name: str) -> str:
     """The AP event-item name placed at an event node for ``short_name``."""
     return EVENT_ITEM_PREFIX + db.events[short_name]
 

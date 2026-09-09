@@ -47,14 +47,14 @@ class TestBuildDoorLockAssignmentOff(unittest.TestCase):
     def test_off_returns_empty(self) -> None:
         db = load_game_database()
         world = _FakeWorld(door_lock_rando=False)
-        self.assertEqual({}, build_door_lock_assignment(world, db))
+        self.assertEqual({}, build_door_lock_assignment(world, db))  # type: ignore[arg-type]
 
 
 class TestBuildElevatorAndTeleporterAssignmentOff(unittest.TestCase):
     def test_both_off_returns_empty(self) -> None:
         db = load_game_database()
         world = _FakeWorld(elevator_rando=False, teleporter_rando=False)
-        elevator, teleporter = build_elevator_and_teleporter_assignment(world, db, {})
+        elevator, teleporter = build_elevator_and_teleporter_assignment(world, db, {})  # type: ignore[arg-type]
         self.assertEqual({}, elevator)
         self.assertEqual({}, teleporter)
 

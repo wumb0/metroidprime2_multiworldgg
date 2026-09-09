@@ -65,7 +65,7 @@ _ENERGY_TANK_ITEM_ID = 42
 _ENERGY_TANK_MAX_STARTING_CAPACITY = 14
 
 
-def starting_items_config(world: "MetroidPrime2World") -> list[dict[str, int]]:
+def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
     """``[{"item": id, "capacity": n}, ...]`` for every precollected item
     (``multiworld.precollected_items[player]``), summing ``gains_for``
     across however many copies of each item were precollected -- the k-th
@@ -166,7 +166,7 @@ def _sound_kind(model_name: str) -> str:
     return "standard"
 
 
-def _pickup_appearance(world: "MetroidPrime2World", location_name: str) -> dict[str, Any]:
+def _pickup_appearance(world: MetroidPrime2World, location_name: str) -> dict[str, Any]:
     """``model_data``/``hud_text``/``scan`` for whatever item (if any) is
     currently placed at ``location_name`` (PLAN.md section H).
 
@@ -243,7 +243,7 @@ def _location_data_for(node: Node) -> dict[str, Any]:
     return result
 
 
-def _pickup_modification(world: "MetroidPrime2World", node: Node) -> dict[str, Any]:
+def _pickup_modification(world: MetroidPrime2World, node: Node) -> dict[str, Any]:
     assert node.pickup_index is not None
     location_name = LOCATION_TABLE[node.pickup_index].name
     return {
@@ -270,6 +270,7 @@ def _door_lock_modification(db: GameDatabase, node: Node, new_weakness_name: str
     open-prime-rando's ``dock_lock_rando.dock_type_database.DOCK_TYPES``
     keys -- see PLAN.md Context."""
     assert node.dock_name is not None, f"{node.ap_name}: door node has no dock_name"
+    assert node.default_dock_weakness is not None, f"{node.ap_name}: door node has no default_dock_weakness"
     old_weakness = db.dock_weaknesses[("door", node.default_dock_weakness)]
     new_weakness = db.dock_weaknesses[("door", new_weakness_name)]
     return {
@@ -299,7 +300,7 @@ def _elevator_modification(db: GameDatabase, node: Node, target_id: NodeId) -> d
     }
 
 
-def _translator_gate_modification(world: "MetroidPrime2World", node: Node) -> dict[str, str]:
+def _translator_gate_modification(world: MetroidPrime2World, node: Node) -> dict[str, str]:
     """``{"translator": <color-or-"unlocked">}`` for one of the 17
     ``configurable_node`` translator gates: the node's vanilla required
     color, unless ``translator_gate_rando`` reassigned it (see
@@ -340,7 +341,7 @@ def _area_asset_ids(db: GameDatabase, node: Node) -> tuple[int, int]:
     return mlvl_id, area.asset_id
 
 
-def _world_changes(world: "MetroidPrime2World", db: GameDatabase) -> list[dict[str, Any]]:
+def _world_changes(world: MetroidPrime2World, db: GameDatabase) -> list[dict[str, Any]]:
     area_changes: dict[tuple[int, int], dict[str, Any]] = {}
 
     def area_change_for(mlvl_id: int, mrea_id: int) -> dict[str, Any]:
@@ -394,7 +395,7 @@ _GAME_TITLE_MAX_LENGTH = 64
 _SEED_NAME_PREFIX_LENGTH = 10
 
 
-def make_rando_configuration(world: "MetroidPrime2World") -> dict[str, Any]:
+def make_rando_configuration(world: MetroidPrime2World) -> dict[str, Any]:
     """The full open-prime-rando ``RandoConfiguration`` JSON for
     ``world``, minus the client-time cosmetic overrides (``hud_color``,
     ``suit_replacement`` -- applied by ``client/patcher_runner.py`` from

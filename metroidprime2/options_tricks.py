@@ -11,9 +11,9 @@ from Options import Choice
 
 class TrickAirUnderwater(Choice):
     """Air Underwater
-    
+
     Morphing on the same frame that the game's camera enters a pool of water causes certain portions of the game's movement logic to believe that Samus is still on dry land. This allows Screw Attack to be used underwater. This trick also encompasses Reverse Air Underwater, which allows Samus to trick the game's physics code into believing she is underwater by morphing on the same frame that the game's camera exits a pool of water. This can allow the use of the Gravity Boost even while above water. If this trick is enabled, players may be expected to abuse this bug to reach otherwise unavailable locations. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: advanced, expert, ludicrous.
     """
     display_name = "Trick: Air Underwater"
@@ -29,9 +29,9 @@ class TrickAirUnderwater(Choice):
 
 class TrickBSJ(Choice):
     """Bomb Space Jump
-    
+
     Bomb Jumping and unmorphing backwards to a wall or forwards from an overhang to get an instant unmorph, then jumping within 2/5 of a second after leaving the ground gives a height boost to reach higher ledges. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Bomb Space Jump"
@@ -47,9 +47,9 @@ class TrickBSJ(Choice):
 
 class TrickBombJump(Choice):
     """Bomb Jump
-    
+
     By chaining multiple bombs, Samus can reach otherwise unattainable heights. Enabling this trick may require players to perform these maneuevers in unintended locations. Higher difficulties of this trick can integrate horizontal movement, unmorphing in midair, and extremely precise bomb placement and timing. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Bomb Jump"
@@ -65,9 +65,9 @@ class TrickBombJump(Choice):
 
 class TrickBomblessSlot(Choice):
     """Bomb Slot without Bombs
-    
+
     By using the Darkburst, Sunburst, or Sonic Boom and morphing into a Bomb Slot at the right time, some Bomb Slots can be activated without the use of Bombs. Enabling this trick will allow logic to require this. Note that the Sunburst doesn't work on most Bomb Slots.
-    
+
     Used difficulty levels in logic: advanced, expert, ludicrous.
     """
     display_name = "Trick: Bomb Slot without Bombs"
@@ -83,9 +83,9 @@ class TrickBomblessSlot(Choice):
 
 class TrickBoostJump(Choice):
     """Boost Jump
-    
+
     The Boost Jump is a variant of the Roll Jump which can be performed using the Boost Ball, even in the absence of a ledge. By morphing and barely tapping left or right, the camera will desync from Samus. By boosting and jumping within the 2/5 of a second window, Samus can leap great distances. Enabling this trick may require the player to perform Boost Jumps in order to cross gaps. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: advanced, expert, ludicrous.
     """
     display_name = "Trick: Boost Jump"
@@ -101,9 +101,9 @@ class TrickBoostJump(Choice):
 
 class TrickCombat(Choice):
     """Combat
-    
+
     If this trick is enabled, the player may be expected to defeat enemies and bosses with fewer items and less health.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Combat"
@@ -119,9 +119,9 @@ class TrickCombat(Choice):
 
 class TrickDash(Choice):
     """Combat/Scan Dash
-    
+
     By locking onto an enemy or scan point and strafing left or right, then pressing R immediately after strafing, Samus' momentum can be maintainted. If this trick is enabled, the player may be expected to abuse this quirk to cross large gaps. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Combat/Scan Dash"
@@ -137,9 +137,9 @@ class TrickDash(Choice):
 
 class TrickEDash(Choice):
     """Extended Dash
-    
+
     A strafe dash that is interrupted by holding left or right mid-jump, then pressing R and jumping within a short frame window of touching the ground, gives a lot of speed. This is useful in crossing large gaps. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: advanced, expert, ludicrous.
     """
     display_name = "Trick: Extended Dash"
@@ -155,9 +155,9 @@ class TrickEDash(Choice):
 
 class TrickEnemyHop(Choice):
     """Jump Off Enemy
-    
+
     Samus can jump off of some enemies to gain additional height. If this trick is enabled, the player may be expected to do so in order to reach otherwise unattainable heights.
-    
+
     Used difficulty levels in logic: intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Jump Off Enemy"
@@ -173,9 +173,9 @@ class TrickEnemyHop(Choice):
 
 class TrickInstantMorph(Choice):
     """Instant Morph
-    
+
     Morphing near a wall or ceiling can cause Samus to skip the Morph animation, placing her in the Morph Ball instantly. Performing an Instant Morph can allow the player to enter Morph Ball tunnels from the wrong side and access unintended areas. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Instant Morph"
@@ -191,9 +191,9 @@ class TrickInstantMorph(Choice):
 
 class TrickInvisibleObjects(Choice):
     """Invisible Objects
-    
+
     Some objects, such as Dark Visor platforms or Quadraxis' antenna, can be interacted with even if the player lacks the visor required to see them. With this trick enabled, the player may be expected to perform some actions without the appropriate visor.
-    
+
     Used difficulty levels in logic: intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Invisible Objects"
@@ -209,9 +209,9 @@ class TrickInvisibleObjects(Choice):
 
 class TrickKnowledge(Choice):
     """Knowledge
-    
+
     Some destructible objects have vulnerabilities other than those which the player is informed of. For example, Super Missiles can be used to clear the rubble in Transport A Access, Light Crystals can be destroyed with Screw Attack, and the Power Bomb gates in Trooper Security Station can be destroyed with Screw Attack. Enabling this trick may require players to apply this knowledge in order to progress.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert.
     """
     display_name = "Trick: Knowledge"
@@ -227,9 +227,9 @@ class TrickKnowledge(Choice):
 
 class TrickMovement(Choice):
     """Movement
-    
+
     A broad category for non-obvious movement which can't easily be classified using other tricks. Players may be expected to perform precise jumps, long suitless runs through Ingclaw and Ingstorm, using Screw Attack for a slight height boost, and myriad other niche movement optimizations.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Movement"
@@ -245,9 +245,9 @@ class TrickMovement(Choice):
 
 class TrickNoSuits(Choice):
     """Suitless Dark Aether
-    
+
     If this trick is enabled, Samus may be expected to traverse through the Dark Aether without a suit or with low energy. This also includes tanking damage from Ingclaw or Ingstorm without Dark Suit or Light Suit, respectively. Energy Tanks may be placed as alternatives to suits in some cases.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced.
     """
     display_name = "Trick: Suitless Dark Aether"
@@ -263,9 +263,9 @@ class TrickNoSuits(Choice):
 
 class TrickOoB(Choice):
     """Single Room Out of Bounds
-    
+
     Samus can travel outside the room's boundaries to gain access to areas/rooms otherwise unreachable given the circumstances. Currently, enabling this trick will only affect single-room traversal. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Single Room Out of Bounds"
@@ -281,9 +281,9 @@ class TrickOoB(Choice):
 
 class TrickRollJump(Choice):
     """Roll Jump
-    
+
     Rolling off a ledge, getting an instant unmorph, and jumping within 2/5 of a second after unmorphing grants Samus additional speed and horizontal distance. Players may be required to cross gaps such as those in Watch Station Access with this technique if enabled. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Roll Jump"
@@ -299,9 +299,9 @@ class TrickRollJump(Choice):
 
 class TrickSAnoSJ(Choice):
     """Screw Attack at Z-Axis
-    
+
     Using Screw Attack without Space Jump does not work as intended if the Screw Attack is intiated in rooms where Samus's position along the Z-Axis isn't 0. This trick primarily applies to upper Sanctuary Fortress. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert.
     """
     display_name = "Trick: Screw Attack at Z-Axis"
@@ -317,9 +317,9 @@ class TrickSAnoSJ(Choice):
 
 class TrickScanPost(Choice):
     """Open Gates from Behind
-    
+
     Samus can open some one-way gates from the wrong side, either by Scanning a Scan Post from the wrong side or through the use of a beam combo. For example, the gates in Industrial Site and Hive Dynamo Access can be opened in this manner. Enabling this trick will allow logic to require this.
-    
+
     Used difficulty levels in logic: beginner, intermediate.
     """
     display_name = "Trick: Open Gates from Behind"
@@ -335,9 +335,9 @@ class TrickScanPost(Choice):
 
 class TrickScrewAttackTunnels(Choice):
     """Screw Attack into Tunnels/Openings
-    
+
     While performing a Screw Attack, Samus' hitbox becomes small enough to fit inside many tight spaces. The Screw Attack hitbox is about the same size as that for the Morph Ball, so enabling this trick may require the player to use Screw Attack to enter tunnels and other similarly-sized gaps. Be careful not to jump once inside the tunnel, as doing so may clip Samus out of bounds.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert.
     """
     display_name = "Trick: Screw Attack into Tunnels/Openings"
@@ -353,9 +353,9 @@ class TrickScrewAttackTunnels(Choice):
 
 class TrickSeekerlessLocks(Choice):
     """Seeker Locks without Seeker Missiles
-    
+
     Seeker Locks consist of 5 separate targets that must be destroyed in quick succession to unlock. However, some Seeker Locks can be destroyed without Seeker Missiles. Both standard Missiles and the Screw Attack can destroy the targets, and by combining both it is possible to open some Seeker Locks without obtaining Seeker Missiles. Enabling this trick may require some Seeker Locks to be destroyed before the player finds Seeker Missiles.
-    
+
     Used difficulty levels in logic: advanced, expert, ludicrous.
     """
     display_name = "Trick: Seeker Locks without Seeker Missiles"
@@ -371,9 +371,9 @@ class TrickSeekerlessLocks(Choice):
 
 class TrickSlopeJump(Choice):
     """Slope Jump
-    
+
     By jumping into sloped surfaces in a specific manner, Samus' jumps can gain extra height due to quirks in the game's physics engine. Enabling this trick may require the player to abuse this extra height to reach places which would otherwise be inaccessible. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Slope Jump"
@@ -389,9 +389,9 @@ class TrickSlopeJump(Choice):
 
 class TrickStandableTerrain(Choice):
     """Standable Terrain
-    
+
     Samus can maneuver in unexpected ways by standing on small ledges, vines, railings, and other unlikely objects. Enabling this trick may mean that players are expected to climb on the scenery to reach unintended places.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Standable Terrain"
@@ -407,9 +407,9 @@ class TrickStandableTerrain(Choice):
 
 class TrickTerminalFall(Choice):
     """Terminal Fall Abuse
-    
+
     When Samus falls off of certain cliffs, such as those in Watch Station Access or Grand Windchamber, the game will void her out and spawn her back on nearby ground. Some terminal fall triggers can be abused to warp to sections of the room which were not meant to be accessible. Enabling this trick may require players to void out in specific locations to reach new areas.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Terminal Fall Abuse"
@@ -425,9 +425,9 @@ class TrickTerminalFall(Choice):
 
 class TrickUnderwaterDash(Choice):
     """Underwater Dash
-    
+
     Pressing L and R at the same time while moving underwater locks Samus' speed, allowing her access to some areas early, such as the Hydrodynamo Station scan terminals. Check the wiki for more details.
-    
+
     Used difficulty levels in logic: intermediate, advanced.
     """
     display_name = "Trick: Underwater Dash"
@@ -443,9 +443,9 @@ class TrickUnderwaterDash(Choice):
 
 class TrickWallBoost(Choice):
     """Wall Boost
-    
+
     Boosting at the right time when making contact with a wall allows Samus to partially scale the terrain. Typically used in Morph Ball tunnels.
-    
+
     Used difficulty levels in logic: beginner, intermediate, advanced, expert, ludicrous.
     """
     display_name = "Trick: Wall Boost"
@@ -460,57 +460,57 @@ class TrickWallBoost(Choice):
 
 
 TRICK_OPTION_NAMES: dict[str, str] = {
-    'AirUnderwater': 'trick_airunderwater',
-    'BSJ': 'trick_bsj',
-    'BombJump': 'trick_bombjump',
-    'BomblessSlot': 'trick_bomblessslot',
-    'BoostJump': 'trick_boostjump',
-    'Combat': 'trick_combat',
-    'Dash': 'trick_dash',
-    'EDash': 'trick_edash',
-    'EnemyHop': 'trick_enemyhop',
-    'InstantMorph': 'trick_instantmorph',
-    'InvisibleObjects': 'trick_invisibleobjects',
-    'Knowledge': 'trick_knowledge',
-    'Movement': 'trick_movement',
-    'NoSuits': 'trick_nosuits',
-    'OoB': 'trick_oob',
-    'RollJump': 'trick_rolljump',
-    'SAnoSJ': 'trick_sanosj',
-    'ScanPost': 'trick_scanpost',
-    'ScrewAttackTunnels': 'trick_screwattacktunnels',
-    'SeekerlessLocks': 'trick_seekerlesslocks',
-    'SlopeJump': 'trick_slopejump',
-    'StandableTerrain': 'trick_standableterrain',
-    'TerminalFall': 'trick_terminalfall',
-    'UnderwaterDash': 'trick_underwaterdash',
-    'WallBoost': 'trick_wallboost',
+    "AirUnderwater": "trick_airunderwater",
+    "BSJ": "trick_bsj",
+    "BombJump": "trick_bombjump",
+    "BomblessSlot": "trick_bomblessslot",
+    "BoostJump": "trick_boostjump",
+    "Combat": "trick_combat",
+    "Dash": "trick_dash",
+    "EDash": "trick_edash",
+    "EnemyHop": "trick_enemyhop",
+    "InstantMorph": "trick_instantmorph",
+    "InvisibleObjects": "trick_invisibleobjects",
+    "Knowledge": "trick_knowledge",
+    "Movement": "trick_movement",
+    "NoSuits": "trick_nosuits",
+    "OoB": "trick_oob",
+    "RollJump": "trick_rolljump",
+    "SAnoSJ": "trick_sanosj",
+    "ScanPost": "trick_scanpost",
+    "ScrewAttackTunnels": "trick_screwattacktunnels",
+    "SeekerlessLocks": "trick_seekerlesslocks",
+    "SlopeJump": "trick_slopejump",
+    "StandableTerrain": "trick_standableterrain",
+    "TerminalFall": "trick_terminalfall",
+    "UnderwaterDash": "trick_underwaterdash",
+    "WallBoost": "trick_wallboost",
 }
 
 TRICK_OPTION_CLASSES: dict[str, type] = {
-    'AirUnderwater': TrickAirUnderwater,
-    'BSJ': TrickBSJ,
-    'BombJump': TrickBombJump,
-    'BomblessSlot': TrickBomblessSlot,
-    'BoostJump': TrickBoostJump,
-    'Combat': TrickCombat,
-    'Dash': TrickDash,
-    'EDash': TrickEDash,
-    'EnemyHop': TrickEnemyHop,
-    'InstantMorph': TrickInstantMorph,
-    'InvisibleObjects': TrickInvisibleObjects,
-    'Knowledge': TrickKnowledge,
-    'Movement': TrickMovement,
-    'NoSuits': TrickNoSuits,
-    'OoB': TrickOoB,
-    'RollJump': TrickRollJump,
-    'SAnoSJ': TrickSAnoSJ,
-    'ScanPost': TrickScanPost,
-    'ScrewAttackTunnels': TrickScrewAttackTunnels,
-    'SeekerlessLocks': TrickSeekerlessLocks,
-    'SlopeJump': TrickSlopeJump,
-    'StandableTerrain': TrickStandableTerrain,
-    'TerminalFall': TrickTerminalFall,
-    'UnderwaterDash': TrickUnderwaterDash,
-    'WallBoost': TrickWallBoost,
+    "AirUnderwater": TrickAirUnderwater,
+    "BSJ": TrickBSJ,
+    "BombJump": TrickBombJump,
+    "BomblessSlot": TrickBomblessSlot,
+    "BoostJump": TrickBoostJump,
+    "Combat": TrickCombat,
+    "Dash": TrickDash,
+    "EDash": TrickEDash,
+    "EnemyHop": TrickEnemyHop,
+    "InstantMorph": TrickInstantMorph,
+    "InvisibleObjects": TrickInvisibleObjects,
+    "Knowledge": TrickKnowledge,
+    "Movement": TrickMovement,
+    "NoSuits": TrickNoSuits,
+    "OoB": TrickOoB,
+    "RollJump": TrickRollJump,
+    "SAnoSJ": TrickSAnoSJ,
+    "ScanPost": TrickScanPost,
+    "ScrewAttackTunnels": TrickScrewAttackTunnels,
+    "SeekerlessLocks": TrickSeekerlessLocks,
+    "SlopeJump": TrickSlopeJump,
+    "StandableTerrain": TrickStandableTerrain,
+    "TerminalFall": TrickTerminalFall,
+    "UnderwaterDash": TrickUnderwaterDash,
+    "WallBoost": TrickWallBoost,
 }

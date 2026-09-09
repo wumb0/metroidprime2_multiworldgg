@@ -6,11 +6,11 @@ it is copied verbatim (only the module docstring differs).
 from __future__ import annotations
 
 import time
-from typing import Callable, List
+from collections.abc import Callable
 
 
 class NotificationManager:
-    notification_queue: List[str] = []
+    notification_queue: list[str]
     time_since_last_message: float = 0
     last_message_time: float = 0
     message_duration: float

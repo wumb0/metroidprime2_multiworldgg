@@ -40,11 +40,11 @@ import ModuleUpdate
 
 ModuleUpdate.update_ran = True
 
-from BaseClasses import CollectionState, MultiWorld
-from Fill import distribute_items_restrictive
-from Generate import get_seed_name
-from worlds import AutoWorld
-from worlds.AutoWorld import call_all
+from BaseClasses import CollectionState, MultiWorld  # noqa: E402 -- must follow ModuleUpdate.update_ran = True above
+from Fill import distribute_items_restrictive  # noqa: E402
+from Generate import get_seed_name  # noqa: E402
+from worlds import AutoWorld  # noqa: E402
+from worlds.AutoWorld import call_all  # noqa: E402
 
 try:
     from test.general import gen_steps
@@ -95,7 +95,7 @@ class _FillMatrixCase(unittest.TestCase):
                     multiworld.can_beat_game(),
                     f"seed {seed}, options {self.options}: not beatable after fill",
                 )
-                unplaced = [item for item in multiworld.itempool]
+                unplaced = list(multiworld.itempool)
                 placed = [loc.item for loc in multiworld.get_locations() if loc.item and loc.item.code]
                 self.assertLessEqual(
                     len(multiworld.itempool),

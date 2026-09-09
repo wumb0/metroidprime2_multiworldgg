@@ -25,8 +25,8 @@ from .logic import regions as logic_regions
 from .logic.dock_rando import DockRandoAssignment, build_dock_rando_assignment
 from .logic.translator_gate_rando import TranslatorGateAssignment, build_translator_gate_assignment
 from .options import (
-    MetroidPrime2Options,
     OPTION_GROUPS,
+    MetroidPrime2Options,
     trick_levels_from_options,
 )
 from .patch_data import make_rando_configuration
@@ -86,7 +86,7 @@ def _slot_data_option_names() -> tuple[str, ...]:
 
 
 class MetroidPrime2Web(WebWorld):
-    tutorials = [
+    tutorials = [  # noqa: RUF012 -- matches WebWorld.tutorials' own unannotated convention across every world
         Tutorial(
             "Multiworld Setup Guide",
             "A guide to setting up Metroid Prime 2: Echoes for MultiworldGG",
@@ -108,7 +108,7 @@ class MetroidPrime2World(World):
     game = GAME_NAME
     web = MetroidPrime2Web()
     options_dataclass = MetroidPrime2Options
-    options: MetroidPrime2Options  # type: ignore[assignment]
+    options: MetroidPrime2Options
     settings: ClassVar[MetroidPrime2Settings]
 
     item_name_to_id = item_name_to_id

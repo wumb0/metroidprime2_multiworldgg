@@ -53,7 +53,7 @@ class FakeDolphinClient:
 def _make_interface() -> tuple[EchoesInterface, FakeDolphinClient]:
     interface = EchoesInterface(_NULL_LOGGER)
     fake = FakeDolphinClient()
-    interface.dolphin_client = fake
+    interface.dolphin_client = fake  # type: ignore[assignment]
     return interface, fake
 
 
@@ -293,7 +293,7 @@ class TestGrantBatching(unittest.TestCase):
 
         deltas = [(item_id, 5) for item_id in range(20)]
         remaining = list(deltas)
-        executed_batches: list[list[tuple[int, int]]] = []
+        executed_batches: list[list[int]] = []
         granted_ids: list[int] = []
 
         for _ in range(len(deltas) + 1):

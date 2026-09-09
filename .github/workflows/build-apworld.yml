@@ -1,0 +1,75 @@
+name: Build .apworld
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "metroidprime2/**"
+      - ".github/workflows/build-apworld.yml"
+  pull_request:
+    paths:
+      - "metroidprime2/**"
+      - ".github/workflows/build-apworld.yml"
+  workflow_dispatch: {}
+
+env:
+  # MultiWorldGG commit this world is developed/tested against (see
+  # PLAN.md). Bump deliberately -- re-run the M0-M4 test suite against the
+  # new commit before updating this.
+  MULTIWORLDGG_REF: b0f2e2dd82bab72e3632c2bc61c00e740fb3ed0b
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout metroidprime2 world
+        uses: actions/checkout@v4
+        with:
+          path: prime2mwgg
+
+      - name: Checkout MultiWorldGG
+        uses: actions/checkout@v4
+        with:
+          repository: MultiWorldGG/MultiWorldGG
+          ref: ${{ env.MULTIWORLDGG_REF }}
+          path: MultiWorldGG
+
+      - name: Link world into MultiWorldGG's worlds/ folder
+        run: ln -s "$GITHUB_WORKSPACE/prime2mwgg/metroidprime2" "$GITHUB_WORKSPACE/MultiWorldGG/worlds/metroidprime2"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install MultiWorldGG's dependencies
+        working-directory: MultiWorldGG
+        run: |
+          uv venv --python 3.12 .venv
+          # Kivy/KivyMD are the desktop GUI stack -- not imported anywhere
+          # on the "Build APWorlds" code path, and slow/flaky to install
+          # (KivyMD pulls from a git dependency), so skip them in CI.
+          grep -vi '^kivy' requirements.txt > /tmp/requirements-nogui.txt
+          uv pip install --python .venv -r /tmp/requirements-nogui.txt
+
+      - name: Build metroidprime2.apworld
+        working-directory: MultiWorldGG
+        env:
+          # Without this, MultiWorldGG's ModuleUpdate machinery tries to
+          # pip-install every other world's requirements.txt on import,
+          # which is slow and unrelated to this build (see PLAN.md).
+          SKIP_REQUIREMENTS_UPDATE: "1"
+        # Uses MultiWorldGG's own "Build APWorlds" launcher component
+        # (worlds/LauncherComponents.py) instead of reimplementing its
+        # packaging/manifest logic here.
+        run: |
+          .venv/bin/python Launcher.py "Build APWorlds" -- "Metroid Prime 2: Echoes" --skip_open_folder
+
+      - name: Read version
+        id: version
+        run: echo "version=$(cat prime2mwgg/metroidprime2/version.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload .apworld artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: metroidprime2-${{ steps.version.outputs.version }}.apworld
+          path: MultiWorldGG/build/apworlds/metroidprime2.apworld
+          if-no-files-found: error

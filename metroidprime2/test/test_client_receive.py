@@ -180,7 +180,7 @@ class TestPlanGrants(unittest.TestCase):
 
     def test_deltas_sorted_by_item_id(self) -> None:
         desired = {97: 1, 12: 1, 44: 5}
-        current = {}
+        current: dict[int, tuple[int, int]] = {}
         grants = plan_grants(desired, current)
         self.assertEqual([12, 44, 97], [item_id for item_id, _delta in grants])
 

@@ -35,7 +35,7 @@ _GRAPPLE_TRIO = ("Grapple Beam", "Screw Attack", "Progressive Grapple")
 _GUARDIAN_PICKUP_INDICES: tuple[int, ...] = (43, 79, 115)
 
 
-def _pool_count_for(item_name: str, world: "MetroidPrime2World") -> int:
+def _pool_count_for(item_name: str, world: MetroidPrime2World) -> int:
     """Number of copies of ``item_name`` that enter the general pool,
     given the world's progressive_suit/progressive_grapple options.
     Sky Temple Keys are handled separately by ``_apply_sky_temple_keys``.
@@ -65,7 +65,7 @@ def _guardian_location_names() -> list[str]:
     return [LOCATION_TABLE[index].name for index in _GUARDIAN_PICKUP_INDICES]
 
 
-def _apply_sky_temple_keys(world: "MetroidPrime2World", pool: list[Item]) -> None:
+def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
     """Implements the sky_temple_keys option modes (PLAN.md section F):
 
     - numeric N: keys 1..N go into the general pool, keys N+1..9 are
@@ -84,7 +84,7 @@ def _apply_sky_temple_keys(world: "MetroidPrime2World", pool: list[Item]) -> Non
     if mode == SkyTempleKeys.option_all_bosses:
         boss_locations = _boss_locations_in_pickup_order()
         assert len(boss_locations) == 9, f"expected 9 boss locations, got {len(boss_locations)}"
-        for key_name, location_name in zip(STK_ITEM_NAMES, boss_locations):
+        for key_name, location_name in zip(STK_ITEM_NAMES, boss_locations, strict=False):
             location = world.get_location(location_name)
             location.place_locked_item(world.create_item(key_name))
             world.sky_temple_key_locations.append(location_name)
@@ -93,7 +93,7 @@ def _apply_sky_temple_keys(world: "MetroidPrime2World", pool: list[Item]) -> Non
     if mode == SkyTempleKeys.option_all_guardians:
         guardian_locations = _guardian_location_names()
         assert len(guardian_locations) == 3, f"expected 3 guardian locations, got {len(guardian_locations)}"
-        for key_name, location_name in zip(STK_ITEM_NAMES[:3], guardian_locations):
+        for key_name, location_name in zip(STK_ITEM_NAMES[:3], guardian_locations, strict=False):
             location = world.get_location(location_name)
             location.place_locked_item(world.create_item(key_name))
             world.sky_temple_key_locations.append(location_name)
@@ -103,13 +103,12 @@ def _apply_sky_temple_keys(world: "MetroidPrime2World", pool: list[Item]) -> Non
 
     # Numeric mode: 0..9 keys in the pool, the rest precollected.
     n = int(mode)
-    for key_name in STK_ITEM_NAMES[:n]:
-        pool.append(world.create_item(key_name))
+    pool.extend(world.create_item(key_name) for key_name in STK_ITEM_NAMES[:n])
     for key_name in STK_ITEM_NAMES[n:]:
         multiworld.push_precollected(world.create_item(key_name))
 
 
-def create_item_pool(world: "MetroidPrime2World") -> list[Item]:
+def create_item_pool(world: MetroidPrime2World) -> list[Item]:
     multiworld = world.multiworld
     player = world.player
 
@@ -125,8 +124,7 @@ def create_item_pool(world: "MetroidPrime2World") -> list[Item]:
         if item_name in STK_ITEM_NAMES:
             continue  # handled by _apply_sky_temple_keys
         count = _pool_count_for(item_name, world)
-        for _ in range(count):
-            pool.append(world.create_item(item_name))
+        pool.extend(world.create_item(item_name) for _ in range(count))
 
     # (b) Sky Temple Key modes -- may lock items directly onto locations
     # or push precollected items, in addition to (or instead of) adding
@@ -150,7 +148,7 @@ def create_item_pool(world: "MetroidPrime2World") -> list[Item]:
     return pool
 
 
-def starting_inventory_names(world: "MetroidPrime2World") -> list[str]:
+def starting_inventory_names(world: MetroidPrime2World) -> list[str]:
     """Names of every item this player starts with (pushed via
     push_precollected), in insertion order. Convenience for patch_data.py
     (M2) -- not required for M1."""

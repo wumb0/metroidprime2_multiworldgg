@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from settings import Bool, Group, UserFilePath
 
@@ -14,7 +14,7 @@ from settings import Bool, Group, UserFilePath
 # enum in spirit but kept self-contained (this world has no dependency on
 # worlds.metroidprime). "default" leaves OPR's own HudColorConfiguration
 # default untouched (cosmetics_dict omits hud_color entirely for it).
-_NAMED_HUD_COLORS: Dict[str, tuple[int, int, int]] = {
+_NAMED_HUD_COLORS: dict[str, tuple[int, int, int]] = {
     "red": (255, 0, 0),
     "green": (0, 255, 0),
     "blue": (0, 0, 255),
@@ -53,8 +53,10 @@ class EmulatorSettings(Group):
         """Should the Emulator be started automatically?"""
 
     executable_path: EmulatorExecutable = EmulatorExecutable(EmulatorExecutable.copy_to)
-    arguments: EmulatorArguments = []
-    auto_start: EmulatorAutoStart = True
+    arguments: EmulatorArguments = EmulatorArguments([])
+    # `Bool` can't hold a value (see MultiWorldGG/settings.py: "can't subclass
+    # bool, so we use this and Union or type: ignore") -- this is that ignore.
+    auto_start: EmulatorAutoStart = True  # type: ignore[assignment]
 
     def __init__(self) -> None:
         should_save = any(attr not in self for attr in self)
@@ -74,7 +76,7 @@ class HUDSettings(Group):
     class HudColorChannel(int):
         """Value must be between 0 and 255."""
 
-    color: HudColorName = "default"
+    color: HudColorName = HudColorName("default")
     color_red: HudColorChannel = HudColorChannel(0)
     color_green: HudColorChannel = HudColorChannel(0)
     color_blue: HudColorChannel = HudColorChannel(0)
@@ -93,9 +95,9 @@ class SuitSettings(Group):
     class SuitSkin(str):
         """"player1" (vanilla), "player2", "player3", or "player4"."""
 
-    varia_skin: SuitSkin = "player1"
-    dark_skin: SuitSkin = "player1"
-    light_skin: SuitSkin = "player1"
+    varia_skin: SuitSkin = SuitSkin("player1")
+    dark_skin: SuitSkin = SuitSkin("player1")
+    light_skin: SuitSkin = SuitSkin("player1")
 
     def __init__(self) -> None:
         should_save = any(attr not in self for attr in self)
@@ -115,7 +117,7 @@ class MetroidPrime2Settings(Group):
             self.update({attr: self[attr] for attr in self.__dict__.keys()})
 
 
-def _hud_color_rgb(mp2_settings: "MetroidPrime2Settings") -> Optional[tuple[int, int, int]]:
+def _hud_color_rgb(mp2_settings: MetroidPrime2Settings) -> tuple[int, int, int] | None:
     name = str(mp2_settings["hud_settings"]["color"]).lower()
     if name == "default":
         return None
@@ -133,7 +135,7 @@ def _hud_color_rgb(mp2_settings: "MetroidPrime2Settings") -> Optional[tuple[int,
     return _NAMED_HUD_COLORS[name]
 
 
-def cosmetics_dict(mp2_settings: "MetroidPrime2Settings") -> Dict[str, Any]:
+def cosmetics_dict(mp2_settings: MetroidPrime2Settings) -> dict[str, Any]:
     """Builds the ``settings`` dict ``client.patcher_runner.
     patch_iso_with_ap`` expects (see its ``_load_configuration``
     docstring): ``hud_color`` as an RGB 0-255 3-tuple (omitted entirely for
@@ -145,7 +147,7 @@ def cosmetics_dict(mp2_settings: "MetroidPrime2Settings") -> Dict[str, Any]:
     dict), so no changes to ``patcher_runner.py`` were needed for this
     deliverable.
     """
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
 
     hud_rgb = _hud_color_rgb(mp2_settings)
     if hud_rgb is not None:
