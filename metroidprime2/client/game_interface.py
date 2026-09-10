@@ -79,12 +79,16 @@ class EchoesInterface:
     dolphin_client: DolphinClient
     version: versions.EchoesVersionInfo | None
     expected_uuid: str | None
+    last_connect_error: str | None
+    """Human-readable reason the most recent ``connect_to_game()`` call
+    didn't end up with a matched ``version`` -- None once it succeeds."""
 
     def __init__(self, logger: Logger):
         self.logger = logger
         self.dolphin_client = DolphinClient(logger)
         self.version = None
         self.expected_uuid = None
+        self.last_connect_error: str | None = None
         self._logged_wrong_game_id: bytes | None = None
         self._last_message_size = 0
 
@@ -99,27 +103,34 @@ class EchoesInterface:
             if not self.dolphin_client.is_connected():
                 self.dolphin_client.connect()
             game_id = self.dolphin_client.read_address(_GC_GAME_ID_ADDRESS, 6)
-        except DolphinException:
+        except DolphinException as e:
             self.version = None
+            self.last_connect_error = str(e)
             return
 
         matched = next((v for v in versions.VERSIONS if v.game_id == game_id), None)
         if matched is None:
             self.version = None
-            if game_id != b"\x00\x00\x00\x00\x00\x00" and game_id != self._logged_wrong_game_id:
-                self.logger.info(
+            if game_id == b"\x00\x00\x00\x00\x00\x00":
+                self.last_connect_error = "Hooked into Dolphin, but no game is loaded yet."
+            else:
+                self.last_connect_error = (
                     f"Connected to the wrong game ({game_id!r}); please load an NTSC-U or "
                     "PAL Metroid Prime 2: Echoes ISO."
                 )
+            if game_id != b"\x00\x00\x00\x00\x00\x00" and game_id != self._logged_wrong_game_id:
+                self.logger.info(self.last_connect_error)
                 self._logged_wrong_game_id = game_id
             return
 
         self._logged_wrong_game_id = None
+        self.last_connect_error = None
         self.version = matched
 
     def disconnect_from_game(self) -> None:
         self.dolphin_client.disconnect()
         self.version = None
+        self._logged_wrong_game_id = None
 
     def read_build_string(self) -> tuple[bool, uuid.UUID | None]:
         """Returns (matches, embedded_uuid). ``matches`` is True if the

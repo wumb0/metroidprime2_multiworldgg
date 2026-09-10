@@ -90,6 +90,25 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         """Display the current Dolphin connection status."""
         logger.info(f"Connection status: {_STATUS_MESSAGES[self.ctx.connection_state]}")
 
+    def _cmd_reconnect(self, *_args: list[Any]) -> None:
+        """Force-disconnect from Dolphin and immediately try to reconnect.
+
+        Useful if Dolphin's memory hook goes stale (e.g. emulation was
+        stopped/restarted without closing Dolphin itself), which can leave
+        the client reading garbage memory and reporting the wrong game."""
+        logger.info("Disconnecting from Dolphin...")
+        self.ctx.game_interface.disconnect_from_game()
+        self.ctx.connection_state = ConnectionState.DISCONNECTED
+        logger.info("Reconnecting to Dolphin...")
+        self.ctx.game_interface.connect_to_game()
+        state = self.ctx.game_interface.get_connection_state()
+        update_connection_status(self.ctx, state)
+        if state == ConnectionState.DISCONNECTED:
+            reason = self.ctx.game_interface.last_connect_error or "unknown reason"
+            logger.error(f"Reconnect failed: {reason}")
+        else:
+            logger.info(f"Reconnect succeeded: {_STATUS_MESSAGES[state]}")
+
     def _cmd_test_hud(self, *args: list[Any]) -> None:
         """Queue a HUD message to display in-game."""
         self.ctx.notification_manager.queue_notification(" ".join(map(str, args)))
