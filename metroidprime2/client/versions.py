@@ -101,7 +101,12 @@ HealthInfo+0x4, the same 0x14 total)."""
 
 NTSC = EchoesVersionInfo(
     name="NTSC",
-    game_id=b"G2ME01",
+    # open_prime_rando.echoes.patcher.patch_game_name_and_id unconditionally
+    # overwrites the disc header's maker code with "NR" (giving the
+    # randomized build its own save slot, distinct from vanilla), so a
+    # patched disc's in-memory game id is "G2MENR", not the unpatched
+    # "G2ME01".
+    game_id=b"G2MENR",
     build_string_address=0x803AC3B0,
     build_string=b"!#$MetroidBuildInfo!#$Build v1.028 10/18/2004 10:44:32",
     game_state_pointer=0x80418EB8,
@@ -125,7 +130,8 @@ NTSC = EchoesVersionInfo(
 
 PAL = EchoesVersionInfo(
     name="PAL",
-    game_id=b"G2MP01",
+    # See NTSC's game_id comment above -- same "NR" maker-code rewrite.
+    game_id=b"G2MPNR",
     build_string_address=0x803AD710,
     build_string=b"!#$MetroidBuildInfo!#$Build v1.035 10/27/2004 19:48:17",
     game_state_pointer=0x8041A19C,
