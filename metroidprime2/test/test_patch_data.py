@@ -75,6 +75,15 @@ class TestMakeRandoConfiguration(MP2TestBase):
         for gate in gates:
             self.assertIn(gate["translator"], _TRANSLATOR_COLORS)
 
+    def test_9_translator_gates_have_holo_instance_overrides(self) -> None:
+        # constants.TRANSLATOR_GATE_INSTANCE_OVERRIDES: 9 of the 17 gates'
+        # vanilla rooms have ambiguous default OPR holo/glow instance names
+        # (e.g. two objects both named "Glow For Holo 1"), so those 9 need a
+        # disambiguating "holo1"/"holo2"/"conditional_relay" override in the
+        # patcher-format dict or OPR's patcher raises MultipleInstances.
+        gates = _all_translator_gates(self.config)
+        self.assertEqual(9, sum(1 for gate in gates if "holo1" in gate))
+
     def test_every_model_data_is_a_known_opr_model(self) -> None:
         for pickup in _all_pickups(self.config):
             model = pickup["primary_stage"]["appearance"]["model_data"]

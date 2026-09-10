@@ -6,4 +6,6 @@ dist/
 randovania
 open-prime-rando
 multiworld_config/
+*.iso
+.DS_Store
 .venv/

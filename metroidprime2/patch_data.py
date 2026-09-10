@@ -300,8 +300,8 @@ def _elevator_modification(db: GameDatabase, node: Node, target_id: NodeId) -> d
     }
 
 
-def _translator_gate_modification(world: MetroidPrime2World, node: Node) -> dict[str, str]:
-    """``{"translator": <color-or-"unlocked">}`` for one of the 17
+def _translator_gate_modification(world: MetroidPrime2World, node: Node) -> dict[str, Any]:
+    """``{"translator": <color-or-"unlocked">, ...}`` for one of the 17
     ``configurable_node`` translator gates: the node's vanilla required
     color, unless ``translator_gate_rando`` reassigned it (see
     ``logic/translator_gate_rando.py`` -- the same
@@ -312,20 +312,29 @@ def _translator_gate_modification(world: MetroidPrime2World, node: Node) -> dict
     is exactly the in-ISO counterpart of the ``None`` ("no translator
     required") entries "Random (Unlocked)" mode can produce.
 
-    Randovania's exporter also spreads ``node.extra["gate_instances"]``
-    into this dict to override non-default hologram/relay instance names
-    (``create_translator_gates`` in
-    ``randovania/games/prime2_opr/exporter/patch_data_factory.py``); none
-    of our vendored DB's 17 configurable nodes carry that key (checked
-    directly against the compacted region JSON), so every gate here uses
-    open-prime-rando's defaults and this function has nothing to spread.
+    Randovania's exporter also spreads ``node.extra["gate_instances"]`` into
+    this dict to override OPR's default hologram/glow/relay instance name
+    lookups (``create_translator_gates`` in
+    ``randovania/games/prime2_opr/exporter/patch_data_factory.py``) for
+    gates whose vanilla room has an ambiguous default name (e.g. two
+    objects both literally named "Glow For Holo 1" -- OPR's name lookup
+    then raises ``MultipleInstances`` instead of patching). Our vendored DB
+    (data/logic_database/, sync'd from randovania's ``prime2`` logic
+    database) has no ``gate_instances`` field at all -- that's specific to
+    randovania's OPR-targeting ``prime2_opr`` game definition -- so
+    ``constants.TRANSLATOR_GATE_INSTANCE_OVERRIDES`` hand-copies the same 9
+    gates' override data from there, keyed by ``gate_index`` instead of by
+    node extra.
     """
     if node.id in world.translator_gate_assignment:
         color = world.translator_gate_assignment[node.id]
     else:
         color = node.vanilla_color
         assert color is not None, f"{node.ap_name}: configurable_node has no vanilla_color"
-    return {"translator": color.lower() if color is not None else "unlocked"}
+    result: dict[str, Any] = {"translator": color.lower() if color is not None else "unlocked"}
+    if node.gate_index is not None and node.gate_index in constants.TRANSLATOR_GATE_INSTANCE_OVERRIDES:
+        result.update(constants.TRANSLATOR_GATE_INSTANCE_OVERRIDES[node.gate_index])
+    return result
 
 
 # --------------------------------------------------------------------------

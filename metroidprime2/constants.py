@@ -9,6 +9,7 @@ open-prime-rando being importable at runtime.
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 GAME_NAME = "Metroid Prime 2: Echoes"
 
@@ -143,6 +144,50 @@ DEFAULT_STARTING_ITEMS = (
     "Varia Suit",
     "Morph Ball",
 )
+
+# --- translator gate holo/glow instance overrides -----------------------------
+# 9 of the 17 configurable_node translator gates have vanilla rooms where
+# open-prime-rando's default name-based lookups ("Gate Holo 1"/"Glow For Holo
+# 1"/etc, see open_prime_rando.echoes.translator_gates.TranslatorGateModification)
+# are ambiguous -- e.g. Temple Grounds/Meeting Grounds' gate has two objects
+# both literally named "Glow For Holo 1", so OPR's name lookup raises
+# MultipleInstances instead of picking one. Randovania's own prime2_opr game
+# definition (randovania/games/prime2_opr/logic_database, NOT the prime2
+# logic_database this world's data/ is vendored from -- prime2 has no
+# equivalent field) carries a per-gate "gate_instances" override with
+# disambiguating numeric instance ids for exactly these 9 gates; this table
+# is that same data, hand-copied since our vendored DB doesn't have it.
+# Keyed by Node.gate_index (patch_data.py's _translator_gate_modification
+# merges the matching entry, if any, into the patcher-format dict -- same
+# shape/effect as randovania's exporter's own
+# ``**node.extra.get("gate_instances", {})`` spread).
+TRANSLATOR_GATE_INSTANCE_OVERRIDES: dict[int, dict[str, Any]] = {
+    1: {"holo1": {"hologram": "Gate Holo 1", "glow": 262226}},  # Temple Grounds/Meeting Grounds
+    4: {"holo1": {"hologram": "Gate Holo 1", "glow": 917738}},  # Temple Grounds/Path of Eyes
+    7: {  # Great Temple/Temple Sanctuary, Transport B Translator Gate
+        "holo1": {"hologram": 131438, "glow": 131442},
+        "holo2": {"hologram": 131441, "glow": 131444},
+        "conditional_relay": 131460,
+    },
+    8: {  # Great Temple/Temple Sanctuary, Transport C Translator Gate
+        "holo1": {"hologram": 131426, "glow": 131431},
+        "holo2": {"hologram": 131408, "glow": 131415},
+        "conditional_relay": 131459,
+    },
+    9: {  # Great Temple/Temple Sanctuary, Transport A Translator Gate
+        "holo1": {"hologram": 131268, "glow": 131323},
+        "holo2": {"hologram": 131273, "glow": 131237},
+        "conditional_relay": 131458,
+    },
+    10: {"holo1": {"hologram": "Gate Holo 1", "glow": 131708}},  # Agon Wastes/Mining Plaza
+    11: {"holo1": {"hologram": "Gate Holo 1", "glow": 655988}},  # Agon Wastes/Mining Station A
+    13: {"holo1": {"hologram": "Gate Holo 1", "glow": 1770227}},  # Torvus Bog/Torvus Temple, Translator Gate
+    14: {  # Torvus Bog/Torvus Temple, Elevator Translator Scan
+        "holo1": {"hologram": "Lore Hologram", "glow": 1769711},
+        "holo2": {"hologram": "Lore Hologram", "glow": 1769711},
+        "conditional_relay": "Does Player Have Correct Translator?",
+    },
+}
 
 # --- OPR pickup models -------------------------------------------------------
 # Keys of open_prime_rando.echoes.pickups.model_database.PICKUP_MODELS

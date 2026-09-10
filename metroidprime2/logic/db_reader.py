@@ -96,7 +96,6 @@ class Node:
     gate_index: int | None = None
     vanilla_actual: str | None = None
     vanilla_color: str | None = None
-    gate_instances: dict | None = None
 
     hint_kind: str | None = None
     requirement_to_collect: dict | None = None
@@ -289,11 +288,6 @@ def _parse_node(region: str, area: str, node_name: str, raw: dict) -> Node:
         gate_index=extra.get("gate_index"),
         vanilla_actual=extra.get("vanilla_actual"),
         vanilla_color=extra.get("vanilla_color"),
-        # Not present anywhere in the vendored prime2 DB today (verified:
-        # no configurable_node's extra dict has a "gate_instances" key) --
-        # exposed as None so the patcher side can apply its own default
-        # once/if the field is ever added upstream.
-        gate_instances=extra.get("gate_instances"),
         hint_kind=raw.get("kind"),
         requirement_to_collect=raw.get("requirement_to_collect"),
         teleporter_instance_id=extra.get("teleporter_instance_id"),
