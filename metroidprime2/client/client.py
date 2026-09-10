@@ -19,6 +19,7 @@ from NetUtils import ClientStatus
 from settings import get_settings
 
 from .. import constants
+from ..items import ITEM_TABLE
 from ..locations import LOCATION_TABLE
 from ..utils import get_apworld_version, get_output_path, setup_libs
 from .death_link import death_link_check
@@ -112,6 +113,38 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
     def _cmd_test_hud(self, *args: list[Any]) -> None:
         """Queue a HUD message to display in-game."""
         self.ctx.notification_manager.queue_notification(" ".join(map(str, args)))
+
+    def _cmd_grant_item(self, *args: list[Any]) -> None:
+        """Grant an item directly, bypassing the normal AP item-receipt
+        flow (useful for testing). Usage: /grant_item <item name>, e.g.
+        /grant_item Missile Expansion. Item names are matched
+        case-insensitively against items.ITEM_TABLE; progressive items
+        (e.g. Progressive Suit) grant their first stage."""
+        if not args:
+            logger.error("Usage: /grant_item <item name>")
+            return
+
+        requested = " ".join(map(str, args))
+        match = next((name for name in ITEM_TABLE if name.lower() == requested.lower()), None)
+        if match is None:
+            logger.error(f"Unknown item {requested!r}.")
+            return
+
+        if self.ctx.connection_state != ConnectionState.IN_GAME:
+            logger.error("Not connected to a running game.")
+            return
+
+        if self.ctx.game_interface.has_pending_op():
+            logger.error("A remote-execution op is already pending; try again in a moment.")
+            return
+
+        data = ITEM_TABLE[match]
+        gains = data.progression[0] if data.progression is not None else data.gains
+        leftovers = self.ctx.game_interface.grant(list(gains), f"{match} granted")
+        if leftovers:
+            logger.warning(f"Grant for {match} deferred (remote-execution body budget); try again.")
+        else:
+            logger.info(f"Granted {match}.")
 
     def _cmd_mp2_debug_inventory(self, *_args: list[Any]) -> None:
         """Print the raw inventory (amount/capacity per item id) read from
