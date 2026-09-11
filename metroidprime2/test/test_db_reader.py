@@ -86,6 +86,123 @@ class TestDbReader(unittest.TestCase):
         self.assertEqual(LANDING_SITE_MREA, landing_site.asset_id)
         self.assertEqual(1655756413, landing_site.asset_id)
 
+    def test_light_dark_regions(self) -> None:
+        light, dark = self.db.light_dark_regions()
+        self.assertEqual(
+            {"Dark Agon Wastes", "Dark Torvus Bog", "Ing Hive", "Sky Temple", "Sky Temple Grounds"},
+            set(dark),
+        )
+        self.assertEqual(
+            {"Agon Wastes", "Great Temple", "Sanctuary Fortress", "Temple Grounds", "Torvus Bog"},
+            set(light),
+        )
+        self.assertEqual(set(self.db.regions), light | dark)
+
+    def test_save_station_starting_location_candidates(self) -> None:
+        # The 18 save-station rooms verified against a real ISO
+        # (options.py's StartingRoom docstring / PLAN.md): one or two per
+        # region, including every dark region -- 9 light, 9 dark.
+        expected = {
+            ("Agon Wastes", "Save Station A"),
+            ("Agon Wastes", "Save Station C"),
+            ("Dark Agon Wastes", "Save Station 1"),
+            ("Dark Agon Wastes", "Save Station 2"),
+            ("Dark Agon Wastes", "Save Station 3"),
+            ("Dark Torvus Bog", "Dark Falls"),
+            ("Dark Torvus Bog", "Save Station 1"),
+            ("Dark Torvus Bog", "Save Station 2"),
+            ("Great Temple", "Transport A Access"),
+            ("Ing Hive", "Hive Save Station 1"),
+            ("Ing Hive", "Hive Save Station 2"),
+            ("Sanctuary Fortress", "Save Station A"),
+            ("Sanctuary Fortress", "Save Station B"),
+            ("Sky Temple", "Sky Temple Energy Controller"),
+            ("Temple Grounds", "Hive Save Station"),
+            ("Temple Grounds", "Landing Site"),
+            ("Torvus Bog", "Save Station A"),
+            ("Torvus Bog", "Save Station B"),
+        }
+        candidates = self.db.starting_location_candidates("save_stations")
+        self.assertEqual(18, len(candidates))
+        self.assertEqual(expected, {(c.region, c.area) for c in candidates})
+        for node_id in candidates:
+            self.assertEqual("Save Station", node_id.node)
+            node = self.db.node(node_id)
+            self.assertEqual("generic", node.node_type)
+            self.assertTrue(node.valid_starting_location)
+
+            # every candidate resolves to a real mlvl/mrea, exactly like
+            # patch_data.py's _area_asset_ids needs for "starting_area".
+            mlvl_id = self.db.mlvl_for_region(node_id.region)
+            area = self.db.regions[node_id.region].areas[node_id.area]
+            self.assertIsInstance(mlvl_id, int)
+            self.assertIsNotNone(area.asset_id, msg=f"{node_id.ap_name} area has no MREA asset_id")
+
+        _light_regions, dark_regions = self.db.light_dark_regions()
+        light_count = sum(1 for c in candidates if c.region not in dark_regions)
+        dark_count = sum(1 for c in candidates if c.region in dark_regions)
+        self.assertEqual(9, light_count)
+        self.assertEqual(9, dark_count)
+
+    def test_anywhere_starting_location_candidates(self) -> None:
+        # Every randovania valid_starting_location node, 272 total -- 162
+        # light / 110 dark (user-verified pool sizes; see options.py's
+        # StartingRoom docstring).
+        candidates = self.db.starting_location_candidates("anywhere")
+        self.assertEqual(272, len(candidates))
+
+        # one node per area -- no ambiguity collapsing node -> area for the
+        # patcher's AreaReference.
+        areas = [(c.region, c.area) for c in candidates]
+        self.assertEqual(len(areas), len(set(areas)))
+
+        _light_regions, dark_regions = self.db.light_dark_regions()
+        light_count = sum(1 for c in candidates if c.region not in dark_regions)
+        dark_count = sum(1 for c in candidates if c.region in dark_regions)
+        self.assertEqual(162, light_count)
+        self.assertEqual(110, dark_count)
+
+        per_region = {
+            "Temple Grounds": 39,
+            "Agon Wastes": 39,
+            "Torvus Bog": 39,
+            "Sanctuary Fortress": 36,
+            "Great Temple": 9,
+            "Dark Agon Wastes": 32,
+            "Dark Torvus Bog": 29,
+            "Ing Hive": 29,
+            "Sky Temple Grounds": 17,
+            "Sky Temple": 3,
+        }
+        counts: dict[str, int] = {}
+        for region, _area in areas:
+            counts[region] = counts.get(region, 0) + 1
+        self.assertEqual(per_region, counts)
+
+        # every candidate resolves to a real mlvl/mrea.
+        for node_id in candidates:
+            mlvl_id = self.db.mlvl_for_region(node_id.region)
+            area = self.db.regions[node_id.region].areas[node_id.area]
+            self.assertIsInstance(mlvl_id, int)
+            self.assertIsNotNone(area.asset_id, msg=f"{node_id.ap_name} area has no MREA asset_id")
+
+    def test_light_world_only_drops_dark_regions(self) -> None:
+        _light_regions, dark_regions = self.db.light_dark_regions()
+        for pool, expected_count in (("save_stations", 9), ("anywhere", 162)):
+            with self.subTest(pool=pool):
+                candidates = self.db.starting_location_candidates(pool, light_world_only=True)
+                self.assertEqual(expected_count, len(candidates))
+                for node_id in candidates:
+                    self.assertNotIn(node_id.region, dark_regions)
+
+    def test_vanilla_starting_location_is_a_save_station_candidate(self) -> None:
+        self.assertIn(self.db.starting_location, self.db.starting_location_candidates("save_stations"))
+        self.assertIn(self.db.starting_location, self.db.starting_location_candidates("anywhere"))
+
+    def test_unknown_pool_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            self.db.starting_location_candidates("everywhere")
+
     def test_every_referenced_template_exists(self) -> None:
         referenced: set[str] = set()
         for node in self.db.all_nodes():

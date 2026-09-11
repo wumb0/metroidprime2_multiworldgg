@@ -225,6 +225,48 @@ class PortalRando(Toggle):
     display_name = "Portal Randomization"
 
 
+class StartingRoom(Choice):
+    """Which pool the starting room is drawn from (see
+    ``logic/db_reader.py``'s ``GameDatabase.starting_location_candidates``
+    for exactly what qualifies -- randovania's own
+    ``valid_starting_location`` DB flag).
+
+    Vanilla: always Temple Grounds/Landing Site, matching every seed
+    generated before this option existed.
+    Save Stations: one of the 18 save-station rooms across the whole game
+    (9 in the 5 light regions, 9 in the 5 dark regions).
+    Anywhere: one of 272 rooms -- every room randovania's DB considers a
+    valid starting location (162 light / 110 dark), including e.g. boss
+    arenas and rooms only normally reached via a one-way drop.
+
+    A dark-world start (possible under either non-vanilla pool, unless
+    ``starting_room_light_world_only`` is also enabled) means taking Dark
+    Aether damage every second from the moment the game begins, until a
+    suit or a safe zone is reached -- expect an immediately dangerous
+    opening on some seeds.
+
+    ``warp_to_start`` (see below) always returns to whichever room this
+    picks; the decline-a-save warp itself only exists in the 18 save-station
+    rooms (``can_warp_to_start``), regardless of which pool the actual
+    start came from."""
+
+    display_name = "Starting Room"
+    option_vanilla = 0
+    option_save_stations = 1
+    option_anywhere = 2
+    default = 0
+
+
+class StartingRoomLightWorldOnly(Toggle):
+    """If enabled, drops every dark-region room (Dark Agon Wastes, Dark
+    Torvus Bog, Ing Hive, Sky Temple, Sky Temple Grounds) from whichever
+    pool ``starting_room`` selects, guaranteeing a light-world (no Dark
+    Aether damage) start. No effect when ``starting_room`` is left at
+    Vanilla -- Landing Site is already a light-world room."""
+
+    display_name = "Starting Room: Light World Only"
+
+
 class TranslatorGateRando(Choice):
     """How each of the 17 translator gates' required color is chosen,
     matching randovania's own translator gate presets.
@@ -331,6 +373,8 @@ class MetroidPrime2Options(PerGameCommonOptions):
     elevator_rando: ElevatorRando
     portal_rando: PortalRando
     translator_gate_rando: TranslatorGateRando
+    starting_room: StartingRoom
+    starting_room_light_world_only: StartingRoomLightWorldOnly
 
     warp_to_start: WarpToStart
 
@@ -357,7 +401,14 @@ OPTION_GROUPS: list[OptionGroup] = [
     ),
     OptionGroup(
         "Entrances",
-        [DoorLockRando, ElevatorRando, PortalRando, TranslatorGateRando],
+        [
+            DoorLockRando,
+            ElevatorRando,
+            PortalRando,
+            TranslatorGateRando,
+            StartingRoom,
+            StartingRoomLightWorldOnly,
+        ],
     ),
     OptionGroup(
         "Tricks",

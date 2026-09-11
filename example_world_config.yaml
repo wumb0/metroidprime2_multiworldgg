@@ -108,6 +108,27 @@ requires:
   #        no translator at all).
   translator_gate_rando: vanilla
 
+  # Which pool the starting room is drawn from.
+  # Options: vanilla, save_stations, anywhere
+  #   vanilla: always Temple Grounds - Landing Site (matches every seed
+  #        generated before this option existed).
+  #   save_stations: one of the 18 save-station rooms across the game (9
+  #        light / 9 dark).
+  #   anywhere: one of 272 rooms -- every room Randovania's logic database
+  #        considers a valid starting location (162 light / 110 dark),
+  #        including e.g. boss arenas and rooms normally reached only via
+  #        a one-way drop.
+  # A dark-region start means taking Dark Aether damage from the moment
+  # the game begins until a suit or safe zone is reached.
+  starting_room: vanilla
+
+  # Drops every dark-region room (Dark Agon Wastes, Dark Torvus Bog, Ing
+  # Hive, Sky Temple, Sky Temple Grounds) from whichever pool
+  # starting_room selects above, guaranteeing a light-world start. No
+  # effect when starting_room is vanilla.
+  # Options: true, false
+  starting_room_light_world_only: false
+
   # ------------------------------------------------------------------
   # Tricks
   #
@@ -222,8 +243,9 @@ requires:
   # ------------------------------------------------------------------
 
   # Declining to save at a Save Station while holding L+R warps you back
-  # to the starting room (Samus' ship in Landing Site). Declining
-  # without L+R held behaves exactly as in vanilla.
+  # to the starting room (Samus' ship in Landing Site, or wherever
+  # starting_room chose). Declining without L+R held behaves exactly as
+  # in vanilla.
   # Options: true, false
   warp_to_start: true
 

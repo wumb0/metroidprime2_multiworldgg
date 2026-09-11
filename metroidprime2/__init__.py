@@ -22,6 +22,7 @@ from .item_pool import create_item_pool
 from .items import ITEM_GROUPS, ITEM_TABLE, MetroidPrime2Item, item_name_to_id
 from .locations import LOCATION_GROUPS, location_name_to_id
 from .logic import regions as logic_regions
+from .logic.db_reader import NodeId, load_game_database
 from .logic.dock_rando import DockRandoAssignment, build_dock_rando_assignment
 from .logic.translator_gate_rando import TranslatorGateAssignment, build_translator_gate_assignment
 from .options import (
@@ -125,6 +126,13 @@ class MetroidPrime2World(World):
     sky_temple_key_locations: list[str]
     dock_rando: DockRandoAssignment
     translator_gate_assignment: TranslatorGateAssignment
+    starting_location: NodeId
+    """The node ``origin_region_name`` was set to for this player -- one of
+    ``options.starting_room``'s selected pool (the DB's own vanilla
+    ``starting_location`` when that option is left at "vanilla"). Kept
+    around (rather than just the derived region-name string) so
+    ``patch_data.py`` can resolve its mlvl/mrea without re-deriving which
+    node ``origin_region_name`` came from."""
 
     def generate_early(self) -> None:
         multiworld = self.multiworld
@@ -146,6 +154,28 @@ class MetroidPrime2World(World):
             uuid.uuid5(constants.NAMESPACE_UUID, f"{multiworld.seed_name}/{self.player}")
         )
         self.sky_temple_key_locations = []
+
+        # Must run before create_regions (logic/regions.py) builds the
+        # region graph -- it reads world.origin_region_name to find the BFS
+        # root and to seed logic/regions.py's can_warp_to_start wiring. Safe
+        # to do here: AP's own Main.py calls generate_early for every world
+        # before create_regions for any of them (worlds/AutoWorld.py's
+        # origin_region_name is likewise only ever consulted from
+        # create_regions onward). The "vanilla" branch below makes zero
+        # self.random calls, so leaving starting_room at its default
+        # doesn't perturb any other option's random draws -- an existing
+        # seed's generation is bit-for-bit unaffected.
+        db = load_game_database()
+        starting_room_pool = self.options.starting_room.current_key
+        if starting_room_pool == "vanilla":
+            self.starting_location = db.starting_location
+        else:
+            candidates = db.starting_location_candidates(
+                starting_room_pool, light_world_only=bool(self.options.starting_room_light_world_only)
+            )
+            self.starting_location = self.random.choice(candidates)
+        self.origin_region_name = self.starting_location.ap_name
+
         # translator_gate_assignment must be built first: dock_rando's own
         # reject-and-retry reachability probe (logic/dock_rando.py's
         # _meets_progression_bar) evaluates translator gate requirements
@@ -216,6 +246,7 @@ class MetroidPrime2World(World):
             self.multiworld.precollected_items[self.player]
         )
         slot_data["sky_temple_key_locations"] = list(self.sky_temple_key_locations)
+        slot_data["starting_region"] = self.origin_region_name
         slot_data["apworld_version"] = get_apworld_version()
         return slot_data
 
@@ -227,6 +258,9 @@ class MetroidPrime2World(World):
         return slot_data
 
     def write_spoiler(self, spoiler_handle: TextIO) -> None:
+        if self.options.starting_room.current_key != "vanilla":
+            spoiler_handle.write(f"\n\nStarting Region ({self.player_name}): {self.origin_region_name}\n")
+
         if not self.sky_temple_key_locations:
             return
         spoiler_handle.write(f"\n\nSky Temple Keys ({self.player_name}):\n")

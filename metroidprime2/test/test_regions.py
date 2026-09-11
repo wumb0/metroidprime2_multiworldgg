@@ -5,12 +5,14 @@
 from __future__ import annotations
 
 import re
+import unittest
 
 from BaseClasses import CollectionState
 
 from ..items import ITEM_TABLE
 from ..locations import LOCATION_TABLE
 from ..logic.db_reader import Node, NodeId, load_game_database
+from ..logic.regions import can_warp_to_start
 from .bases import MP2TestBase
 
 # "Pickup (X)" or "Pickup 2 (X)" -> X.
@@ -212,3 +214,138 @@ class TestVanillaPlacement(MP2TestBase):
                     state.locations_checked,
                 )
         self.assertTrue(self.multiworld.can_beat_game(state))
+
+
+class _FakeReachState:
+    """Minimal stand-in for AP's CollectionState -- only ``can_reach_region``
+    is needed, unlike test_requirements.py's FakeState (has/count), since
+    can_warp_to_start is a Rule over region reachability, not items."""
+
+    def __init__(self, reachable_regions: set[str]) -> None:
+        self._reachable_regions = reachable_regions
+
+    def can_reach_region(self, name: str, player: int) -> bool:
+        assert player == 1
+        return name in self._reachable_regions
+
+
+class TestCanWarpToStart(unittest.TestCase):
+    """Unit tests for logic/regions.py's can_warp_to_start against a fake
+    reachability oracle -- independent of any particular generated world's
+    origin_region_name. Under starting_room "vanilla"/"save_stations" that
+    origin is always itself one of the 18 save-station candidates and thus
+    always trivially reachable (see can_warp_to_start's own docstring for
+    why that makes the *wired-in* graph edges a no-op there); testing the
+    bare Rule here against a stand-in oracle exercises the "any of the 18"
+    logic on its own, decoupled from that wrinkle, and matches what a
+    genuinely non-save-station "anywhere" start needs it to do."""
+
+    def setUp(self) -> None:
+        self.db = load_game_database()
+        self.rule = can_warp_to_start(self.db, player=1)
+
+    def test_false_when_nothing_collected_and_no_save_station_reachable(self) -> None:
+        self.assertFalse(self.rule(_FakeReachState(set())))
+
+    def test_false_when_only_an_unrelated_region_is_reachable(self) -> None:
+        self.assertFalse(self.rule(_FakeReachState({"Agon Wastes/Mining Plaza/Pickup (Missile)"})))
+
+    def test_true_once_any_save_station_is_reachable(self) -> None:
+        candidate = self.db.starting_location_candidates("save_stations")[3]
+        self.assertTrue(self.rule(_FakeReachState({candidate.ap_name})))
+
+    def test_true_when_every_save_station_is_reachable(self) -> None:
+        all_names = {c.ap_name for c in self.db.starting_location_candidates("save_stations")}
+        self.assertTrue(self.rule(_FakeReachState(all_names)))
+
+    def test_false_when_only_a_non_save_station_anywhere_candidate_is_reachable(self) -> None:
+        # A room that's a valid "anywhere" start but not one of the 18 save
+        # stations (e.g. a boss arena) must not count -- can_warp_to_start
+        # stays keyed on the fixed 18-room set regardless of pool.
+        save_stations = set(self.db.starting_location_candidates("save_stations"))
+        anywhere_only = next(
+            c for c in self.db.starting_location_candidates("anywhere") if c not in save_stations
+        )
+        self.assertFalse(self.rule(_FakeReachState({anywhere_only.ap_name})))
+
+
+class TestWarpToStartWiring(MP2TestBase):
+    """create_regions' actual graph wiring (as opposed to the bare Rule
+    above): with warp_to_start at its default (on), every one of the 18
+    save-station regions other than the origin gets an unconditional exit
+    straight to origin_region_name."""
+
+    def _warp_edge_exists(self, source_name: str) -> bool:
+        region = self.multiworld.get_region(source_name, self.player)
+        return any(
+            exit_.connected_region is not None
+            and exit_.connected_region.name == self.world.origin_region_name
+            for exit_ in region.exits
+        )
+
+    def test_every_non_origin_save_station_has_a_warp_edge(self) -> None:
+        db = load_game_database()
+        for node_id in db.starting_location_candidates("save_stations"):
+            if node_id.ap_name == self.world.origin_region_name:
+                continue
+            with self.subTest(save_station=node_id.ap_name):
+                self.assertTrue(self._warp_edge_exists(node_id.ap_name))
+
+
+class TestWarpToStartDisabledAddsNoEdges(MP2TestBase):
+    options = {"warp_to_start": False}
+
+    def test_no_save_station_gets_a_warp_edge(self) -> None:
+        db = load_game_database()
+        for node_id in db.starting_location_candidates("save_stations"):
+            if node_id.ap_name == self.world.origin_region_name:
+                continue
+            region = self.multiworld.get_region(node_id.ap_name, self.player)
+            for exit_ in region.exits:
+                with self.subTest(save_station=node_id.ap_name, exit=exit_.name):
+                    self.assertNotIn("Warp to Start", exit_.name)
+
+
+class TestStartingRoomSaveStationsStillGenerates(MP2TestBase):
+    """starting_room="save_stations" must still produce a valid,
+    self-consistent region graph -- origin_region_name always one of the
+    18 candidates, reachable, and matching world.starting_location."""
+
+    options = {"starting_room": "save_stations"}
+
+    def test_origin_region_name_is_a_save_station_candidate(self) -> None:
+        db = load_game_database()
+        candidates = {c.ap_name for c in db.starting_location_candidates("save_stations")}
+        self.assertIn(self.world.origin_region_name, candidates)
+        self.assertEqual(self.world.starting_location.ap_name, self.world.origin_region_name)
+
+    def test_origin_region_is_reachable(self) -> None:
+        state = CollectionState(self.multiworld)
+        self.assertTrue(state.can_reach_region(self.world.origin_region_name, self.player))
+
+
+class TestStartingRoomAnywhereStillGenerates(MP2TestBase):
+    """starting_room="anywhere" must also still produce a valid,
+    self-consistent region graph, even though the chosen room may have no
+    save station of its own (unlike the "save_stations" pool above)."""
+
+    options = {"starting_room": "anywhere"}
+
+    def test_origin_region_name_is_an_anywhere_candidate(self) -> None:
+        db = load_game_database()
+        candidates = {c.ap_name for c in db.starting_location_candidates("anywhere")}
+        self.assertIn(self.world.origin_region_name, candidates)
+        self.assertEqual(self.world.starting_location.ap_name, self.world.origin_region_name)
+
+    def test_origin_region_is_reachable(self) -> None:
+        state = CollectionState(self.multiworld)
+        self.assertTrue(state.can_reach_region(self.world.origin_region_name, self.player))
+
+
+class TestStartingRoomLightWorldOnlyStillGenerates(MP2TestBase):
+    options = {"starting_room": "anywhere", "starting_room_light_world_only": True}
+
+    def test_origin_region_is_in_a_light_region(self) -> None:
+        db = load_game_database()
+        _light_regions, dark_regions = db.light_dark_regions()
+        self.assertNotIn(self.world.starting_location.region, dark_regions)

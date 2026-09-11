@@ -90,6 +90,7 @@ class Node:
     location_category: str | None = None
     location_data: dict | None = None
     boss: str | None = None
+    valid_starting_location: bool = False
 
     event_name: str | None = None
 
@@ -173,6 +174,84 @@ class GameDatabase:
             f"pickup indices are not contiguous starting at 0: {indices}"
         )
         return nodes
+
+    def light_dark_regions(self) -> tuple[frozenset[str], frozenset[str]]:
+        """``(light, dark)`` region-name sets, derived the same way
+        ``mlvl_for_region`` distinguishes them: a region is dark iff it
+        carries no MLVL ``asset_id`` of its own (it shares one with a light
+        counterpart via ``extra.associated_region`` instead). ``_validate``
+        pins the dark set to the 5 known dark regions so a DB resync that
+        changes this can't silently change what ``starting_room_light_
+        world_only`` filters out."""
+        light = frozenset(name for name, region in self.regions.items() if region.asset_id is not None)
+        dark = frozenset(name for name, region in self.regions.items() if region.asset_id is None)
+        return light, dark
+
+    def starting_location_candidates(self, pool: str, light_world_only: bool = False) -> list[NodeId]:
+        """Every node eligible as a randomized starting location under
+        ``pool`` (options.py's ``StartingRoom``), optionally narrowed to
+        light-region rooms only (``starting_room_light_world_only``).
+
+        The *only* thing that makes a node a legal AP starting room is
+        randovania's own ``valid_starting_location`` flag: OPR's
+        ``edit_starting_area_dol``/``edit_starting_area_teleporter``
+        repoint the save file and "New Game" flow at an *area* (an
+        ``AreaReference``, carrying no node), and the game then spawns at
+        that area's default SpawnPoint -- nothing about that mechanism is
+        specific to save-station rooms. The vendored DB's 272
+        ``valid_starting_location`` nodes are spread across exactly 272
+        distinct areas (one node per area, verified below), so collapsing
+        node -> area for the ``AreaReference`` is never ambiguous.
+
+        ``pool``:
+
+        * ``"save_stations"`` -- the 18 save-station rooms (``generic``
+          nodes literally named "Save Station" with
+          ``valid_starting_location`` true), matching the 18 rooms in the
+          actual game that contain a save-station ``SpecialFunction``
+          (verified against a real ISO). This is also the fixed set
+          ``can_warp_to_start`` sweeps, regardless of which pool the actual
+          start was drawn from -- the decline-a-save warp physically only
+          exists in these 18 rooms.
+        * ``"anywhere"`` -- every ``valid_starting_location`` node in the
+          DB, 272 total (162 light / 110 dark; see ``light_dark_regions``).
+
+        Counts are asserted exactly (18 / 272) so a DB resync that changes
+        either fails loudly instead of silently changing the pool size.
+        """
+        def is_save_station(node: Node) -> bool:
+            return (
+                node.node_type == "generic"
+                and node.id.node == "Save Station"
+                and node.valid_starting_location
+            )
+
+        def is_valid_starting_location(node: Node) -> bool:
+            return node.valid_starting_location
+
+        if pool == "save_stations":
+            predicate = is_save_station
+            expected_count = 18
+        elif pool == "anywhere":
+            predicate = is_valid_starting_location
+            expected_count = 272
+        else:
+            raise ValueError(f"unknown starting-location pool: {pool!r}")
+
+        candidates = sorted(
+            (node.id for node in self.all_nodes() if predicate(node)),
+            key=lambda node_id: node_id.ap_name,
+        )
+        assert len(candidates) == expected_count, (
+            f"expected {expected_count} {pool!r} starting locations, got {len(candidates)}"
+        )
+        areas = [(node_id.region, node_id.area) for node_id in candidates]
+        assert len(areas) == len(set(areas)), f"{pool!r} starting locations are not one-per-area: {areas}"
+
+        if light_world_only:
+            _light_regions, dark_regions = self.light_dark_regions()
+            candidates = [node_id for node_id in candidates if node_id.region not in dark_regions]
+        return candidates
 
     def mlvl_for_region(self, name: str) -> int:
         """Resolve a region's MLVL asset id, following extra.associated_region
@@ -290,6 +369,7 @@ def _parse_node(region: str, area: str, node_name: str, raw: dict) -> Node:
         location_category=raw.get("location_category"),
         location_data=extra.get("location_data"),
         boss=extra.get("boss"),
+        valid_starting_location=raw.get("valid_starting_location", False),
         event_name=raw.get("event_name"),
         gate_index=extra.get("gate_index"),
         vanilla_actual=extra.get("vanilla_actual"),
@@ -387,6 +467,22 @@ def _validate(db: GameDatabase) -> None:
 
     # Pickup indices are exactly 0..118, contiguous.
     db.pickup_nodes()
+
+    # Dark regions (no MLVL of their own) are pinned to the 5 known ones --
+    # options.py's starting_room_light_world_only derives its filter from
+    # exactly this set (light_dark_regions), so a resync that silently
+    # changed it would silently change what that option excludes.
+    _light_regions, dark_regions = db.light_dark_regions()
+    assert dark_regions == frozenset(
+        {"Dark Agon Wastes", "Dark Torvus Bog", "Ing Hive", "Sky Temple", "Sky Temple Grounds"}
+    ), f"unexpected dark region set: {sorted(dark_regions)}"
+
+    # Starting-location pool sizes (options.py's StartingRoom) are asserted
+    # eagerly here too (starting_location_candidates asserts its own count
+    # on every call, but doing it once at load time fails fast instead of
+    # only whenever generation first touches a given pool).
+    db.starting_location_candidates("save_stations")
+    db.starting_location_candidates("anywhere")
 
 
 @functools.cache

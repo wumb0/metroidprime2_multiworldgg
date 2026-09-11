@@ -13,7 +13,8 @@ import tempfile
 import unittest
 
 from .. import patch_data
-from ..constants import OPR_MODEL_NAMES
+from ..constants import LANDING_SITE_MREA, OPR_MODEL_NAMES, TEMPLE_GROUNDS_MLVL
+from ..logic.db_reader import load_game_database
 from .bases import MP2TestBase
 
 _OPR_AVAILABLE = importlib.util.find_spec("open_prime_rando") is not None
@@ -214,6 +215,113 @@ class TestMakeRandoConfigurationWithPortalRando(MP2TestBase):
         from open_prime_rando.echoes.rando_configuration import RandoConfiguration
 
         RandoConfiguration.model_validate(self.config, extra="forbid")
+
+
+class TestStartingAreaVanilla(MP2TestBase):
+    """starting_room defaults to "vanilla" -- config.json's starting_area
+    must still be exactly the vanilla Temple Grounds/Landing Site Save
+    Station, matching origin_region_name (M0's TEMPLE_GROUNDS_MLVL /
+    LANDING_SITE_MREA constants)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_starting_area_is_landing_site(self) -> None:
+        self.assertEqual(
+            {"mlvl_id": TEMPLE_GROUNDS_MLVL, "mrea_id": LANDING_SITE_MREA},
+            self.config["starting_area"],
+        )
+
+    def test_origin_region_name_is_landing_site_save_station(self) -> None:
+        self.assertEqual("Temple Grounds/Landing Site/Save Station", self.world.origin_region_name)
+
+
+class TestStartingAreaSaveStations(MP2TestBase):
+    """starting_room="save_stations": config.json's starting_area must
+    resolve to whichever of the 18 save-station candidates generate_early
+    picked, and must still validate as a RandoConfiguration (M2's
+    extra="forbid" shape: exactly {"mlvl_id": int, "mrea_id": int})."""
+
+    options = {"starting_room": "save_stations"}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_chosen_node_is_a_save_station_candidate(self) -> None:
+        db = load_game_database()
+        self.assertIn(self.world.starting_location, db.starting_location_candidates("save_stations"))
+
+    def test_starting_area_matches_chosen_node(self) -> None:
+        db = load_game_database()
+        node = db.node(self.world.starting_location)
+        mlvl_id, mrea_id = patch_data._area_asset_ids(db, node)
+        self.assertEqual({"mlvl_id": mlvl_id, "mrea_id": mrea_id}, self.config["starting_area"])
+
+    def test_starting_area_shape(self) -> None:
+        self.assertEqual({"mlvl_id", "mrea_id"}, self.config["starting_area"].keys())
+        self.assertIsInstance(self.config["starting_area"]["mlvl_id"], int)
+        self.assertIsInstance(self.config["starting_area"]["mrea_id"], int)
+
+    def test_origin_region_name_matches_chosen_node(self) -> None:
+        self.assertEqual(self.world.starting_location.ap_name, self.world.origin_region_name)
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_validates_against_installed_rando_configuration(self) -> None:
+        from open_prime_rando.echoes.rando_configuration import RandoConfiguration
+
+        RandoConfiguration.model_validate(self.config, extra="forbid")
+
+
+class TestStartingAreaAnywhere(MP2TestBase):
+    """starting_room="anywhere": same shape/validation guarantees as
+    TestStartingAreaSaveStations, but drawn from the full 272-room pool
+    (which may have no save station of its own -- can_warp_to_start still
+    covers it via the fixed 18-room set, see logic/regions.py)."""
+
+    options = {"starting_room": "anywhere"}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_chosen_node_is_an_anywhere_candidate(self) -> None:
+        db = load_game_database()
+        self.assertIn(self.world.starting_location, db.starting_location_candidates("anywhere"))
+
+    def test_starting_area_matches_chosen_node(self) -> None:
+        db = load_game_database()
+        node = db.node(self.world.starting_location)
+        mlvl_id, mrea_id = patch_data._area_asset_ids(db, node)
+        self.assertEqual({"mlvl_id": mlvl_id, "mrea_id": mrea_id}, self.config["starting_area"])
+
+    def test_origin_region_name_matches_chosen_node(self) -> None:
+        self.assertEqual(self.world.starting_location.ap_name, self.world.origin_region_name)
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_validates_against_installed_rando_configuration(self) -> None:
+        from open_prime_rando.echoes.rando_configuration import RandoConfiguration
+
+        RandoConfiguration.model_validate(self.config, extra="forbid")
+
+
+class TestStartingAreaLightWorldOnly(MP2TestBase):
+    """starting_room_light_world_only excludes every dark-region room from
+    whichever pool starting_room selects."""
+
+    options = {"starting_room": "anywhere", "starting_room_light_world_only": True}
+
+    def test_chosen_node_is_in_a_light_region(self) -> None:
+        db = load_game_database()
+        _light_regions, dark_regions = db.light_dark_regions()
+        self.assertNotIn(self.world.starting_location.region, dark_regions)
 
 
 class TestStartingItemsWithPrecollectedMissileLauncher(MP2TestBase):

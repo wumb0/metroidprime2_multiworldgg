@@ -149,6 +149,39 @@ def translator_gate_requirement(world: MetroidPrime2World, node: Node) -> dict:
     return {"type": "and", "data": {"comment": None, "items": items}}
 
 
+def can_warp_to_start(db: GameDatabase, player: int) -> Rule:
+    """True iff any of the 18 save-station regions
+    (``GameDatabase.starting_location_candidates("save_stations")``) is
+    currently reachable -- the logic-side counterpart of
+    ``client/warp_patch.py``'s real declining-a-save-with-L+R warp, which
+    unconditionally retargets every one of those 18 rooms' WorldTeleporter
+    at ``configuration.starting_area`` (== ``origin_region_name``),
+    regardless of which one ended up as the start. Ported from
+    MultiWorldGG's Metroid Prime 1 world (``worlds/metroidprime/
+    Logic.py``'s ``can_warp_to_start``, which sweeps its own equivalent
+    ``SAVE_ROOMS`` list).
+
+    Deliberately keyed on the fixed 18-room save-station set regardless of
+    which pool ``options.py``'s ``StartingRoom`` actually drew the start
+    from: the decline-a-save warp physically exists only in those 18 rooms
+    (verified against a real ISO), even when ``starting_room`` is
+    "anywhere" and the player starts somewhere that has no save station at
+    all (e.g. a boss arena). Under "vanilla" or "save_stations",
+    ``origin_region_name`` is itself always one of these 18, so this Rule
+    is trivially always true once a region graph exists (the origin region
+    is always reachable, unconditionally -- see ``BaseClasses.
+    CollectionState.update_reachable_regions``); under "anywhere" it is
+    genuinely state-dependent -- false until some *other* save station has
+    actually been reached.
+    """
+    ap_names = tuple(node_id.ap_name for node_id in db.starting_location_candidates("save_stations"))
+
+    def rule(state, _names=ap_names, _player=player) -> bool:
+        return any(state.can_reach_region(name, _player) for name in _names)
+
+    return rule
+
+
 def _lock_broken_event_item(node: Node) -> str:
     """The AP-only event item name for ``node``'s dock lock having been
     broken (either blasted from the front, or unlocked for free by having
@@ -276,6 +309,12 @@ def create_regions(world: MetroidPrime2World) -> None:
         regions[node.id] = region
     multiworld.regions.extend(regions.values())
 
+    origin_region = regions[world.starting_location]
+    assert origin_region.name == world.origin_region_name, (
+        f"origin_region_name {world.origin_region_name!r} disagrees with "
+        f"starting_location {world.starting_location.ap_name!r}"
+    )
+
     location_by_index = {loc.pickup_index: loc for loc in LOCATION_TABLE}
 
     # -- Steps 6/7: locations (pickups + non-pregranted events). --
@@ -363,6 +402,36 @@ def create_regions(world: MetroidPrime2World) -> None:
             dst_region = regions[target_id]
             region.connect(dst_region, name=name, rule=rule)
 
+    # -- Warp to start. --
+    #
+    # client/warp_patch.py's decline-a-save+L+R feature already retargets
+    # every one of the 18 save-station rooms' WorldTeleporter at
+    # configuration.starting_area (== origin_region_name) unconditionally
+    # in the patched ISO, whenever warp_to_start is enabled -- model that
+    # same shortcut as a real graph edge so logic sees it too, gated on the
+    # same option. This always uses the fixed 18-room save-station set
+    # (can_warp_to_start's own candidates), never options.starting_room's
+    # actual pool: the warp only physically exists in those 18 rooms, even
+    # when starting_room is "anywhere" and origin_region_name is some other
+    # room entirely (a boss arena, say) with no save station of its own.
+    #
+    # Provably a no-op for reachability regardless of pool: origin_region is
+    # AP's BFS root (CollectionState.update_reachable_regions seeds it
+    # unconditionally, with no rule check at all), so it is already always
+    # reachable before this loop ever runs, and an edge whose *target* is
+    # already unconditionally reachable can never add anything. Wired in
+    # anyway, exactly as specified, rather than skipped as dead code -- see
+    # can_warp_to_start's docstring for the one case (starting_room ==
+    # "anywhere") where the Rule itself is genuinely state-dependent, even
+    # though these particular edges can't exploit that.
+    if world.options.warp_to_start:
+        warp_rule = can_warp_to_start(db, player)
+        for node_id in db.starting_location_candidates("save_stations"):
+            source_region = regions[node_id]
+            if source_region is origin_region:
+                continue
+            source_region.connect(origin_region, name=f"{source_region.name} -> Warp to Start", rule=warp_rule)
+
     # -- Dead event nodes. --
     #
     # A region can end up with zero incoming entrances at all -- e.g. its
@@ -378,7 +447,6 @@ def create_regions(world: MetroidPrime2World) -> None:
     # such region (a fixed point: alive = origin, plus anything reachable
     # from an already-alive region) and strip just their event locations,
     # keeping the (now locationless) regions themselves.
-    origin_region = next(r for r in regions.values() if r.name == world.origin_region_name)
     alive_regions: set[Region] = {origin_region}
     frontier = [origin_region]
     while frontier:

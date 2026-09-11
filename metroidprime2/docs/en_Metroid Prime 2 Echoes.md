@@ -12,9 +12,17 @@ Beams, visors, suits, movement upgrades, ammo expansions, energy tanks, Sky Temp
 Dark Temple Keys may be found in any player's world, and this world's own pickups may hold items belonging to any
 other player.
 
-Elevators, translator gate colors, and door locks are left in their vanilla configuration in this version of the
-apworld; only the items sitting at pickup locations are randomized. The starting room is also vanilla (Temple
-Grounds - Landing Site).
+The starting room is vanilla (Temple Grounds - Landing Site) unless the `starting_room` option says otherwise:
+
+- **Vanilla** (default): always Temple Grounds - Landing Site, matching every seed generated before this option
+  existed.
+- **Save Stations**: one of the 18 save-station rooms across the whole game (9 in light regions, 9 in dark).
+- **Anywhere**: one of 272 rooms -- every room Randovania's logic database considers a valid starting location
+  (162 light / 110 dark), including rooms you'd normally only reach via a boss arena or a one-way drop.
+
+`starting_room_light_world_only` narrows either non-vanilla pool down to light-region rooms only. A dark-region
+start otherwise means taking Dark Aether damage every second from the moment the game begins, until a suit or a
+safe zone is reached, so it can be an immediately dangerous opening.
 
 ## What is the goal of Metroid Prime 2: Echoes when randomized?
 
@@ -76,9 +84,10 @@ Yes, as long as the `warp_to_start` option is enabled (it is by default):
 2. When prompted to save, choose **No**.
 3. Hold **L** and **R** while choosing No.
 
-A message appears and you are returned to the starting room (Samus' ship in
-Landing Site) a few seconds later. Choosing No without holding L+R does
-nothing unusual -- you get the normal "Game was not saved" message.
+A message appears and you are returned to the starting room (Samus' ship in Landing Site, or wherever
+`starting_room` chose) a few seconds later. Choosing No without holding L+R does nothing unusual -- you get the
+normal "Game was not saved" message. This works from any of the 18 Save Stations regardless of which room
+`starting_room` actually picked, even if that room has no Save Station of its own.
 
 ## What are the known limitations of this randomizer?
 

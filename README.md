@@ -91,6 +91,8 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 | `elevator_rando` | Toggle | off | Shuffle elevators into new two-way connections (every region stays reachable, just not necessarily via the same elevator). The one-way trip to Sky Temple and the intra-Aerie elevator are never shuffled. |
 | `portal_rando` | Toggle | off | Shuffle the Light/Dark Aether portals into new connections within each light/dark region pair, and make every portal two-way (including the vanilla one-way arrival-only ones). Each portal keeps its own beam-color requirement; only where it leads changes. |
 | `translator_gate_rando` | Choice: `vanilla`/`full_random`/`full_random_unlocked` | `vanilla` | How each of the 17 translator gates' required color is chosen. `full_random`: every gate independently requires a random one of the four translator colors. `full_random_unlocked`: like `full_random`, but each gate may also independently come up "Unlocked" (open with just Scan Visor, no translator at all). Matches Randovania's own translator gate presets. |
+| `starting_room` | Choice: `vanilla`/`save_stations`/`anywhere` | `vanilla` | Which pool the starting room is drawn from. `vanilla`: always Temple Grounds - Landing Site. `save_stations`: one of the 18 save-station rooms across the game (9 in light regions, 9 in dark). `anywhere`: one of 272 rooms -- every room Randovania's logic database considers a valid starting location (162 light / 110 dark), including e.g. boss arenas and rooms normally reached only via a one-way drop. A dark-region start means taking Dark Aether damage from the moment the game begins until a suit or safe zone is reached. Declining a save at any of the 18 save stations while holding L+R (see `warp_to_start` below) always returns you to whichever room was chosen, regardless of pool. |
+| `starting_room_light_world_only` | Toggle | off | Drops every dark-region room (Dark Agon Wastes, Dark Torvus Bog, Ing Hive, Sky Temple, Sky Temple Grounds) from whichever pool `starting_room` selects, guaranteeing a light-world start. No effect when `starting_room` is `vanilla`. |
 
 ### Tricks
 
@@ -130,7 +132,7 @@ override just that one. Every trick option shares the same scale: `use_global` (
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `warp_to_start` | Toggle (on by default) | on | Declining to save at a Save Station while holding L+R warps you back to the starting room (Samus' ship in Landing Site). Declining without L+R held behaves exactly as in vanilla. |
+| `warp_to_start` | Toggle (on by default) | on | Declining to save at a Save Station while holding L+R warps you back to the starting room (Samus' ship in Landing Site, or wherever `starting_room` chose). Declining without L+R held behaves exactly as in vanilla. |
 
 ### Cosmetic
 

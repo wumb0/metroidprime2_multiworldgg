@@ -460,14 +460,16 @@ def make_rando_configuration(world: MetroidPrime2World) -> dict[str, Any]:
     dark_aether_damage = dark_damage_per_second(world.options.dark_aether_damage.value)
     dark_suit_damage = dark_damage_per_second(world.options.dark_suit_damage.value)
 
+    starting_mlvl_id, starting_mrea_id = _area_asset_ids(db, db.node(world.starting_location))
+
     return {
         "game_title": game_title,
         "title_screen_text": f"\nMultiworldGG - {world.player_name}",
         "seed": world.random.getrandbits(31),
         "world_uuid": world.world_uuid,
         "starting_area": {
-            "mlvl_id": constants.TEMPLE_GROUNDS_MLVL,
-            "mrea_id": constants.LANDING_SITE_MREA,
+            "mlvl_id": starting_mlvl_id,
+            "mrea_id": starting_mrea_id,
         },
         "starting_items": starting_items_config(world),
         "map_visibility": {
