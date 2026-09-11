@@ -68,6 +68,18 @@ Because delivery depends on the client, **the client must remain connected and r
 receive items**; nothing is delivered while it is disconnected, though everything you're owed is delivered as
 soon as it reconnects.
 
+## Can I teleport to the starting room?
+
+Yes, as long as the `warp_to_start` option is enabled (it is by default):
+
+1. Step onto any Save Station.
+2. When prompted to save, choose **No**.
+3. Hold **L** and **R** while choosing No.
+
+A message appears and you are returned to the starting room (Samus' ship in
+Landing Site) a few seconds later. Choosing No without holding L+R does
+nothing unusual -- you get the normal "Game was not saved" message.
+
 ## What are the known limitations of this randomizer?
 
 - Damage logic is evaluated per damaging edge, independently, rather than as a cumulative trip like Randovania's

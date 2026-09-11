@@ -276,6 +276,16 @@ class UnvisitedRoomNames(DefaultOnToggle):
     display_name = "Unvisited Room Names"
 
 
+class WarpToStart(DefaultOnToggle):
+    """If enabled, declining to save at any Save Station while holding L+R
+    warps you back to the starting room (Samus' ship in Landing Site).
+
+    Mirrors the same feature in the Metroid Prime 1 randomizer. Declining
+    without holding L+R behaves exactly as it does in vanilla."""
+
+    display_name = "Warp to Start"
+
+
 @dataclass
 class MetroidPrime2Options(PerGameCommonOptions):
     start_inventory_from_pool: StartInventoryPool
@@ -321,6 +331,8 @@ class MetroidPrime2Options(PerGameCommonOptions):
     elevator_rando: ElevatorRando
     portal_rando: PortalRando
     translator_gate_rando: TranslatorGateRando
+
+    warp_to_start: WarpToStart
 
     display_nonlocal_items: DisplayNonLocalItems
     reveal_map: RevealMap
@@ -378,6 +390,7 @@ OPTION_GROUPS: list[OptionGroup] = [
         ],
         start_collapsed=True,
     ),
+    OptionGroup("Quality of Life", [WarpToStart]),
     OptionGroup(
         "Cosmetic",
         [DisplayNonLocalItems, RevealMap, UnvisitedRoomNames],

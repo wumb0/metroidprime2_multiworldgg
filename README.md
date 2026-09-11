@@ -24,7 +24,7 @@ This world isn't in a packaged MultiworldGG release yet, so it currently has to 
 source. The short version:
 
 1. **Get MultiworldGG from source** and make sure `metroidprime2/` is loaded as
-   `MultiWorldGG/worlds/metroidprime2` (already set up as a symlink in this repo). Requires
+   `MultiWorldGG/worlds/metroidprime2`. Requires
    Python 3.12 or 3.13 (not 3.14).
 2. **Install this world's extra dependencies** — `open-prime-rando[nod]==0.20.1`,
    `dolphin-memory-engine>=1.3.0`, `ppc-asm>=1.9.0` (see `metroidprime2/requirements.txt`). The
@@ -126,6 +126,12 @@ override just that one. Every trick option shares the same scale: `use_global` (
 | `trick_underwaterdash` | Underwater Dash | Hold L+R while swimming to lock speed and reach some areas early. |
 | `trick_wallboost` | Wall Boost | Boost on wall contact to partially scale terrain, typically in Morph Ball tunnels. |
 
+### Quality of Life
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `warp_to_start` | Toggle (on by default) | on | Declining to save at a Save Station while holding L+R warps you back to the starting room (Samus' ship in Landing Site). Declining without L+R held behaves exactly as in vanilla. |
+
 ### Cosmetic
 
 | Option | Type | Default | Description |
@@ -156,3 +162,7 @@ Set once per MultiworldGG install under the `metroidprime2_options` group; see
 | `emulator_settings.auto_start` | Whether the client launches Dolphin with the patched ISO automatically (default on). |
 | `hud_settings.color` | `default`, `custom` (with `color_red`/`color_green`/`color_blue`), or a named color. |
 | `suit_settings.varia_skin` / `dark_skin` / `light_skin` | Cosmetic suit model swap: `player1` (vanilla), `player2`, `player3`, or `player4`. |
+
+## Caveats / Bugs
+
+- Currently this cannot be used alongside the Metroid Prime 1 world implementation out of the box because it declares `ppc_asm==1.2.1` in its requirements.txt and `open-prime-rando` requires `ppc_asm>=1.9.0`. **However** in my testing the prime world's use of `ppc_asm` is compatible with 1.9.0, so you can run the default requirements install and then `[uv] pip install -U 'ppc_asm>=1.9.0'` and it will still function. Once you have all requirements installed and `ppc_asm` pinned to the newer version, you can prevent the MultiWorldGG launcher from trying to re-install (revert) dependencies by setting the `SKIP_REQUIREMENTS_CHECK` environement variable.

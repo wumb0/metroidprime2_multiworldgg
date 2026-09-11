@@ -43,6 +43,26 @@ class PowerupFunctionAddresses:
 
 
 @dataclass(frozen=True)
+class WarpToStartAddresses:
+    """Addresses the warp-to-start DOL gate needs (``client/warp_patch.py``).
+
+    Both are inside ``CScriptSpecialFunction``'s save-station Think, which
+    broadcasts ``State.Zero`` when the player declines the save prompt.
+    Recovered by pattern matching rather than by hand -- rerun
+    ``python -m metroidprime2.tools.find_warp_addresses <iso>`` to confirm
+    them against a disc, or to derive them for a build not listed here.
+    """
+
+    decline_broadcast_call: int
+    """The ``bl`` that broadcasts ``Zero``; replaced with a ``bl`` to the gate
+    code cave."""
+
+    send_script_msgs: int
+    """That ``bl``'s original target, the SCLY state-broadcast helper. The
+    cave tail-branches to it so it returns straight to the Think."""
+
+
+@dataclass(frozen=True)
 class EchoesVersionInfo:
     name: str
     game_id: bytes
@@ -55,6 +75,7 @@ class EchoesVersionInfo:
     powerup_functions: PowerupFunctionAddresses
     powerup_should_persist: int
     powerup_max: int
+    warp_to_start: WarpToStartAddresses
 
 
 # --------------------------------------------------------------------------
@@ -126,6 +147,10 @@ NTSC = EchoesVersionInfo(
     ),
     powerup_should_persist=0x803A743C,
     powerup_max=0x803A7288,
+    warp_to_start=WarpToStartAddresses(
+        decline_broadcast_call=0x80105ABC,
+        send_script_msgs=0x80047FF0,
+    ),
 )
 
 PAL = EchoesVersionInfo(
@@ -151,6 +176,10 @@ PAL = EchoesVersionInfo(
     ),
     powerup_should_persist=0x803A7B94,
     powerup_max=0x803A79E0,
+    warp_to_start=WarpToStartAddresses(
+        decline_broadcast_call=0x80105C70,
+        send_script_msgs=0x80048160,
+    ),
 )
 
 VERSIONS: tuple[EchoesVersionInfo, ...] = (NTSC, PAL)

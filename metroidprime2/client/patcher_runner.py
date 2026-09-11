@@ -184,6 +184,53 @@ def goal_trigger_installed():
         opr_patcher.register_world_changes = original_register_world_changes
 
 
+@contextlib.contextmanager
+def warp_to_start_installed(dol_version: Any, starting_area: Any):
+    """Context manager installing both halves of warp-to-start (see
+    ``client/warp_patch.py``) for the duration of one ``_apply_patches``
+    call.
+
+    Wraps ``register_world_changes`` the same way (and for the same reason)
+    as ``goal_trigger_installed``; the two nest safely, each restoring the
+    function it replaced. That hook is also where the DOL half goes: it runs
+    inside ``_apply_patches``, so the code-cave request it makes is still
+    pending when ``_apply_patches`` calls
+    ``editor.code_cave.fulfill_requests()``.
+    """
+    from open_prime_rando.echoes import patcher as opr_patcher
+    from open_prime_rando.echoes.version import EchoesVersion
+
+    from . import versions as version_tables
+    from . import warp_patch
+
+    address_tables = {
+        EchoesVersion.NTSC_U: version_tables.NTSC,
+        EchoesVersion.PAL: version_tables.PAL,
+    }
+    version_info = address_tables.get(dol_version.echoes_version)
+    if version_info is None:
+        raise ValueError(
+            f"Warp to Start is not supported on {dol_version.description} "
+            f"({dol_version.echoes_version.name}); patch an NTSC-U or PAL ISO, "
+            f"or disable the Warp to Start option."
+        )
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_warp(
+        area_patcher: AreaPatcher, world_changes: list[Any]
+    ) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        warp_patch.register(area_patcher, starting_area)
+        warp_patch.apply_dol_patches(area_patcher.editor.code_cave, version_info.warp_to_start)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_warp
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
 # --------------------------------------------------------------------------
 # Configuration loading + cosmetics
 # --------------------------------------------------------------------------
@@ -270,6 +317,11 @@ def patch_iso_with_ap(
             progress(text, percent)
 
     configuration = _load_configuration(apmp2_file, settings)
+    # Patch-time settings that the OPR RandoConfiguration has no field for
+    # (config.json is validated with extra="forbid"), so they travel in the
+    # .apmp2's options.json instead. Defaulted for .apmp2 files produced
+    # before the option existed.
+    warp_to_start = bool(_read_apmp2_json(apmp2_file, "options.json").get("warp_to_start", False))
 
     _report("Reading input ISO", 0.0)
     provider = IsoFileProvider(input_iso)  # type: ignore[arg-type]
@@ -290,7 +342,12 @@ def patch_iso_with_ap(
     )
 
     try:
-        with goal_trigger_installed():
+        with contextlib.ExitStack() as patches:
+            patches.enter_context(goal_trigger_installed())
+            if warp_to_start:
+                patches.enter_context(
+                    warp_to_start_installed(dol_version, configuration.starting_area)
+                )
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)
 
         def _write_callback(bytes_written: int, total_bytes: int) -> None:

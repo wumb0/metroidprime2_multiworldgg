@@ -218,6 +218,16 @@ requires:
   trick_wallboost: use_global
 
   # ------------------------------------------------------------------
+  # Quality of Life
+  # ------------------------------------------------------------------
+
+  # Declining to save at a Save Station while holding L+R warps you back
+  # to the starting room (Samus' ship in Landing Site). Declining
+  # without L+R held behaves exactly as in vanilla.
+  # Options: true, false
+  warp_to_start: true
+
+  # ------------------------------------------------------------------
   # Cosmetic
   # ------------------------------------------------------------------
 

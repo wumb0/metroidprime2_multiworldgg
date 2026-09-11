@@ -190,6 +190,10 @@ class MetroidPrime2World(World):
                 "player_name": self.player_name,
                 "world_uuid": self.world_uuid,
                 "apworld_version": get_apworld_version(),
+                # Patch-time settings that have no home in the OPR
+                # RandoConfiguration (config.json is validated with
+                # extra="forbid"), so the client reads them from here.
+                "warp_to_start": bool(self.options.warp_to_start),
             },
             indent=4,
         )
