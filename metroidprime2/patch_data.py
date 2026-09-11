@@ -281,8 +281,8 @@ def _door_lock_modification(db: GameDatabase, node: Node, new_weakness_name: str
 
 
 def _elevator_modification(db: GameDatabase, node: Node, target_id: NodeId) -> dict[str, Any]:
-    """``ElevatorChange``-shaped dict for one elevator/teleporter
-    reassigned by ``logic/dock_rando.py``. ``elevator_id`` is the
+    """``ElevatorChange``-shaped dict for one elevator reassigned by
+    ``logic/dock_rando.py``. ``elevator_id`` is the
     ``WorldTeleporter`` script instance id (vendored as
     ``extra.teleporter_instance_id``); ``scan_strg`` is the vendored
     ``extra.scan_asset_id`` (None for the few dock nodes the randovania DB
@@ -302,8 +302,12 @@ def _elevator_modification(db: GameDatabase, node: Node, target_id: NodeId) -> d
 
 def _translator_gate_modification(world: MetroidPrime2World, node: Node) -> dict[str, Any]:
     """``{"translator": <color-or-"unlocked">, ...}`` for one of the 17
-    ``configurable_node`` translator gates: the node's vanilla required
-    color, unless ``translator_gate_rando`` reassigned it (see
+    ``configurable_node`` translator gates: the gate's vanilla required
+    color (``db.vanilla_translator_gates``, vendored from randovania's own
+    prime2_opr starter preset -- ``None``/"unlocked" for the two gates that
+    preset ships as "removed", see ``logic/regions.py``'s
+    ``translator_gate_requirement``), unless ``translator_gate_rando``
+    reassigned it (see
     ``logic/translator_gate_rando.py`` -- the same
     ``world.translator_gate_assignment`` dict ``logic/regions.py``'s
     ``translator_gate_requirement`` reads, so the in-ISO gate and the logic
@@ -329,8 +333,9 @@ def _translator_gate_modification(world: MetroidPrime2World, node: Node) -> dict
     if node.id in world.translator_gate_assignment:
         color = world.translator_gate_assignment[node.id]
     else:
-        color = node.vanilla_color
-        assert color is not None, f"{node.ap_name}: configurable_node has no vanilla_color"
+        db = load_game_database()
+        assert node.id in db.vanilla_translator_gates, f"{node.ap_name}: no vanilla translator requirement"
+        color = db.vanilla_translator_gates[node.id]
     result: dict[str, Any] = {"translator": color.lower() if color is not None else "unlocked"}
     if node.gate_index is not None and node.gate_index in constants.TRANSLATOR_GATE_INSTANCE_OVERRIDES:
         result.update(constants.TRANSLATOR_GATE_INSTANCE_OVERRIDES[node.gate_index])
@@ -379,10 +384,9 @@ def _world_changes(world: MetroidPrime2World, db: GameDatabase) -> list[dict[str
         change.setdefault("door_locks", []).append(_door_lock_modification(db, node, new_name))
 
     for node in db.all_nodes():
-        if node.node_type != "dock" or node.dock_type not in ("elevator", "teleporter"):
+        if node.node_type != "dock" or node.dock_type != "elevator":
             continue
-        assignment = world.dock_rando.elevator if node.dock_type == "elevator" else world.dock_rando.teleporter
-        target_id = assignment.get(node.id)
+        target_id = world.dock_rando.elevator.get(node.id)
         if target_id is None:
             continue
         mlvl_id, mrea_id = _area_asset_ids(db, node)

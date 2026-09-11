@@ -21,7 +21,7 @@ class TestDbReader(unittest.TestCase):
         cls.db = load_game_database()
 
     def test_node_count(self) -> None:
-        self.assertEqual(1109, sum(1 for _ in self.db.all_nodes()))
+        self.assertEqual(1104, sum(1 for _ in self.db.all_nodes()))
 
     def test_pickup_indices_contiguous(self) -> None:
         pickups = self.db.pickup_nodes()
@@ -32,9 +32,9 @@ class TestDbReader(unittest.TestCase):
         self.assertEqual(111, len(self.db.events))
 
         event_nodes = [n for n in self.db.all_nodes() if n.node_type == "event"]
-        self.assertEqual(116, len(event_nodes))
+        self.assertEqual(115, len(event_nodes))
         distinct_event_names = {n.event_name for n in event_nodes}
-        self.assertEqual(111, len(distinct_event_names))
+        self.assertEqual(110, len(distinct_event_names))
         # every event node's event_name is a known event resource
         self.assertTrue(distinct_event_names.issubset(self.db.events.keys()))
 
@@ -42,7 +42,7 @@ class TestDbReader(unittest.TestCase):
         self.assertEqual(25, len(self.db.tricks))
 
     def test_requirement_template_count(self) -> None:
-        self.assertEqual(19, len(self.db.requirement_templates))
+        self.assertEqual(20, len(self.db.requirement_templates))
 
     def test_every_dock_default_connection_resolves(self) -> None:
         dock_nodes = [n for n in self.db.all_nodes() if n.node_type == "dock"]

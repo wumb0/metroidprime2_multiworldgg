@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
-"""Vendor randovania's prime2 logic/pickup databases into this world's data/,
-and (re)generate options_tricks.py from the trick resource database.
+"""Vendor randovania's prime2_opr logic/pickup databases into this world's
+data/, and (re)generate options_tricks.py from the trick resource database.
+
+``prime2_opr`` (not the plain ``prime2`` game definition) is the one that
+actually matches what open-prime-rando's patcher does to the ISO: OPR
+applies several hardcoded, always-on "rebalance" patches that move or
+re-gate specific vanilla objects (e.g.
+``open_prime_rando.echoes.specific_area_patches.rebalance_patches.
+hive_access_tunnel_translator_gate``, which physically relocates the Hive
+Access Tunnel translator gate to guard the Hive Chamber A hole instead of
+the corridor to Hive Transport Area, regardless of ``translator_gate_rando``).
+Vendoring from plain ``prime2`` silently disagreed with the real, patched
+topology for every room such a patch touches -- caught empirically via an
+in-game softlock at the very start of a fresh game (fully vanilla options).
 
 This script is excluded from built .apworld archives (see ../.apignore) and
 is never imported at runtime; it only needs to run in a randovania dev
@@ -28,8 +40,23 @@ WORLD_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RANDOVANIA_ROOT = WORLD_ROOT.parent / "randovania"
 
 EXPECTED_SCHEMA_VERSION = 34
-EXPECTED_GAME = "prime2"
+EXPECTED_GAME = "prime2_opr"
 EXPECTED_PICKUP_NODE_COUNT = 119
+
+EXPECTED_TRANSLATOR_GATE_COUNT = 17
+
+# randovania's LayoutTranslatorRequirement -> the vendored DB item short name
+# this world's logic/patch data uses for that gate. "removed" ("Unlocked" in
+# randovania's UI) is a real, distinct requirement -- Scan Visor only, no
+# translator item at all -- which this world represents as ``None``.
+# See randovania/games/prime2/layout/translator_configuration.py's ITEM_NAMES.
+TRANSLATOR_REQUIREMENT_NAMES: dict[str, str | None] = {
+    "violet": "Violet",
+    "amber": "Amber",
+    "emerald": "Emerald",
+    "cobalt": "Cobalt",
+    "removed": None,
+}
 
 LEVEL_NAMES = {1: "beginner", 2: "intermediate", 3: "advanced", 4: "expert", 5: "ludicrous"}
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -181,11 +208,58 @@ def generate_options_tricks(header: dict, out_path: Path) -> int:
 # main
 # --------------------------------------------------------------------------
 
+def generate_vanilla_translator_gates(
+    randovania_root: Path, gate_node_names: set[str], out_path: Path
+) -> int:
+    """Vendor the *vanilla* translator gate requirements from randovania's own
+    shipped ``prime2_opr`` starter preset.
+
+    This can NOT be derived from the logic database's per-gate
+    ``extra.vanilla_actual``/``extra.vanilla_color`` fields. Those describe the
+    unpatched retail game, and open-prime-rando's patched game differs: with the
+    Hive Access Tunnel gate relocated to guard the Hive Chamber A hole (OPR's
+    ``hive_access_tunnel_translator_gate`` rebalance patch), the Hive Transport
+    Area and Industrial Site gates would make the whole Temple Grounds start
+    unescapable, so randovania's prime2_opr preset ships them as "removed"
+    (Unlocked) instead of the retail Violet. That preset is the shipped,
+    generator-verified-solvable definition of "vanilla" for this game, exactly
+    as ``randovania.games.prime2.layout.translator_configuration.
+    TranslatorConfiguration.from_json`` reads it.
+
+    Writes ``{"<Region>/<Area>/<Node>": "<Color>" | null}`` for all 17 gates.
+    """
+    preset = json.loads(
+        (randovania_root / "randovania" / "games" / EXPECTED_GAME / "presets" / "starter_preset.rdvpreset").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert preset["game"] == EXPECTED_GAME, f"expected preset game {EXPECTED_GAME!r}, got {preset['game']!r}"
+    raw = preset["configuration"]["translator_configuration"]["translator_requirement"]
+
+    assert set(raw) == gate_node_names, (
+        "starter preset translator gates disagree with the vendored logic database: "
+        f"preset-only={sorted(set(raw) - gate_node_names)} db-only={sorted(gate_node_names - set(raw))}"
+    )
+    assert len(raw) == EXPECTED_TRANSLATOR_GATE_COUNT, (
+        f"expected {EXPECTED_TRANSLATOR_GATE_COUNT} translator gates, got {len(raw)}"
+    )
+
+    result: dict[str, str | None] = {}
+    for node_name, requirement in sorted(raw.items()):
+        assert requirement in TRANSLATOR_REQUIREMENT_NAMES, (
+            f"{node_name}: starter preset has non-vanilla translator requirement {requirement!r}"
+        )
+        result[node_name] = TRANSLATOR_REQUIREMENT_NAMES[requirement]
+
+    _write_compact(out_path, result)
+    return len(result)
+
+
 def main(randovania_root: Path, out_dir: Path | None = None) -> None:
     out_dir = out_dir or (WORLD_ROOT / "data")
-    logic_db_src = randovania_root / "randovania" / "games" / "prime2" / "logic_database"
+    logic_db_src = randovania_root / "randovania" / "games" / "prime2_opr" / "logic_database"
     pickup_db_src = (
-        randovania_root / "randovania" / "games" / "prime2" / "pickup_database" / "pickup-database.json"
+        randovania_root / "randovania" / "games" / "prime2_opr" / "pickup_database" / "pickup-database.json"
     )
 
     header = json.loads((logic_db_src / "header.json").read_text(encoding="utf-8"))
@@ -203,6 +277,7 @@ def main(randovania_root: Path, out_dir: Path | None = None) -> None:
     total_pickups = 0
     total_events = 0
     event_names: set[str] = set()
+    gate_node_names: set[str] = set()
 
     header_copy = copy.deepcopy(header)
     _strip_header(header_copy)
@@ -210,8 +285,8 @@ def main(randovania_root: Path, out_dir: Path | None = None) -> None:
 
     for region_file in region_files:
         doc = json.loads((logic_db_src / region_file).read_text(encoding="utf-8"))
-        for area in doc["areas"].values():
-            for node in area["nodes"].values():
+        for area_name, area in doc["areas"].items():
+            for node_name, node in area["nodes"].items():
                 total_nodes += 1
                 node_type = node["node_type"]
                 if node_type == "pickup":
@@ -219,6 +294,8 @@ def main(randovania_root: Path, out_dir: Path | None = None) -> None:
                 elif node_type == "event":
                     total_events += 1
                     event_names.add(node["event_name"])
+                elif node_type == "configurable_node":
+                    gate_node_names.add(f"{doc['name']}/{area_name}/{node_name}")
 
         region_copy = copy.deepcopy(doc)
         _strip_region(region_copy)
@@ -243,6 +320,10 @@ def main(randovania_root: Path, out_dir: Path | None = None) -> None:
         version = "unknown"
     (out_dir / "RANDOVANIA_VERSION.txt").write_text(version + "\n", encoding="utf-8")
 
+    gate_count = generate_vanilla_translator_gates(
+        randovania_root, gate_node_names, out_dir / "vanilla_translator_gates.json"
+    )
+
     trick_count = generate_options_tricks(header, WORLD_ROOT / "options_tricks.py")
 
     print(f"randovania root: {randovania_root}")
@@ -251,6 +332,7 @@ def main(randovania_root: Path, out_dir: Path | None = None) -> None:
     print(f"nodes: {total_nodes}")
     print(f"pickup nodes: {total_pickups}")
     print(f"event nodes: {total_events} ({len(event_names)} distinct event names)")
+    print(f"translator gates: {gate_count}")
     print(f"tricks: {trick_count}")
     print(f"requirement templates: {len(header['resource_database']['requirement_template'])}")
 

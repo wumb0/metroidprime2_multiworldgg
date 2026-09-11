@@ -212,15 +212,6 @@ class ElevatorRando(Toggle):
     display_name = "Elevator Randomization"
 
 
-class TeleporterRando(Toggle):
-    """If enabled, the inter-region teleporters (the ones connecting the
-    Great Temple, Agon Wastes, Torvus Bog, and Sanctuary Fortress Energy
-    Controllers) are shuffled into new two-way connections, instead of
-    vanilla connections."""
-
-    display_name = "Teleporter Randomization"
-
-
 class TranslatorGateRando(Choice):
     """How each of the 17 translator gates' required color is chosen,
     matching randovania's own translator gate presets.
@@ -315,7 +306,6 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
     door_lock_rando: DoorLockRando
     elevator_rando: ElevatorRando
-    teleporter_rando: TeleporterRando
     translator_gate_rando: TranslatorGateRando
 
     display_nonlocal_items: DisplayNonLocalItems
@@ -341,7 +331,7 @@ OPTION_GROUPS: list[OptionGroup] = [
     ),
     OptionGroup(
         "Entrances",
-        [DoorLockRando, ElevatorRando, TeleporterRando, TranslatorGateRando],
+        [DoorLockRando, ElevatorRando, TranslatorGateRando],
     ),
     OptionGroup(
         "Tricks",

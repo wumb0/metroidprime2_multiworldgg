@@ -91,12 +91,6 @@ requires:
   # Options: true, false
   elevator_rando: false
 
-  # Shuffle the inter-region teleporters (the Great Temple/Agon/Torvus/
-  # Sanctuary Energy Controller connections) into new two-way
-  # connections.
-  # Options: true, false
-  teleporter_rando: false
-
   # How each of the 17 translator gates' required color is chosen.
   # Options: vanilla, full_random, full_random_unlocked
   #   vanilla: every gate requires its vanilla translator color.

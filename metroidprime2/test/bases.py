@@ -34,12 +34,11 @@ class MP2TestBase(WorldTestBase):
         # sees them, so enabling the blanket tests at default options
         # passes cleanly (verified).
         #
-        # The REAL reason to keep this False: door_lock_rando/
-        # elevator_rando/teleporter_rando (and their combination) have a
-        # measured nonzero FillError rate even after logic/dock_rando.py's
-        # reject-and-retry fix (see that module's docstring for numbers --
-        # roughly 3% for door_lock_rando alone, ~16% for elevator_rando,
-        # ~30% for all three combined, on 37 identical test seeds). Every
+        # The REAL reason to keep this False: door_lock_rando/elevator_rando
+        # (and their combination) have a measured nonzero FillError rate
+        # even after logic/dock_rando.py's reject-and-retry fix (see that
+        # module's docstring for numbers -- roughly 3% for door_lock_rando
+        # alone, ~16% for elevator_rando, on 37 identical test seeds). Every
         # existing MP2TestBase subclass that sets those options uses
         # whatever arbitrary seed WorldTestBase.world_setup() picks (it
         # doesn't fix one), so binding automatic test_fill to

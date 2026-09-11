@@ -1,8 +1,18 @@
-"""Door-lock, elevator, and teleporter randomization for Metroid Prime 2:
-Echoes: builds the per-seed assignments consulted by ``logic/regions.py``'s
+"""Door-lock and elevator randomization for Metroid Prime 2: Echoes: builds
+the per-seed assignments consulted by ``logic/regions.py``'s
 ``dock_target``/``dock_weakness_for`` override points and by
 ``patch_data.py``'s ``_world_changes`` (the same assignment drives both the
 logic graph and the in-ISO patch, since both read ``world.dock_rando``).
+
+There used to be a third pool here, teleporters (the inter-region Energy
+Controller light-transports) -- removed along with the ``teleporter_rando``
+option once vendoring from ``prime2_opr`` (see
+``tools/sync_randovania_data.py``) revealed they aren't reciprocal dock
+pairs at all in the real, OPR-patched game: they're an ``is_unlocked``
+-gated many-to-many fast-travel network (``node_type ==
+"teleporter_network"``) with no patch-data schema field or instance id to
+even write a reassignment to. See ``build_elevator_assignment``'s
+docstring for the full story.
 
 **Door locks**: randovania's own prime2 door lock randomizer does NOT
 independently reassign each door side a uniform-random weakness -- despite
@@ -33,19 +43,17 @@ but *item-aware* forward sweep (unlike ``_reachable_nodes``, which is
 deliberately item-blind) that rejects any candidate leaving the start state
 unable to reach a minimum handful of pickups, or leaving any pickup
 unreachable with every item collected, and retries (bounded, like the
-elevator/teleporter pool below) until one passes or the budget is
-exhausted.
+elevator pool below) until one passes or the budget is exhausted.
 
-**Elevators and teleporters**: both are reciprocal two-way pools (shuffling
-one dock node's target also repoints its partner, so the graph stays a set
-of two-way connections, like vanilla). Losing an entire *region* to a bad
-shuffle is a real risk (most elevators/teleporters are the only path
-between top-level regions), so both pools first use a cheap, item-blind
-reject-and-retry loop (``_reachable_nodes``) purely to reject topology
-mistakes -- and then, like door locks, an additional ``_meets_progression_bar``
-check, applied for the same reason: a topologically-connected shuffle can
-still leave the start state (or the all-items state) unable to make
-progress.
+**Elevators**: a reciprocal two-way pool (shuffling one dock node's target
+also repoints its partner, so the graph stays a set of two-way
+connections, like vanilla). Losing an entire *region* to a bad shuffle is
+a real risk (most elevators are the only path between top-level regions),
+so the pool first uses a cheap, item-blind reject-and-retry loop
+(``_reachable_nodes``) purely to reject topology mistakes -- and then,
+like door locks, an additional ``_meets_progression_bar`` check, applied
+for the same reason: a topologically-connected shuffle can still leave
+the start state (or the all-items state) unable to make progress.
 
 Measured (37 identical seeds, 1000-1036, before/after this module's fix):
 ``door_lock_rando`` went from 37/37 generation failures to 1/37.
@@ -224,7 +232,7 @@ def _sample_door_lock_candidate(
 
 
 # --------------------------------------------------------------------------
-# Elevators / teleporters (shared two-way shuffle machinery)
+# Elevators (two-way shuffle machinery)
 # --------------------------------------------------------------------------
 
 # Intra-region pair excluded from elevator shuffling (verified against
@@ -270,7 +278,6 @@ _MIN_SPHERE_ZERO_PICKUPS = 1
 class DockRandoAssignment:
     door_lock: dict[NodeId, str] = field(default_factory=dict)
     elevator: dict[NodeId, NodeId] = field(default_factory=dict)
-    teleporter: dict[NodeId, NodeId] = field(default_factory=dict)
 
 
 def _reciprocal_pairs(
@@ -351,13 +358,12 @@ def _event_gated_satisfied(req: dict | None, templates: dict[str, dict], unlocke
 def _reachable_nodes(
     db: GameDatabase,
     elevator_targets: dict[NodeId, NodeId],
-    teleporter_targets: dict[NodeId, NodeId],
 ) -> set[NodeId]:
     """Fixed-point sweep over a coarse graph -- every intra-area
     ``connections`` edge (gated only on ``events`` resources, via
     ``_event_gated_satisfied``; every other requirement kind is treated
     as optimistically satisfied) plus every dock node's resolved target
-    (the candidate elevator/teleporter assignment being tested, vanilla
+    (the candidate elevator assignment being tested, vanilla
     ``default_connection`` for every other dock, including doors -- door
     lock rando never changes *where* a door leads, only whether it's
     locked, so this check doesn't need to know about it at all). Returns
@@ -366,35 +372,32 @@ def _reachable_nodes(
     This is deliberately item-blind (see ``_meets_progression_bar`` for
     the item-aware check that actually catches the door-lock bootstrap
     deadlock this module's tests are named after). It exists purely to
-    reject-fast on elevator/teleporter shuffles that break graph topology
-    outright, and to guard against a subtlety: some connections are
-    one-way switches (e.g. Great Temple's "Transport C Access Light
-    Block": reachable freely from the Temple Sanctuary side, but the
-    *reverse* direction requires that same event already triggered) --
-    treating every ``connections`` edge as unconditionally traversable
-    would let a shuffle that relies on walking through one of those
-    backwards pass this check while actually being unreachable in the
-    real, fully-compiled region graph (this was caught by the
-    reachability tests in test/test_dock_rando.py, not derived
-    analytically).
+    reject-fast on elevator shuffles that break graph topology outright,
+    and to guard against a subtlety: some connections are one-way
+    switches (e.g. Great Temple's "Transport C Access Light Block":
+    reachable freely from the Temple Sanctuary side, but the *reverse*
+    direction requires that same event already triggered) -- treating
+    every ``connections`` edge as unconditionally traversable would let a
+    shuffle that relies on walking through one of those backwards pass
+    this check while actually being unreachable in the real,
+    fully-compiled region graph (this was caught by the reachability
+    tests in test/test_dock_rando.py, not derived analytically).
 
     Deliberately node-level, not region-level: a region can have several
-    independent elevator/teleporter entry points whose *sub-areas* aren't
-    otherwise interconnected (e.g. Great Temple's three "Temple Transport
-    X Access" branches each hang off their own, otherwise-unrelated
-    elevator) -- checking "is some node in this region reachable" would
-    miss a shuffle that strands one such branch while leaving the rest of
-    the region reachable through a different elevator. Checking that
-    every original pool endpoint node is still reachable (see
-    ``build_elevator_and_teleporter_assignment``) catches that case
-    because reaching any one node lets this sweep cascade through its own
-    ``connections`` edges into everything hanging off it."""
+    independent elevator entry points whose *sub-areas* aren't otherwise
+    interconnected (e.g. Great Temple's three "Temple Transport X Access"
+    branches each hang off their own, otherwise-unrelated elevator) --
+    checking "is some node in this region reachable" would miss a
+    shuffle that strands one such branch while leaving the rest of the
+    region reachable through a different elevator. Checking that every
+    original pool endpoint node is still reachable (see
+    ``build_elevator_assignment``) catches that case because reaching any
+    one node lets this sweep cascade through its own ``connections``
+    edges into everything hanging off it."""
 
     def resolve_dock_target(node: Node) -> NodeId | None:
         if node.dock_type == "elevator":
             return elevator_targets.get(node.id, node.default_connection)
-        if node.dock_type == "teleporter":
-            return teleporter_targets.get(node.id, node.default_connection)
         return node.default_connection
 
     visited: set[NodeId] = {db.starting_location}
@@ -586,7 +589,7 @@ def _meets_progression_bar(
     accessibility sweep over the real, fully item-gated region graph
     (which enforces the actual placement order, not just these two
     snapshots) -- this is a coarse, cheap-ish reject filter, same spirit
-    as ``_reachable_nodes`` for elevators/teleporters, just item-aware."""
+    as ``_reachable_nodes`` for elevators, just item-aware."""
     probe_world = _ProbeWorld(world, candidate)
     # _ProbeWorld duck-types MetroidPrime2World via __getattr__ delegation
     # (see its docstring); that's not something the type system can verify
@@ -632,13 +635,13 @@ def build_door_lock_assignment(world: MetroidPrime2World, db: GameDatabase) -> d
     pickup_ids = frozenset(node.id for node in db.all_nodes() if node.node_type == "pickup")
     starting_names = frozenset(constants.DEFAULT_STARTING_ITEMS)
 
-    # Elevator/teleporter assignment hasn't been decided yet at this point
-    # in build_dock_rando_assignment (door locks are built first) -- probe
-    # against vanilla elevator/teleporter topology (DockRandoAssignment's
-    # empty elevator/teleporter dicts, below). That pool gets its own
-    # _meets_progression_bar check once it's built (see
-    # build_elevator_and_teleporter_assignment), including this door lock
-    # assignment once it's final, so the joint case is still covered.
+    # Elevator assignment hasn't been decided yet at this point in
+    # build_dock_rando_assignment (door locks are built first) -- probe
+    # against vanilla elevator topology (DockRandoAssignment's empty
+    # elevator dict, below). That pool gets its own _meets_progression_bar
+    # check once it's built (see build_elevator_assignment), including
+    # this door lock assignment once it's final, so the joint case is
+    # still covered.
     for _attempt in range(_MAX_DOOR_LOCK_ATTEMPTS):
         candidate_doors = _sample_door_lock_candidate(world, db, pairs)
         candidate = DockRandoAssignment(door_lock=candidate_doors)
@@ -651,60 +654,67 @@ def build_door_lock_assignment(world: MetroidPrime2World, db: GameDatabase) -> d
     )
 
 
-def build_elevator_and_teleporter_assignment(
+def build_elevator_assignment(
     world: MetroidPrime2World, db: GameDatabase, door_lock: dict[NodeId, str]
-) -> tuple[dict[NodeId, NodeId], dict[NodeId, NodeId]]:
-    """Computes the elevator and teleporter target assignments together
-    (a joint connectivity check is needed: whichever pool is off still
-    contributes its *vanilla* connections to the graph the other pool is
-    checked against). ``door_lock`` is this seed's already-finalized door
-    lock assignment (empty if ``door_lock_rando`` is off), included in the
-    ``_meets_progression_bar`` probe so this pool's check reflects the
-    real combined graph. Returns ``(elevator_assignment,
-    teleporter_assignment)``, each empty when its own option is off."""
-    elevator_on = bool(world.options.elevator_rando)
-    teleporter_on = bool(world.options.teleporter_rando)
-    if not elevator_on and not teleporter_on:
-        return {}, {}
+) -> dict[NodeId, NodeId]:
+    """Computes the elevator target assignment, empty when
+    ``elevator_rando`` is off. ``door_lock`` is this seed's
+    already-finalized door lock assignment (empty if ``door_lock_rando``
+    is off), included in the ``_meets_progression_bar`` probe so this
+    pool's check reflects the real combined graph.
 
-    elevator_pairs = _reciprocal_pairs(db, "elevator", ELEVATOR_EXCLUDED_AP_NAMES) if elevator_on else []
-    teleporter_pairs = _reciprocal_pairs(db, "teleporter", frozenset()) if teleporter_on else []
+    Teleporters (the inter-region Energy Controller light-transports)
+    used to be shuffled alongside elevators here, sharing this same
+    reciprocal-pairs machinery. They no longer are: ``prime2_opr`` (see
+    ``tools/sync_randovania_data.py``) models them as an ``is_unlocked``
+    -gated many-to-many fast-travel network (``node_type ==
+    "teleporter_network"``), not a set of fixed reciprocal ``dock_type ==
+    "teleporter"`` pairs -- that ``dock_type`` no longer exists in the
+    vendored data at all, so ``_reciprocal_pairs(db, "teleporter", ...)``
+    always returned an empty pool, silently no-opping the
+    ``teleporter_rando`` option. open-prime-rando also has no patch-data
+    schema field to write a teleporter reassignment into in the first
+    place (``AreaChange`` only has ``pickups``/``translator_gates``/
+    ``door_locks``/``elevators``/``portals``), and the vendored
+    ``teleporter_network`` nodes carry no instance id to patch even if it
+    did. ``TeleporterRando`` was removed as an option rather than
+    "fixed" to shuffle something it structurally cannot represent or
+    write to the ISO."""
+    if not world.options.elevator_rando:
+        return {}
 
-    # Every node that's part of either pool must stay reachable -- not
-    # just "its region is reachable somehow" (see _reachable_nodes's
-    # docstring for why that weaker check isn't enough).
-    pool_endpoints = {node.id for pair in elevator_pairs for node in pair} | {
-        node.id for pair in teleporter_pairs for node in pair
-    }
+    elevator_pairs = _reciprocal_pairs(db, "elevator", ELEVATOR_EXCLUDED_AP_NAMES)
+
+    # Every node that's part of the pool must stay reachable -- not just
+    # "its region is reachable somehow" (see _reachable_nodes's docstring
+    # for why that weaker check isn't enough).
+    pool_endpoints = {node.id for pair in elevator_pairs for node in pair}
 
     compiler = _build_compiler(world, db)
     pickup_ids = frozenset(node.id for node in db.all_nodes() if node.node_type == "pickup")
     starting_names = frozenset(constants.DEFAULT_STARTING_ITEMS)
 
     for _attempt in range(_MAX_SHUFFLE_ATTEMPTS):
-        elevator_assignment = _shuffle_pairs(world, elevator_pairs) if elevator_pairs else {}
-        teleporter_assignment = _shuffle_pairs(world, teleporter_pairs) if teleporter_pairs else {}
+        elevator_assignment = _shuffle_pairs(world, elevator_pairs)
 
         # Cheap item-blind topology filter first -- rejects most bad
         # shuffles before paying for the expensive item-aware check below.
-        reached = _reachable_nodes(db, elevator_assignment, teleporter_assignment)
+        reached = _reachable_nodes(db, elevator_assignment)
         if not (pool_endpoints <= reached):
             continue
 
-        candidate = DockRandoAssignment(
-            door_lock=door_lock, elevator=elevator_assignment, teleporter=teleporter_assignment
-        )
+        candidate = DockRandoAssignment(door_lock=door_lock, elevator=elevator_assignment)
         if _meets_progression_bar(world, db, compiler, pickup_ids, starting_names, candidate):
-            return elevator_assignment, teleporter_assignment
+            return elevator_assignment
 
     raise RuntimeError(
-        "metroidprime2: could not find a fully-connected, solvable elevator/teleporter "
-        f"shuffle after {_MAX_SHUFFLE_ATTEMPTS} attempts"
+        f"metroidprime2: could not find a fully-connected, solvable elevator shuffle after "
+        f"{_MAX_SHUFFLE_ATTEMPTS} attempts"
     )
 
 
 def build_dock_rando_assignment(world: MetroidPrime2World) -> DockRandoAssignment:
     db = load_game_database()
     door_lock = build_door_lock_assignment(world, db)
-    elevator, teleporter = build_elevator_and_teleporter_assignment(world, db, door_lock)
-    return DockRandoAssignment(door_lock=door_lock, elevator=elevator, teleporter=teleporter)
+    elevator = build_elevator_assignment(world, db, door_lock)
+    return DockRandoAssignment(door_lock=door_lock, elevator=elevator)

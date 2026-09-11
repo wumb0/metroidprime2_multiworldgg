@@ -13,7 +13,11 @@ import unittest
 
 from .. import patch_data
 from ..logic.db_reader import load_game_database
-from ..logic.translator_gate_rando import TRANSLATOR_COLORS, build_translator_gate_assignment
+from ..logic.translator_gate_rando import (
+    TRANSLATOR_COLORS,
+    build_translator_gate_assignment,
+    randomizable_gate_ids,
+)
 from ..options import TranslatorGateRando
 from .bases import MP2TestBase
 from .test_patch_data import _all_translator_gates
@@ -40,14 +44,23 @@ class TestBuildTranslatorGateAssignment(unittest.TestCase):
         world = _FakeWorld(TranslatorGateRando.option_vanilla)
         self.assertEqual({}, build_translator_gate_assignment(world))  # type: ignore[arg-type]
 
-    def test_full_random_assigns_every_gate_a_color_never_unlocked(self) -> None:
+    def test_full_random_assigns_every_randomizable_gate_a_color_never_unlocked(self) -> None:
         world = _FakeWorld(TranslatorGateRando.option_full_random, seed=1)
         assignment = build_translator_gate_assignment(world)  # type: ignore[arg-type]
 
         db = load_game_database()
         gate_ids = {node.id for node in db.all_nodes() if node.node_type == "configurable_node"}
         self.assertEqual(17, len(gate_ids))
-        self.assertEqual(gate_ids, set(assignment))
+        # 15 of the 17: the two gates randovania's prime2_opr starter preset
+        # ships "removed" stay removed, because re-gating either one makes
+        # the start unescapable (see logic/translator_gate_rando.py's
+        # randomizable_gate_ids).
+        self.assertEqual(set(randomizable_gate_ids(db)), set(assignment))
+        self.assertEqual(15, len(assignment))
+        self.assertEqual(
+            {gate_id for gate_id in gate_ids if db.vanilla_translator_gates[gate_id] is None},
+            gate_ids - set(assignment),
+        )
         for color in assignment.values():
             self.assertIn(color, TRANSLATOR_COLORS)
 
@@ -65,7 +78,7 @@ class TestBuildTranslatorGateAssignment(unittest.TestCase):
         for seed in range(20):
             world = _FakeWorld(TranslatorGateRando.option_full_random_unlocked, seed=seed)
             assignment = build_translator_gate_assignment(world)  # type: ignore[arg-type]
-            self.assertEqual(17, len(assignment))
+            self.assertEqual(15, len(assignment))
             for color in assignment.values():
                 self.assertTrue(color is None or color in TRANSLATOR_COLORS)
                 if color is None:
@@ -97,11 +110,14 @@ class TestTranslatorGateRandoStillGenerates(MP2TestBase):
             gates_by_translator[gate["translator"]] = gates_by_translator.get(gate["translator"], 0) + 1
 
         self.assertEqual(17, sum(gates_by_translator.values()))
+        # The 2 gates left out of the assignment fall back to their vanilla
+        # "removed" -> "unlocked", so the patch data can carry "unlocked"
+        # even when no assigned gate rolled it.
         assigned_colors = {
             (color.lower() if color is not None else "unlocked")
             for color in self.world.translator_gate_assignment.values()
         }
-        self.assertEqual(assigned_colors, set(gates_by_translator))
+        self.assertEqual(assigned_colors | {"unlocked"}, set(gates_by_translator) | {"unlocked"})
 
 
 if __name__ == "__main__":

@@ -57,12 +57,12 @@ TRANSLATOR_COLORS = ("Violet", "Amber", "Emerald", "Cobalt")
 
 def dock_target(world: MetroidPrime2World, node: Node) -> NodeId | None:
     """The node a dock connects to: the vanilla ``default_connection``,
-    unless ``world.dock_rando`` has reassigned this elevator/teleporter
-    (see ``logic/dock_rando.py``)."""
+    unless ``world.dock_rando`` has reassigned this elevator (see
+    ``logic/dock_rando.py``). There's no ``dock_type == "teleporter"``
+    left to handle here -- see ``dock_rando.build_elevator_assignment``'s
+    docstring for why."""
     if node.dock_type == "elevator":
         return world.dock_rando.elevator.get(node.id, node.default_connection)
-    if node.dock_type == "teleporter":
-        return world.dock_rando.teleporter.get(node.id, node.default_connection)
     return node.default_connection
 
 
@@ -89,32 +89,42 @@ def translator_gate_requirement(world: MetroidPrime2World, node: Node) -> dict:
     When ``world.translator_gate_assignment`` has no entry for this gate
     (``translator_gate_rando`` left at its "Vanilla" default -- the dict is
     then empty for every gate, see ``logic/translator_gate_rando.py``),
-    falls back to this gate's own vanilla color, from
-    ``extra.vanilla_color`` rather than ``extra.vanilla_actual``. For 15 of
-    the 17 gates these two fields agree, but for exactly two (Temple
-    Grounds/Meeting Grounds and Temple Grounds/GFMC Compound)
-    ``vanilla_actual`` is "Violet" while ``vanilla_color`` differs (Amber
-    and Emerald respectively) -- and randovania's own prime2 starter
-    preset (the shipped, generator-verified-solvable default) uses exactly
-    those two non-"vanilla_actual" values (see
-    ``randovania/games/prime2/presets/starter_preset.rdvpreset``, and
-    ``TranslatorConfiguration.with_vanilla_colors()`` in
-    ``randovania/games/prime2/layout/translator_configuration.py``).
-    Empirically, taking ``vanilla_actual`` literally for those two gates
-    creates a real bootstrapping deadlock: every path out of the starting
-    Temple Grounds "inner loop" (Hive area/Industrial Site/Temple Assembly
-    Site) into the rest of the region graph is then gated on a translator
-    whose own vanilla pickup (Great Temple/Main Energy Controller) is only
-    reachable back through that same set of gates. ``vanilla_color`` is the
-    value randovania's own tooling treats as "the requirement a vanilla-
-    equivalent playthrough actually needs" and does not have this problem
-    (verified via test/test_regions.py's vanilla-placement test).
+    falls back to ``db.vanilla_translator_gates``, vendored verbatim from
+    randovania's own ``prime2_opr`` starter preset (see
+    ``data/vanilla_translator_gates.json`` and
+    ``tools/sync_randovania_data.py``'s
+    ``generate_vanilla_translator_gates``).
+
+    That preset -- not the logic database's per-node
+    ``extra.vanilla_actual``/``extra.vanilla_color`` -- is the authoritative
+    definition of "vanilla" here, because open-prime-rando's patched game is
+    not the retail game:
+
+    * ``vanilla_actual`` is the unpatched retail requirement. Taking it
+      literally deadlocks the start: every path out of the Temple Grounds
+      "inner loop" (Hive area/Industrial Site/Temple Assembly Site) would be
+      gated on a translator whose own vanilla pickup (Great Temple/Main
+      Energy Controller) is only reachable back through that same set of
+      gates.
+    * ``vanilla_color`` fixes that for Meeting Grounds/GFMC Compound but is
+      still wrong for Temple Grounds/Hive Transport Area and Temple
+      Grounds/Industrial Site. OPR's always-on
+      ``hive_access_tunnel_translator_gate`` rebalance patch relocates the
+      Hive Access Tunnel gate to guard the drop to Hive Chamber A, which
+      leaves the Landing Site start with no item-free exit at all unless
+      those two downstream gates are gone -- so randovania's prime2_opr
+      preset ships both as ``"removed"`` ("Unlocked": Scan Visor only, no
+      translator item), i.e. ``None`` here.
     """
     if node.id in world.translator_gate_assignment:
         color = world.translator_gate_assignment[node.id]
     else:
-        color = node.vanilla_color or node.vanilla_actual
-        assert color in TRANSLATOR_COLORS, f"{node.ap_name}: unexpected translator color {color!r}"
+        db = load_game_database()
+        assert node.id in db.vanilla_translator_gates, f"{node.ap_name}: no vanilla translator requirement"
+        color = db.vanilla_translator_gates[node.id]
+        assert color is None or color in TRANSLATOR_COLORS, (
+            f"{node.ap_name}: unexpected translator color {color!r}"
+        )
 
     items = [
         {

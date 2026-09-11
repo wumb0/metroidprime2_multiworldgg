@@ -104,11 +104,11 @@ STATIC_MISC = {
     # resource pinned at 1 already encodes: the "Room Center" edge's `(not
     # Event76 AND VanillaGreatTempleEmeraldGate) OR Event91` becomes freely
     # true from the start (Event76 hasn't fired yet), matching an
-    # always-open gate. Toggling this to 0 for elevator_rando/
-    # teleporter_rando (the reading PLAN.md's task notes suggested as
-    # "safest") would make logic wrongly demand Event91 for a door OPR's
-    # patcher keeps permanently open regardless of those options -- overly
-    # strict, not unsafe, but not what the real ISO does either. Left
+    # always-open gate. Toggling this to 0 for elevator_rando (the reading
+    # PLAN.md's task notes suggested as "safest") would make logic wrongly
+    # demand Event91 for a door OPR's patcher keeps permanently open
+    # regardless of that option -- overly strict, not unsafe, but not what
+    # the real ISO does either. Left
     # pinned at 1 for every option combination; NOT threaded through
     # StaticContext. If open-prime-rando ever makes this patch conditional,
     # revisit both this comment and requirements.py's StaticContext.misc

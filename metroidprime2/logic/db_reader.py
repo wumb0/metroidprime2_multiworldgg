@@ -146,6 +146,12 @@ class GameDatabase:
     regions: dict[str, Region]
     victory_condition: dict
     starting_location: NodeId
+    # Per-gate vanilla translator requirement, for every configurable_node.
+    # ``None`` means the gate is "removed"/Unlocked (Scan Visor only, no
+    # translator item). Vendored from randovania's own prime2_opr starter
+    # preset -- see data/vanilla_translator_gates.json and
+    # tools/sync_randovania_data.py's generate_vanilla_translator_gates.
+    vanilla_translator_gates: dict[NodeId, str | None]
 
     def node(self, id: NodeId) -> Node:
         return self.regions[id.region].areas[id.area].nodes[id.node]
@@ -321,6 +327,14 @@ def _parse_region(raw: dict) -> Region:
     )
 
 
+def _parse_vanilla_translator_gates(raw: dict[str, str | None]) -> dict[NodeId, str | None]:
+    result: dict[NodeId, str | None] = {}
+    for name, color in raw.items():
+        region, area, node = name.split("/")
+        result[NodeId(region=region, area=area, node=node)] = color
+    return result
+
+
 def _validate(db: GameDatabase) -> None:
     # Every default_connection resolves to a real node.
     for node in db.all_nodes():
@@ -362,6 +376,15 @@ def _validate(db: GameDatabase) -> None:
     missing = referenced_templates - set(db.requirement_templates)
     assert not missing, f"requirement templates referenced but not defined: {sorted(missing)}"
 
+    # Every configurable_node (translator gate) has a vanilla requirement,
+    # and every vendored vanilla requirement names a real configurable_node.
+    gate_ids = {node.id for node in db.all_nodes() if node.node_type == "configurable_node"}
+    assert gate_ids == set(db.vanilla_translator_gates), (
+        "vanilla_translator_gates.json disagrees with the logic database: "
+        f"db-only={sorted(n.ap_name for n in gate_ids - set(db.vanilla_translator_gates))} "
+        f"json-only={sorted(n.ap_name for n in set(db.vanilla_translator_gates) - gate_ids)}"
+    )
+
     # Pickup indices are exactly 0..118, contiguous.
     db.pickup_nodes()
 
@@ -398,6 +421,9 @@ def load_game_database() -> GameDatabase:
             region=header["starting_location"]["region"],
             area=header["starting_location"]["area"],
             node=header["starting_location"]["node"],
+        ),
+        vanilla_translator_gates=_parse_vanilla_translator_gates(
+            load_json("vanilla_translator_gates.json")
         ),
     )
 

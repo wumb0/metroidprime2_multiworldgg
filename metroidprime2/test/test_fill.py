@@ -19,8 +19,8 @@ to pin a seed from a test method (it always draws a fresh one), so this
 module builds ``MultiWorld`` instances directly, the same way
 ``MultiWorldGG/test/general`` and this world's own dev scratch scripts do,
 so every case below runs against an explicit, hand-verified seed instead
-of an arbitrary one. Door lock/elevator/teleporter rando in particular
-still have a nonzero (if now much smaller -- see dock_rando.py) generation
+of an arbitrary one. Door lock/elevator rando in particular still have a
+nonzero (if now much smaller -- see dock_rando.py) generation
 failure rate; picking seeds that are verified to pass here keeps this
 suite deterministic rather than flaky (task instruction: "pick test seeds
 that pass deterministically rather than writing a flaky test").
@@ -163,15 +163,10 @@ class TestElevatorRando(_FillMatrixCase):
     seeds = (1, 2, 3)
 
 
-class TestTeleporterRando(_FillMatrixCase):
-    options = {"teleporter_rando": True}
-    seeds = (1, 2, 3)
-
-
 class TestAllEntranceRandoTogether(_FillMatrixCase):
     # Seed 3 (among others) is known-bad for this combination; see
     # dock_rando.py's docstring for the measured failure rate.
-    options = {"door_lock_rando": True, "elevator_rando": True, "teleporter_rando": True}
+    options = {"door_lock_rando": True, "elevator_rando": True}
     seeds = (1, 2, 5)
 
 

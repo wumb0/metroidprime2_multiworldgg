@@ -13,7 +13,7 @@ uses.
 ## Status
 
 - **Done:** item shuffle + logic/tricks, generation, ISO patching, the client receive/connect
-  loop, Death Link, door lock / elevator / teleporter / translator gate randomization, goal-trigger detection.
+  loop, Death Link, door lock / elevator / translator gate randomization, goal-trigger detection.
 - **In progress:** Universal Tracker support and final docs
 
 See [`PLAN.md`](PLAN.md) for the full design/porting plan and milestone breakdown.
@@ -56,7 +56,7 @@ python -m pytest worlds/metroidprime2/test/
 
 The suite (200+ tests across `metroidprime2/test/`) covers the logic-DB reader, requirement
 compiler, region/reachability generation, item pool composition, patch data, entrance
-(door lock/elevator/teleporter/translator gate) randomization, Death Link, and the client's
+(door lock/elevator/translator gate) randomization, Death Link, and the client's
 item-receive logic.
 
 ## Config options
@@ -89,7 +89,6 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 |---|---|---|---|
 | `door_lock_rando` | Toggle | off | Shuffle certain door locks (beam-colored doors, blast shields) among a vetted pool of lock types instead of each door's vanilla lock. |
 | `elevator_rando` | Toggle | off | Shuffle elevators into new two-way connections (every region stays reachable, just not necessarily via the same elevator). The one-way trip to Sky Temple and the intra-Aerie elevator are never shuffled. |
-| `teleporter_rando` | Toggle | off | Shuffle the inter-region teleporters (the Great Temple/Agon/Torvus/Sanctuary Energy Controller connections) into new two-way connections. |
 | `translator_gate_rando` | Choice: `vanilla`/`full_random`/`full_random_unlocked` | `vanilla` | How each of the 17 translator gates' required color is chosen. `full_random`: every gate independently requires a random one of the four translator colors. `full_random_unlocked`: like `full_random`, but each gate may also independently come up "Unlocked" (open with just Scan Visor, no translator at all). Matches Randovania's own translator gate presets. |
 
 ### Tricks

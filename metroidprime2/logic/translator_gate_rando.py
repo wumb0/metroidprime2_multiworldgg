@@ -20,6 +20,13 @@ loop: a translator gate never removes a route, it only ever adds or removes
 an item check on top of the vanilla graph shape, so the generator's own
 fill-time accessibility sweep is exactly the same solvability safety net
 door lock rando already relies on (see that module's docstring).
+
+That "only ever adds an item check" invariant holds for the 15 gates the
+OPR-patched vanilla game actually raises. It does NOT hold for the two
+randovania's prime2_opr starter preset ships as "removed" -- Temple
+Grounds/Hive Transport Area and Temple Grounds/Industrial Site -- which is
+why they are excluded from randomization here; see
+``randomizable_gate_ids``.
 """
 
 from __future__ import annotations
@@ -58,8 +65,35 @@ def build_translator_gate_assignment(world: MetroidPrime2World) -> TranslatorGat
 
     db: GameDatabase = load_game_database()
     assignment: TranslatorGateAssignment = {}
-    for node in db.all_nodes():
-        if node.node_type != "configurable_node":
-            continue
-        assignment[node.id] = world.random.choice(choices)
+    for node_id in randomizable_gate_ids(db):
+        assignment[node_id] = world.random.choice(choices)
     return assignment
+
+
+def randomizable_gate_ids(db: GameDatabase) -> list[NodeId]:
+    """The ``configurable_node`` gates this world is allowed to reassign: the
+    15 whose OPR-patched *vanilla* requirement is an actual translator color.
+
+    The other two -- Temple Grounds/Hive Transport Area and Temple
+    Grounds/Industrial Site -- are shipped "removed" (Unlocked) by
+    randovania's own prime2_opr starter preset (see
+    ``data/vanilla_translator_gates.json``), and putting a translator back
+    on either one is not a difficulty knob, it is an unwinnable seed:
+    open-prime-rando's always-on ``hive_access_tunnel_translator_gate``
+    rebalance patch moves the Hive Access Tunnel gate onto the drop to Hive
+    Chamber A, which leaves Landing Site -> Hive Access Tunnel -> Hive
+    Transport Area -> Top of Elevator as the only item-free way out of the
+    starting cluster (Landing Site's own Save Station -> Door to Service
+    Access needs Space Jump/Bombs/Screw Attack, none of which are starting
+    equipment). Colouring the Hive Transport Area gate closes that exit
+    behind a translator whose every vanilla source sits on the far side of
+    it, and the Industrial Site gate closes the very next room's exit the
+    same way. Both were empirically fatal: every "Random" seed and most
+    "Random (Unlocked)" seeds died with ``Fill.FillError`` until these two
+    gates were pinned back to their vanilla "removed".
+    """
+    return [
+        node.id
+        for node in db.all_nodes()
+        if node.node_type == "configurable_node" and db.vanilla_translator_gates[node.id] is not None
+    ]

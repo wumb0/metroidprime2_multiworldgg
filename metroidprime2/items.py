@@ -103,6 +103,11 @@ _ROWS: tuple[ItemData, ...] = (
     _entry(10, "Scan Visor", PROG, ((9, 1),), "ScanVisor", 0),
     _entry(11, "Dark Visor", PROG, ((10, 1),), "DarkVisor", 1),
     _entry(12, "Echo Visor", PROG, ((11, 1),), "EchoVisor", 1),
+    # default_pool_count=0: always a starting item (constants.
+    # DEFAULT_STARTING_ITEMS), never actually placed as a pickup, so its
+    # "VariaSuit" model is never rendered in practice -- see the
+    # "Progressive Suit" entry below for why that model crashes the game
+    # if a location's item ever does use it.
     _entry(13, "Varia Suit", PROG, ((12, 1),), "VariaSuit", 0),
     # Dark Suit / Light Suit / Progressive Suit: default_pool_count below
     # assumes the default progressive_suit=True (DefaultOnToggle); when
@@ -115,7 +120,19 @@ _ROWS: tuple[ItemData, ...] = (
         "Progressive Suit",
         PROG,
         ((13, 1),),  # unused directly; see `progression` stages
-        "VariaSuit",
+        # "DarkSuit", not "VariaSuit" -- deliberate. Placing a pickup with
+        # the "VariaSuit" model (open_prime_rando.echoes.pickups.
+        # model_database.PICKUP_MODELS) anywhere other than its own
+        # vanilla location crashes the game on room load, before the
+        # player even reaches the pickup. Confirmed empirically: swapping
+        # just this model string to "DarkSuit" (itself a normal,
+        # frequently-relocated suit model) with the exact same seed/
+        # location made the crash disappear. Root cause not identified
+        # further (likely an open-prime-rando bug in that specific model
+        # entry) -- if open-prime-rando ever fixes this, "VariaSuit" would
+        # be the more thematically fitting model for a suit that isn't
+        # exclusively Dark or Light.
+        "DarkSuit",
         2,
         progression=(((13, 1),), ((14, 1),)),
     ),

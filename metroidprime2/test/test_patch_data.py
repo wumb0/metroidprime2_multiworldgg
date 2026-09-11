@@ -70,10 +70,17 @@ class TestMakeRandoConfiguration(MP2TestBase):
             self.assertEqual([], pickup["progressive_stages"])
 
     def test_17_translator_gates(self) -> None:
+        # "unlocked" (OPR's own no-translator-required TranslatorRequirement)
+        # is a legal vanilla value, not just a translator_gate_rando "Random
+        # (Unlocked)" outcome: randovania's prime2_opr starter preset ships
+        # Temple Grounds/Hive Transport Area and Temple Grounds/Industrial
+        # Site as "removed" (see data/vanilla_translator_gates.json and
+        # logic/regions.py's translator_gate_requirement).
         gates = _all_translator_gates(self.config)
         self.assertEqual(17, len(gates))
         for gate in gates:
-            self.assertIn(gate["translator"], _TRANSLATOR_COLORS)
+            self.assertIn(gate["translator"], (*_TRANSLATOR_COLORS, "unlocked"))
+        self.assertEqual(2, sum(1 for gate in gates if gate["translator"] == "unlocked"))
 
     def test_9_translator_gates_have_holo_instance_overrides(self) -> None:
         # constants.TRANSLATOR_GATE_INSTANCE_OVERRIDES: 9 of the 17 gates'
@@ -119,12 +126,12 @@ class TestMakeRandoConfiguration(MP2TestBase):
 
 
 class TestMakeRandoConfigurationWithEntranceRando(MP2TestBase):
-    """Door lock/elevator/teleporter rando (logic/dock_rando.py) all
-    enabled together: the generated config must still validate against
-    the real open-prime-rando schema, and must actually carry non-empty
+    """Door lock/elevator rando (logic/dock_rando.py) both enabled
+    together: the generated config must still validate against the real
+    open-prime-rando schema, and must actually carry non-empty
     door_locks/elevators entries reflecting the random assignment."""
 
-    options = {"door_lock_rando": True, "elevator_rando": True, "teleporter_rando": True}
+    options = {"door_lock_rando": True, "elevator_rando": True}
 
     def setUp(self) -> None:
         super().setUp()
@@ -150,8 +157,7 @@ class TestMakeRandoConfigurationWithEntranceRando(MP2TestBase):
         self.assertEqual(len(self.world.dock_rando.door_lock), len(self._all_door_locks()))
 
     def test_elevators_match_assignment_count(self) -> None:
-        expected = len(self.world.dock_rando.elevator) + len(self.world.dock_rando.teleporter)
-        self.assertEqual(expected, len(self._all_elevators()))
+        self.assertEqual(len(self.world.dock_rando.elevator), len(self._all_elevators()))
 
     @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
     def test_validates_against_installed_rando_configuration(self) -> None:

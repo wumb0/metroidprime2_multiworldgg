@@ -1,5 +1,5 @@
-"""Tests for ``logic/dock_rando.py`` (door-lock/elevator/teleporter
-randomization): pure-logic unit tests against a lightweight stand-in for
+"""Tests for ``logic/dock_rando.py`` (door-lock/elevator randomization):
+pure-logic unit tests against a lightweight stand-in for
 ``world`` for the option-off/short-circuit paths (mirrors
 ``test_client_receive.py``'s approach), and against a fully generated
 ``MP2TestBase`` world (needed for the item-aware ``_meets_progression_bar``
@@ -21,7 +21,7 @@ from ..logic.dock_rando import (
     ELEVATOR_EXCLUDED_AP_NAMES,
     _reciprocal_pairs,
     build_door_lock_assignment,
-    build_elevator_and_teleporter_assignment,
+    build_elevator_assignment,
 )
 from .bases import MP2TestBase
 
@@ -50,13 +50,12 @@ class TestBuildDoorLockAssignmentOff(unittest.TestCase):
         self.assertEqual({}, build_door_lock_assignment(world, db))  # type: ignore[arg-type]
 
 
-class TestBuildElevatorAndTeleporterAssignmentOff(unittest.TestCase):
-    def test_both_off_returns_empty(self) -> None:
+class TestBuildElevatorAssignmentOff(unittest.TestCase):
+    def test_off_returns_empty(self) -> None:
         db = load_game_database()
-        world = _FakeWorld(elevator_rando=False, teleporter_rando=False)
-        elevator, teleporter = build_elevator_and_teleporter_assignment(world, db, {})  # type: ignore[arg-type]
+        world = _FakeWorld(elevator_rando=False)
+        elevator = build_elevator_assignment(world, db, {})  # type: ignore[arg-type]
         self.assertEqual({}, elevator)
-        self.assertEqual({}, teleporter)
 
 
 class TestBuildDoorLockAssignment(MP2TestBase):
@@ -115,14 +114,13 @@ class TestBuildDoorLockAssignment(MP2TestBase):
                 )
 
 
-class TestBuildElevatorAndTeleporterAssignment(MP2TestBase):
+class TestBuildElevatorAssignment(MP2TestBase):
     options = {"elevator_rando": True}
 
     def test_elevator_on_shuffles_every_eligible_node_reciprocally(self) -> None:
         db = load_game_database()
-        elevator, teleporter = build_elevator_and_teleporter_assignment(self.world, db, {})
+        elevator = build_elevator_assignment(self.world, db, {})
 
-        self.assertEqual({}, teleporter)
         # The Sky Temple one-way pair is excluded by the reciprocity check
         # itself, not the explicit exclusion list -- confirm both kinds of
         # exclusion actually took effect (22 total elevator nodes - 2
@@ -137,31 +135,14 @@ class TestBuildElevatorAndTeleporterAssignment(MP2TestBase):
             self.assertEqual(node_id, elevator[target_id])  # reciprocal
             self.assertNotIn(node_id.ap_name, ELEVATOR_EXCLUDED_AP_NAMES)
 
-
-class TestBuildTeleporterAssignment(MP2TestBase):
-    options = {"teleporter_rando": True}
-
-    def test_teleporter_on_shuffles_all_12_reciprocally(self) -> None:
-        db = load_game_database()
-        elevator, teleporter = build_elevator_and_teleporter_assignment(self.world, db, {})
-
-        self.assertEqual({}, elevator)
-        self.assertEqual(12, len(teleporter))
-        for node_id, target_id in teleporter.items():
-            self.assertEqual(node_id, teleporter[target_id])  # reciprocal
-
-
-class TestCombinedElevatorTeleporterAssignment(MP2TestBase):
-    options = {"elevator_rando": True, "teleporter_rando": True}
-
-    def test_combined_shuffle_keeps_every_pool_endpoint_reachable(self) -> None:
+    def test_shuffle_keeps_every_pool_endpoint_reachable(self) -> None:
         from ..logic.dock_rando import _reachable_nodes
 
         db = load_game_database()
-        elevator, teleporter = build_elevator_and_teleporter_assignment(self.world, db, {})
+        elevator = build_elevator_assignment(self.world, db, {})
 
-        pool_endpoints = set(elevator) | set(elevator.values()) | set(teleporter) | set(teleporter.values())
-        shuffled = _reachable_nodes(db, elevator, teleporter)
+        pool_endpoints = set(elevator) | set(elevator.values())
+        shuffled = _reachable_nodes(db, elevator)
         self.assertTrue(pool_endpoints <= shuffled)
 
 
@@ -188,17 +169,8 @@ class TestElevatorRandoStillGenerates(MP2TestBase):
             self.assertTrue(location.can_reach(state), f"{location.name} unreachable")
 
 
-class TestTeleporterRandoStillGenerates(MP2TestBase):
-    options = {"teleporter_rando": True}
-
-    def test_all_pickups_reachable(self) -> None:
-        state = self.multiworld.get_all_state()
-        for location in self.multiworld.get_locations():
-            self.assertTrue(location.can_reach(state), f"{location.name} unreachable")
-
-
 class TestAllEntranceRandoTogetherStillGenerates(MP2TestBase):
-    options = {"door_lock_rando": True, "elevator_rando": True, "teleporter_rando": True}
+    options = {"door_lock_rando": True, "elevator_rando": True}
 
     def test_all_pickups_reachable(self) -> None:
         state = self.multiworld.get_all_state()

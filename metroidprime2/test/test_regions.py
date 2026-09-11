@@ -10,7 +10,7 @@ from BaseClasses import CollectionState
 
 from ..items import ITEM_TABLE
 from ..locations import LOCATION_TABLE
-from ..logic.db_reader import Node, load_game_database
+from ..logic.db_reader import Node, NodeId, load_game_database
 from .bases import MP2TestBase
 
 # "Pickup (X)" or "Pickup 2 (X)" -> X.
@@ -111,11 +111,49 @@ class TestLudicrousTricksStillGenerates(MP2TestBase):
     options = {"trick_level": "ludicrous"}
 
 
+# Great Temple/Temple Sanctuary's "Transport A Translator Gate" (Emerald).
+# See VANILLA_PLACEMENT_BOOTSTRAP_ITEM below.
+_TRANSPORT_A_GATE = NodeId("Great Temple", "Temple Sanctuary", "Transport A Translator Gate")
+
+# The one item a *vanilla* item layout cannot bootstrap on the OPR-patched
+# game, and why:
+#
+# open-prime-rando always applies ``specific_area_patches.rebalance_patches.
+# temple_sanctuary_emerald_gate`` ("Keep the Emerald gate active from the
+# beginning"), which leaves Great Temple/Temple Sanctuary's Transport A
+# Emerald translator gate up from the moment the game starts. Retail Echoes
+# instead only raises that gate after the Alpha Splinter fight, which
+# randovania's plain ``prime2`` logic database modelled with an
+# "Event - Transport A Gate Removal" event node (Event91) plus the
+# ``VanillaGreatTempleEmeraldGate`` misc resource; ``prime2_opr`` deletes
+# that node outright, so Temple Sanctuary's Room Center is reachable only
+# *through* one of the three translator gates.
+#
+# With vanilla placement that is a genuine hard lock, not a logic bug: the
+# only exits from the starting Landing Site/Hive/Industrial Site/Agon
+# cluster into the rest of the game are the Great Temple Transport A gate
+# (Emerald), the GFMC Compound gate (Emerald), Temple Assembly Site ->
+# Temple Transport B (Violet), and Service Access -> Meeting Grounds (a
+# Super Missile blast shield) -- and vanilla puts Emerald Translator in
+# Torvus Bog/Torvus Energy Controller, Violet Translator in Great
+# Temple/Main Energy Controller, and Super Missile in Torvus Bog/Torvus
+# Temple, i.e. all three behind that same wall.
+#
+# Granting exactly this one item restores the retail game's own "the
+# Transport A gate isn't up yet" head start, and nothing else: with it the
+# vanilla layout reaches all 119 pickups and the victory event again
+# (verified -- it is the *only* item that has to be added).
+VANILLA_PLACEMENT_BOOTSTRAP_ITEM = "Emerald Translator"
+
+
 class TestVanillaPlacement(MP2TestBase):
     """Lock the vanilla item onto every one of the 119 pickup locations
     (derived from each pickup node's own name) and check the game is still
     beatable -- i.e. the vendored vanilla game itself satisfies our own
-    compiled logic."""
+    compiled logic -- given the single
+    ``VANILLA_PLACEMENT_BOOTSTRAP_ITEM`` head start open-prime-rando's
+    always-on Great Temple Emerald gate rebalance patch makes mandatory
+    (see that constant for the full derivation)."""
 
     # trick_level left at its "disabled" default (every trick off), matching
     # randovania's starter preset: vanilla placement is beatable with no
@@ -150,6 +188,14 @@ class TestVanillaPlacement(MP2TestBase):
             location.place_locked_item(self.world.create_item(item_name))
 
         state = CollectionState(self.multiworld)
+        # Sanity-check the premise of VANILLA_PLACEMENT_BOOTSTRAP_ITEM: the
+        # gate this compensates for really is the vanilla Emerald gate. If
+        # randovania/OPR ever restore the retail "gate removal" behaviour,
+        # this is the line that should be revisited first.
+        self.assertEqual(db.vanilla_translator_gates[_TRANSPORT_A_GATE], "Emerald")
+        state.collect(
+            self.world.create_item(VANILLA_PLACEMENT_BOOTSTRAP_ITEM), prevent_sweep=True
+        )
         # A full fixed-point sweep (matching what can_beat_game() itself
         # does internally) must actually reach every one of the 119
         # pickups and the victory event, not just "some locked items
