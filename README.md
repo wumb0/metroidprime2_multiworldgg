@@ -13,7 +13,8 @@ uses.
 ## Status
 
 - **Done:** item shuffle + logic/tricks, generation, ISO patching, the client receive/connect
-  loop, Death Link, door lock / elevator / translator gate randomization, goal-trigger detection.
+  loop, client item granting, server communication, Death Link, door lock / elevator / translator gate / portal / starting room randomization, warp to starting room implementation.
+- **Needs testing**: goal-trigger detection (beat dark samus).
 - **In progress:** Universal Tracker support and final docs
 
 See [`PLAN.md`](PLAN.md) for the full design/porting plan and milestone breakdown.
