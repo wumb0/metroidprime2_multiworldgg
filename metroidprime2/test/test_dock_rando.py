@@ -1,4 +1,4 @@
-"""Tests for ``logic/dock_rando.py`` (door-lock/elevator randomization):
+"""Tests for ``logic/dock_rando.py`` (door-lock/elevator/portal randomization):
 pure-logic unit tests against a lightweight stand-in for
 ``world`` for the option-off/short-circuit paths (mirrors
 ``test_client_receive.py``'s approach), and against a fully generated
@@ -19,9 +19,11 @@ from ..logic.dock_rando import (
     DOOR_CAN_CHANGE_FROM,
     DOOR_CAN_CHANGE_TO,
     ELEVATOR_EXCLUDED_AP_NAMES,
+    _portal_region_pairs,
     _reciprocal_pairs,
     build_door_lock_assignment,
     build_elevator_assignment,
+    build_portal_assignment,
 )
 from .bases import MP2TestBase
 
@@ -56,6 +58,15 @@ class TestBuildElevatorAssignmentOff(unittest.TestCase):
         world = _FakeWorld(elevator_rando=False)
         elevator = build_elevator_assignment(world, db, {})  # type: ignore[arg-type]
         self.assertEqual({}, elevator)
+
+
+class TestBuildPortalAssignmentOff(unittest.TestCase):
+    def test_off_returns_empty(self) -> None:
+        db = load_game_database()
+        world = _FakeWorld(portal_rando=False)
+        portal, portal_weakness = build_portal_assignment(world, db, {}, {})  # type: ignore[arg-type]
+        self.assertEqual({}, portal)
+        self.assertEqual({}, portal_weakness)
 
 
 class TestBuildDoorLockAssignment(MP2TestBase):
@@ -146,6 +157,73 @@ class TestBuildElevatorAssignment(MP2TestBase):
         self.assertTrue(pool_endpoints <= shuffled)
 
 
+class TestBuildPortalAssignment(MP2TestBase):
+    options = {"portal_rando": True}
+
+    def test_portal_on_shuffles_every_node_reciprocally_within_its_region_pair(self) -> None:
+        db = load_game_database()
+        portal, _portal_weakness = build_portal_assignment(self.world, db, {}, {})
+
+        region_pairs = _portal_region_pairs(db)
+        eligible_ids = {
+            node.id for _name, light_nodes, dark_nodes in region_pairs for node in (*light_nodes, *dark_nodes)
+        }
+        self.assertEqual(66, len(eligible_ids))
+        self.assertEqual(eligible_ids, set(portal))
+
+        light_ids_by_pair = {name: {n.id for n in light_nodes} for name, light_nodes, _dark in region_pairs}
+        dark_ids_by_pair = {name: {n.id for n in dark_nodes} for name, _light, dark_nodes in region_pairs}
+        for node_id, target_id in portal.items():
+            self.assertEqual(node_id, portal[target_id])  # reciprocal
+            # Never crosses into a different region pair's nodes.
+            for name, light_ids in light_ids_by_pair.items():
+                if node_id in light_ids:
+                    self.assertIn(target_id, dark_ids_by_pair[name])
+                    break
+            else:
+                for name, dark_ids in dark_ids_by_pair.items():
+                    if node_id in dark_ids:
+                        self.assertIn(target_id, light_ids_by_pair[name])
+                        break
+
+    def test_no_return_portal_nodes_get_a_colored_weakness_override(self) -> None:
+        db = load_game_database()
+        _portal, portal_weakness = build_portal_assignment(self.world, db, {}, {})
+
+        no_return_ids = {
+            node.id
+            for node in db.all_nodes()
+            if node.node_type == "dock"
+            and node.dock_type == "portal"
+            and node.default_dock_weakness == "No Return Portal"
+        }
+        self.assertEqual(13, len(no_return_ids))
+        self.assertEqual(no_return_ids, set(portal_weakness))
+        for node_id, new_name in portal_weakness.items():
+            region = db.regions[node_id.region]
+            expected = "Dark Portal" if region.asset_id is not None else "Light Portal"
+            self.assertEqual(expected, new_name)
+
+    def test_other_portal_weaknesses_are_never_overridden(self) -> None:
+        db = load_game_database()
+        _portal, portal_weakness = build_portal_assignment(self.world, db, {}, {})
+        for node in db.all_nodes():
+            if node.node_type != "dock" or node.dock_type != "portal":
+                continue
+            if node.default_dock_weakness != "No Return Portal":
+                self.assertNotIn(node.id, portal_weakness)
+
+    def test_shuffle_keeps_every_pool_endpoint_reachable(self) -> None:
+        from ..logic.dock_rando import _reachable_nodes
+
+        db = load_game_database()
+        portal, _portal_weakness = build_portal_assignment(self.world, db, {}, {})
+
+        pool_endpoints = set(portal) | set(portal.values())
+        reached = _reachable_nodes(db, {}, portal)
+        self.assertTrue(pool_endpoints <= reached)
+
+
 class TestDoorLockRandoStillGenerates(MP2TestBase):
     """No custom test methods needed beyond the explicit reachability
     check below -- MP2TestBase disables WorldTestBase's blanket auto-tests
@@ -169,8 +247,17 @@ class TestElevatorRandoStillGenerates(MP2TestBase):
             self.assertTrue(location.can_reach(state), f"{location.name} unreachable")
 
 
+class TestPortalRandoStillGenerates(MP2TestBase):
+    options = {"portal_rando": True}
+
+    def test_all_pickups_reachable(self) -> None:
+        state = self.multiworld.get_all_state()
+        for location in self.multiworld.get_locations():
+            self.assertTrue(location.can_reach(state), f"{location.name} unreachable")
+
+
 class TestAllEntranceRandoTogetherStillGenerates(MP2TestBase):
-    options = {"door_lock_rando": True, "elevator_rando": True}
+    options = {"door_lock_rando": True, "elevator_rando": True, "portal_rando": True}
 
     def test_all_pickups_reachable(self) -> None:
         state = self.multiworld.get_all_state()

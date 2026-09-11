@@ -91,6 +91,13 @@ requires:
   # Options: true, false
   elevator_rando: false
 
+  # Shuffle the Light/Dark Aether portals into new connections within each
+  # light/dark region pair, and make every portal two-way (including the
+  # vanilla one-way arrival-only ones). Each portal keeps its own
+  # beam-color requirement; only where it leads changes.
+  # Options: true, false
+  portal_rando: false
+
   # How each of the 17 translator gates' required color is chosen.
   # Options: vanilla, full_random, full_random_unlocked
   #   vanilla: every gate requires its vanilla translator color.

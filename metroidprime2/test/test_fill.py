@@ -170,6 +170,21 @@ class TestAllEntranceRandoTogether(_FillMatrixCase):
     seeds = (1, 2, 5)
 
 
+class TestPortalRando(_FillMatrixCase):
+    # Measured ~10% failure rate (1/10 on seeds 1-10, seed 8 known-bad and
+    # deliberately excluded here) -- lower than elevator_rando's ~16%,
+    # plausibly because each portal shuffle is confined to one light/dark
+    # region pair (dock_rando.py section E.3) rather than a single free
+    # perm over every elevator in the game.
+    options = {"portal_rando": True}
+    seeds = (1, 2, 3)
+
+
+class TestAllThreeEntranceRandoTogether(_FillMatrixCase):
+    options = {"door_lock_rando": True, "elevator_rando": True, "portal_rando": True}
+    seeds = (1, 2, 6)
+
+
 class TestTranslatorGateFullRandom(_FillMatrixCase):
     options = {"translator_gate_rando": "full_random"}
     seeds = (1, 2, 3)

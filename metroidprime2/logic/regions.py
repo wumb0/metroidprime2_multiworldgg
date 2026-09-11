@@ -57,23 +57,30 @@ TRANSLATOR_COLORS = ("Violet", "Amber", "Emerald", "Cobalt")
 
 def dock_target(world: MetroidPrime2World, node: Node) -> NodeId | None:
     """The node a dock connects to: the vanilla ``default_connection``,
-    unless ``world.dock_rando`` has reassigned this elevator (see
+    unless ``world.dock_rando`` has reassigned this elevator or portal (see
     ``logic/dock_rando.py``). There's no ``dock_type == "teleporter"``
     left to handle here -- see ``dock_rando.build_elevator_assignment``'s
     docstring for why."""
     if node.dock_type == "elevator":
         return world.dock_rando.elevator.get(node.id, node.default_connection)
+    if node.dock_type == "portal":
+        return world.dock_rando.portal.get(node.id, node.default_connection)
     return node.default_connection
 
 
 def dock_weakness_for(world: MetroidPrime2World, db: GameDatabase, node: Node) -> DockWeakness:
     """The DockWeakness governing a dock node: the vanilla
     ``default_dock_weakness``, unless ``world.dock_rando`` has reassigned
-    this door's lock (see ``logic/dock_rando.py``)."""
+    this door's lock or this portal's "No Return Portal" arrival weakness
+    (see ``logic/dock_rando.py``)."""
     if node.dock_type == "door":
         new_name = world.dock_rando.door_lock.get(node.id)
         if new_name is not None:
             return db.dock_weaknesses[("door", new_name)]
+    elif node.dock_type == "portal":
+        new_name = world.dock_rando.portal_weakness.get(node.id)
+        if new_name is not None:
+            return db.dock_weaknesses[("portal", new_name)]
     assert node.dock_type is not None, f"{node.ap_name}: dock_weakness_for called on a non-dock node"
     assert node.default_dock_weakness is not None, f"{node.ap_name}: dock node has no default_dock_weakness"
     return db.dock_weaknesses[(node.dock_type, node.default_dock_weakness)]

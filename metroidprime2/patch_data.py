@@ -300,6 +300,33 @@ def _elevator_modification(db: GameDatabase, node: Node, target_id: NodeId) -> d
     }
 
 
+def _portal_modification(db: GameDatabase, node: Node, target_id: NodeId) -> dict[str, Any]:
+    """``PortalChange``-shaped dict (open-prime-rando's
+    ``echoes/portal.py::PortalChange``) for one portal reassigned by
+    ``logic/dock_rando.py``'s portal rando. ``PortalChange`` has no
+    ``target_mlvl_id`` sibling field -- "[a]ll portals must connect to a
+    portal that connects back" within the same world file, since light/dark
+    counterpart areas of one room always share an MLVL (PLAN.md Context /
+    ``db_reader.GameDatabase.mlvl_for_region``) -- so only the target's MREA
+    id is needed; the assertion below is a cheap sanity check on that
+    assumption, not a real branch."""
+    target_node = db.node(target_id)
+    assert node.dock_name is not None, f"{node.ap_name}: portal node has no dock_name"
+    assert target_node.dock_name is not None, f"{target_id.ap_name}: portal target has no dock_name"
+    mlvl_id, _mrea_id = _area_asset_ids(db, node)
+    target_mlvl_id, target_mrea_id = _area_asset_ids(db, target_node)
+    assert mlvl_id == target_mlvl_id, (
+        f"{node.ap_name}: portal target {target_id.ap_name} is in a different MLVL "
+        f"({target_mlvl_id} != {mlvl_id})"
+    )
+    return {
+        "source_dock_name": node.dock_name,
+        "target_mrea_id": target_mrea_id,
+        "target_dock_name": target_node.dock_name,
+        "portal_scan_destination": target_id.area,
+    }
+
+
 def _translator_gate_modification(world: MetroidPrime2World, node: Node) -> dict[str, Any]:
     """``{"translator": <color-or-"unlocked">, ...}`` for one of the 17
     ``configurable_node`` translator gates: the gate's vanilla required
@@ -393,6 +420,16 @@ def _world_changes(world: MetroidPrime2World, db: GameDatabase) -> list[dict[str
         change = area_change_for(mlvl_id, mrea_id)
         change.setdefault("elevators", []).append(_elevator_modification(db, node, target_id))
 
+    for node in db.all_nodes():
+        if node.node_type != "dock" or node.dock_type != "portal":
+            continue
+        target_id = world.dock_rando.portal.get(node.id)
+        if target_id is None:
+            continue
+        mlvl_id, mrea_id = _area_asset_ids(db, node)
+        change = area_change_for(mlvl_id, mrea_id)
+        change.setdefault("portals", []).append(_portal_modification(db, node, target_id))
+
     by_mlvl: dict[int, list[dict[str, Any]]] = {}
     for (mlvl_id, _mrea_id), change in area_changes.items():
         by_mlvl.setdefault(mlvl_id, []).append(change)
@@ -441,7 +478,7 @@ def make_rando_configuration(world: MetroidPrime2World) -> dict[str, Any]:
         },
         "practice_mod": "disabled",
         "auto_enabled_elevators": False,
-        "two_way_portals": False,
+        "two_way_portals": bool(world.options.portal_rando),
         "inverted_mode": False,
         "damage_changes": {
             "energy_per_tank": int(world.options.energy_per_tank.value),

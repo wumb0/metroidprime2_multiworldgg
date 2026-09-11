@@ -278,6 +278,8 @@ _MIN_SPHERE_ZERO_PICKUPS = 1
 class DockRandoAssignment:
     door_lock: dict[NodeId, str] = field(default_factory=dict)
     elevator: dict[NodeId, NodeId] = field(default_factory=dict)
+    portal: dict[NodeId, NodeId] = field(default_factory=dict)
+    portal_weakness: dict[NodeId, str] = field(default_factory=dict)
 
 
 def _reciprocal_pairs(
@@ -358,6 +360,7 @@ def _event_gated_satisfied(req: dict | None, templates: dict[str, dict], unlocke
 def _reachable_nodes(
     db: GameDatabase,
     elevator_targets: dict[NodeId, NodeId],
+    portal_targets: dict[NodeId, NodeId] | None = None,
 ) -> set[NodeId]:
     """Fixed-point sweep over a coarse graph -- every intra-area
     ``connections`` edge (gated only on ``events`` resources, via
@@ -393,11 +396,19 @@ def _reachable_nodes(
     original pool endpoint node is still reachable (see
     ``build_elevator_assignment``) catches that case because reaching any
     one node lets this sweep cascade through its own ``connections``
-    edges into everything hanging off it."""
+    edges into everything hanging off it.
+
+    ``portal_targets`` (optional; ``build_portal_assignment`` passes its own
+    candidate here alongside the already-decided ``elevator_targets``) is
+    resolved the same way for ``dock_type == "portal"`` nodes -- a portal
+    dock node with no entry keeps its vanilla ``default_connection``, same
+    as any other unshuffled dock."""
 
     def resolve_dock_target(node: Node) -> NodeId | None:
         if node.dock_type == "elevator":
             return elevator_targets.get(node.id, node.default_connection)
+        if node.dock_type == "portal" and portal_targets is not None:
+            return portal_targets.get(node.id, node.default_connection)
         return node.default_connection
 
     visited: set[NodeId] = {db.starting_location}
@@ -713,8 +724,172 @@ def build_elevator_assignment(
     )
 
 
+# --------------------------------------------------------------------------
+# Portals (Light/Dark Aether rift travel)
+# --------------------------------------------------------------------------
+#
+# open-prime-rando fully supports this (``open_prime_rando.echoes.portal``):
+# each area's ``RandoConfiguration`` can carry a list of ``PortalChange``
+# (source dock name -> target MREA + target dock name + scan text), and a
+# top-level ``two_way_portals`` flag that physically adds a return portal
+# object to every vanilla one-way arrival pad (``register_make_portals_
+# two_way``) so it can be departed from too. Randovania's own
+# ``prime2_opr`` game (``EchoesOPRBasePatchesFactory``, verified in
+# ``games/prime2_opr/generator/base_patches_factory.py`` /
+# ``exporter/patch_data_factory.py``) is the algorithm mirrored below:
+#
+# 1. Every ``dock_type == "portal"`` node is bucketed by light/dark region
+#    pair (``_portal_region_pairs``) -- there is no cross-pair shuffling
+#    (a Temple Grounds portal can only ever target a Sky Temple Grounds
+#    portal, never a Torvus one), matching the vanilla game's actual
+#    physical rift network.
+# 2. Within a pair, both lists are shuffled independently and zipped
+#    element-wise, symmetrically (light[i] <-> dark[i] both ways) --
+#    exactly ``EchoesOPRBasePatchesFactory.portal_assignment``'s
+#    ``zip(light, dark)`` + ``zip(dark, light)`` over independently-
+#    shuffled lists, which (since both use the same shuffled order) is the
+#    same reciprocal pairing this module computes directly.
+# 3. Independently of the shuffle, every portal node whose *vanilla*
+#    weakness is "No Return Portal" (an arrival-only pad with an
+#    Impossible -- empty "or" -- open requirement) gets a real beam-color
+#    weakness instead, matching the new physical portal ``two_way_portals``
+#    adds there (``EchoesOPRBasePatchesFactory.assign_static_dock_weakness``):
+#    "Dark Portal" if the node's own region is Light (crossing here departs
+#    *into* Dark Aether), "Light Portal" otherwise. This is unconditional
+#    over every such node, regardless of the shuffle outcome -- it isn't
+#    itself randomized, only gated on ``portal_rando`` being on at all.
+#
+# A portal's own weakness otherwise never changes (unlike door lock rando):
+# only its *target* is reassigned. Scan Portal nodes keep requiring only
+# Scan Visor; Light/Dark Portal nodes keep requiring their own beam,
+# wherever the shuffle now points them.
+
+
+def _portal_region_pairs(db: GameDatabase) -> list[tuple[str, list[Node], list[Node]]]:
+    """``(light_region_name, light_portal_nodes, dark_portal_nodes)`` for
+    every light/dark region pair with at least one portal dock node,
+    mirroring randovania's own grouping
+    (``games/prime2_opr/generator/base_patches_factory.py::
+    portal_assignment``): every portal dock node is bucketed by its own
+    region if that region is "light" (has its own MLVL ``asset_id`` --
+    ``dark_aether_helper.is_region_light``), or by ``associated_region``
+    (its light counterpart's name) otherwise. Asserts each pair's two
+    lists are equal length, same as randovania's own ``assert len(...)
+    == len(...)`` -- true for the vendored data (33 light + 33 dark = 66
+    portal nodes total, split 5/5, 6/6, 7/7, 15/15 across the four pairs)."""
+    light_by_region: dict[str, list[Node]] = {}
+    dark_by_region: dict[str, list[Node]] = {}
+    for node in db.all_nodes():
+        if node.node_type != "dock" or node.dock_type != "portal":
+            continue
+        region = db.regions[node.id.region]
+        if region.asset_id is not None:
+            light_by_region.setdefault(region.name, []).append(node)
+        else:
+            assert region.associated_region is not None, (
+                f"{node.ap_name}: dark region {region.name!r} has no associated_region"
+            )
+            dark_by_region.setdefault(region.associated_region, []).append(node)
+
+    pairs: list[tuple[str, list[Node], list[Node]]] = []
+    for region_name, light_nodes in light_by_region.items():
+        dark_nodes = dark_by_region.get(region_name, [])
+        assert len(light_nodes) == len(dark_nodes), (
+            f"{region_name}: {len(light_nodes)} light portal(s) but {len(dark_nodes)} dark portal(s)"
+        )
+        pairs.append((region_name, light_nodes, dark_nodes))
+    return pairs
+
+
+def _shuffle_portal_region_pair(
+    world: MetroidPrime2World, light_nodes: list[Node], dark_nodes: list[Node]
+) -> dict[NodeId, NodeId]:
+    """A random reciprocal re-pairing between one region pair's light and
+    dark portal nodes (equal-length lists): shuffle both independently,
+    then zip element-wise both ways. Not a general perfect matching over
+    the combined 2N nodes (unlike ``_shuffle_pairs`` for elevators) --
+    light nodes only ever target dark nodes and vice versa, matching
+    randovania's own algorithm (see this section's module-level comment)."""
+    light = list(light_nodes)
+    dark = list(dark_nodes)
+    world.random.shuffle(light)
+    world.random.shuffle(dark)
+    assignment: dict[NodeId, NodeId] = {}
+    for light_node, dark_node in zip(light, dark, strict=True):
+        assignment[light_node.id] = dark_node.id
+        assignment[dark_node.id] = light_node.id
+    return assignment
+
+
+def _portal_weakness_overrides(db: GameDatabase) -> dict[NodeId, str]:
+    """``{node_id: new_weakness_name}`` for every portal dock node whose
+    vanilla weakness is "No Return Portal" -- see this section's
+    module-level comment, point 3. Unconditional over every such node;
+    ``build_portal_assignment`` only calls this at all when
+    ``portal_rando`` is on."""
+    overrides: dict[NodeId, str] = {}
+    for node in db.all_nodes():
+        if node.node_type != "dock" or node.dock_type != "portal":
+            continue
+        if node.default_dock_weakness != "No Return Portal":
+            continue
+        region = db.regions[node.id.region]
+        overrides[node.id] = "Dark Portal" if region.asset_id is not None else "Light Portal"
+    return overrides
+
+
+def build_portal_assignment(
+    world: MetroidPrime2World,
+    db: GameDatabase,
+    door_lock: dict[NodeId, str],
+    elevator: dict[NodeId, NodeId],
+) -> tuple[dict[NodeId, NodeId], dict[NodeId, str]]:
+    """``({portal_node_id: new_target_id}, {portal_node_id: new_weakness})``,
+    both empty when ``portal_rando`` is off. ``door_lock``/``elevator`` are
+    this seed's already-finalized earlier pools, included in the
+    ``_meets_progression_bar`` probe so this pool's check reflects the real
+    combined graph (mirrors ``build_elevator_assignment``'s ``door_lock``
+    parameter)."""
+    if not world.options.portal_rando:
+        return {}, {}
+
+    region_pairs = _portal_region_pairs(db)
+    portal_weakness = _portal_weakness_overrides(db)
+    pool_endpoints = {
+        node.id for _region_name, light_nodes, dark_nodes in region_pairs for node in (*light_nodes, *dark_nodes)
+    }
+
+    compiler = _build_compiler(world, db)
+    pickup_ids = frozenset(node.id for node in db.all_nodes() if node.node_type == "pickup")
+    starting_names = frozenset(constants.DEFAULT_STARTING_ITEMS)
+
+    for _attempt in range(_MAX_SHUFFLE_ATTEMPTS):
+        portal_assignment: dict[NodeId, NodeId] = {}
+        for _region_name, light_nodes, dark_nodes in region_pairs:
+            portal_assignment.update(_shuffle_portal_region_pair(world, light_nodes, dark_nodes))
+
+        # Cheap item-blind topology filter first, same as elevators.
+        reached = _reachable_nodes(db, elevator, portal_assignment)
+        if not (pool_endpoints <= reached):
+            continue
+
+        candidate = DockRandoAssignment(
+            door_lock=door_lock, elevator=elevator, portal=portal_assignment, portal_weakness=portal_weakness
+        )
+        if _meets_progression_bar(world, db, compiler, pickup_ids, starting_names, candidate):
+            return portal_assignment, portal_weakness
+
+    raise RuntimeError(
+        f"metroidprime2: could not find a fully-connected, solvable portal shuffle after "
+        f"{_MAX_SHUFFLE_ATTEMPTS} attempts"
+    )
+
+
 def build_dock_rando_assignment(world: MetroidPrime2World) -> DockRandoAssignment:
     db = load_game_database()
     door_lock = build_door_lock_assignment(world, db)
     elevator = build_elevator_assignment(world, db, door_lock)
-    return DockRandoAssignment(door_lock=door_lock, elevator=elevator)
+    portal, portal_weakness = build_portal_assignment(world, db, door_lock, elevator)
+    return DockRandoAssignment(
+        door_lock=door_lock, elevator=elevator, portal=portal, portal_weakness=portal_weakness
+    )

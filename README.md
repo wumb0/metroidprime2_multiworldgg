@@ -89,6 +89,7 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 |---|---|---|---|
 | `door_lock_rando` | Toggle | off | Shuffle certain door locks (beam-colored doors, blast shields) among a vetted pool of lock types instead of each door's vanilla lock. |
 | `elevator_rando` | Toggle | off | Shuffle elevators into new two-way connections (every region stays reachable, just not necessarily via the same elevator). The one-way trip to Sky Temple and the intra-Aerie elevator are never shuffled. |
+| `portal_rando` | Toggle | off | Shuffle the Light/Dark Aether portals into new connections within each light/dark region pair, and make every portal two-way (including the vanilla one-way arrival-only ones). Each portal keeps its own beam-color requirement; only where it leads changes. |
 | `translator_gate_rando` | Choice: `vanilla`/`full_random`/`full_random_unlocked` | `vanilla` | How each of the 17 translator gates' required color is chosen. `full_random`: every gate independently requires a random one of the four translator colors. `full_random_unlocked`: like `full_random`, but each gate may also independently come up "Unlocked" (open with just Scan Visor, no translator at all). Matches Randovania's own translator gate presets. |
 
 ### Tricks

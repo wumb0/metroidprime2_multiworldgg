@@ -212,6 +212,19 @@ class ElevatorRando(Toggle):
     display_name = "Elevator Randomization"
 
 
+class PortalRando(Toggle):
+    """If enabled, the Light/Dark Aether portals (the fixed rift-travel
+    pairs in Temple Grounds/Sky Temple Grounds, Agon Wastes/Dark Agon
+    Wastes, Torvus Bog/Dark Torvus Bog, and Sanctuary Fortress/Ing Hive) are
+    shuffled into new connections, within each light/dark region pair, and
+    made two-way (every portal, including the vanilla one-way arrival-only
+    ones, can be used in both directions -- open-prime-rando physically
+    adds the missing return portal for those). Every portal keeps its own
+    beam-color requirement; only where it leads changes."""
+
+    display_name = "Portal Randomization"
+
+
 class TranslatorGateRando(Choice):
     """How each of the 17 translator gates' required color is chosen,
     matching randovania's own translator gate presets.
@@ -306,6 +319,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
     door_lock_rando: DoorLockRando
     elevator_rando: ElevatorRando
+    portal_rando: PortalRando
     translator_gate_rando: TranslatorGateRando
 
     display_nonlocal_items: DisplayNonLocalItems
@@ -331,7 +345,7 @@ OPTION_GROUPS: list[OptionGroup] = [
     ),
     OptionGroup(
         "Entrances",
-        [DoorLockRando, ElevatorRando, TranslatorGateRando],
+        [DoorLockRando, ElevatorRando, PortalRando, TranslatorGateRando],
     ),
     OptionGroup(
         "Tricks",

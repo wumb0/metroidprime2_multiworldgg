@@ -166,6 +166,56 @@ class TestMakeRandoConfigurationWithEntranceRando(MP2TestBase):
         RandoConfiguration.model_validate(self.config, extra="forbid")
 
 
+class TestMakeRandoConfigurationWithPortalRando(MP2TestBase):
+    """Portal rando (logic/dock_rando.py section E.3) enabled: the
+    generated config must carry non-empty ``portals`` entries reflecting
+    the random assignment, flip ``two_way_portals`` on, and still validate
+    against the real open-prime-rando ``PortalChange``/``RandoConfiguration``
+    schemas."""
+
+    options = {"portal_rando": True}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def _all_portals(self) -> list[dict]:
+        portals: list[dict] = []
+        for world_change in self.config["world_changes"]:
+            for area_change in world_change["area_changes"]:
+                portals.extend(area_change.get("portals", []))
+        return portals
+
+    def test_two_way_portals_is_enabled(self) -> None:
+        self.assertTrue(self.config["two_way_portals"])
+
+    def test_portals_match_assignment_count(self) -> None:
+        self.assertEqual(len(self.world.dock_rando.portal), len(self._all_portals()))
+        self.assertEqual(66, len(self._all_portals()))
+
+    def test_portal_fields_are_populated(self) -> None:
+        for portal in self._all_portals():
+            self.assertIsInstance(portal["source_dock_name"], str)
+            self.assertIsInstance(portal["target_dock_name"], str)
+            self.assertIsInstance(portal["target_mrea_id"], int)
+            self.assertIsInstance(portal["portal_scan_destination"], str)
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_portals_validate_against_installed_portal_change_schema(self) -> None:
+        from open_prime_rando.echoes.portal import PortalChange
+
+        for portal in self._all_portals():
+            PortalChange.model_validate(portal)
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_validates_against_installed_rando_configuration(self) -> None:
+        from open_prime_rando.echoes.rando_configuration import RandoConfiguration
+
+        RandoConfiguration.model_validate(self.config, extra="forbid")
+
+
 class TestStartingItemsWithPrecollectedMissileLauncher(MP2TestBase):
     # WorldTestBase's gen_steps stops at pre_fill; applying
     # options.start_inventory to precollected_items is normally done by
