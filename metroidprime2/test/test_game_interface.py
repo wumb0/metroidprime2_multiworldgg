@@ -73,8 +73,77 @@ class TestVersionDetection(unittest.TestCase):
     def test_connect_to_game_wrong_game_leaves_version_none(self) -> None:
         interface, fake = _make_interface()
         fake.memory[0x80000000] = b"GM8E01"  # Metroid Prime 1, not Echoes.
-        interface.connect_to_game()
+        interface.connect_to_game(attempts=1, base_delay=0)
         self.assertIsNone(interface.version)
+
+
+class TestConnectRetry(unittest.TestCase):
+    """PLAN.md's Dolphin backoff/retry: connect_to_game() shouldn't settle
+    on a garbage/unrecognized game id read (or a transient hook failure)
+    from the brief window right after Dolphin launches, before it's
+    retried the hook+read a few times."""
+
+    def test_retries_past_transient_garbage_game_id(self) -> None:
+        interface, fake = _make_interface()
+        # First read is garbage (neither a known id nor the empty/"not
+        # loaded yet" sentinel); by the second attempt the disc has
+        # finished booting and the real id is in place.
+        fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
+
+        real_read_address = fake.read_address
+        calls = {"count": 0}
+
+        def flaky_read_address(address: int, bytes_to_read: int):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                fake.memory[0x80000000] = versions.NTSC.game_id
+            return real_read_address(address, bytes_to_read)
+
+        fake.read_address = flaky_read_address  # type: ignore[method-assign]
+
+        interface.connect_to_game(attempts=5, base_delay=0)
+
+        self.assertIs(interface.version, versions.NTSC)
+        self.assertEqual(calls["count"], 2)
+
+    def test_retries_past_transient_hook_failure(self) -> None:
+        interface, fake = _make_interface()
+        fake.memory[0x80000000] = versions.NTSC.game_id
+        fake.connected = False
+
+        real_connect = fake.connect
+        calls = {"count": 0}
+
+        def flaky_connect() -> None:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise DolphinException("verify that you have a game running in the emulator")
+            real_connect()
+
+        fake.connect = flaky_connect  # type: ignore[method-assign]
+
+        interface.connect_to_game(attempts=5, base_delay=0)
+
+        self.assertIs(interface.version, versions.NTSC)
+        self.assertEqual(calls["count"], 2)
+
+    def test_gives_up_after_exhausting_attempts(self) -> None:
+        interface, fake = _make_interface()
+        fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
+
+        calls = {"count": 0}
+        real_read_address = fake.read_address
+
+        def counting_read_address(address: int, bytes_to_read: int):
+            calls["count"] += 1
+            return real_read_address(address, bytes_to_read)
+
+        fake.read_address = counting_read_address  # type: ignore[method-assign]
+
+        interface.connect_to_game(attempts=3, base_delay=0)
+
+        self.assertIsNone(interface.version)
+        self.assertEqual(calls["count"], 3)
 
 
 class TestBuildStringAndUuid(unittest.TestCase):

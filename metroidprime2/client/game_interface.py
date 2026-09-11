@@ -16,6 +16,7 @@ PLAN.md Context facts and section J).
 from __future__ import annotations
 
 import struct
+import time
 import uuid
 from enum import Enum
 from logging import Logger
@@ -35,6 +36,18 @@ if TYPE_CHECKING:
 _GC_GAME_ID_ADDRESS = 0x80000000
 _MESSAGE_OVERHEAD = 6
 _MAGIC_ITEM_MIN_CAPACITY = 4096
+
+# Right after Dolphin launches (or right after a savestate/game boot), the
+# memory hook can attach and read the game id before the disc has actually
+# finished booting -- e.g. leftover memory from a previous run, or a
+# partial DMA of the disc header -- which reads as something other than a
+# real, known game id. Rather than treat that first read as a definitive
+# "wrong game"/failure, connect_to_game() retries the hook+read a few times
+# with backoff before settling on whatever it last saw.
+_GAME_ID_CONNECT_ATTEMPTS = 5
+_GAME_ID_RETRY_BASE_DELAY = 0.2  # seconds
+_GAME_ID_RETRY_MAX_DELAY = 2.0  # seconds
+_EMPTY_GAME_ID = b"\x00\x00\x00\x00\x00\x00"
 
 
 class ConnectionState(Enum):
@@ -96,16 +109,47 @@ class EchoesInterface:
     # Connection / version detection
     # ----------------------------------------------------------------
 
-    def connect_to_game(self) -> None:
+    def connect_to_game(
+        self,
+        attempts: int = _GAME_ID_CONNECT_ATTEMPTS,
+        base_delay: float = _GAME_ID_RETRY_BASE_DELAY,
+        max_delay: float = _GAME_ID_RETRY_MAX_DELAY,
+    ) -> None:
         """Hooks into Dolphin if needed, then reads the 6-byte game id at
-        0x80000000 to pick NTSC/PAL (or neither)."""
-        try:
-            if not self.dolphin_client.is_connected():
-                self.dolphin_client.connect()
-            game_id = self.dolphin_client.read_address(_GC_GAME_ID_ADDRESS, 6)
-        except DolphinException as e:
+        0x80000000 to pick NTSC/PAL (or neither).
+
+        Hooking and reading is retried up to ``attempts`` times (with
+        exponential backoff between tries, capped at ``max_delay``) as long
+        as the read game id isn't recognized -- either a known version or
+        the all-zero "nothing loaded yet" sentinel -- since an unrecognized
+        id can just mean Dolphin was hooked before the disc finished
+        booting. Only the last attempt's result (or error) is kept."""
+        last_error: DolphinException | None = None
+        game_id: bytes | None = None
+        delay = base_delay
+        attempts = max(1, attempts)
+
+        for attempt in range(attempts):
+            try:
+                if not self.dolphin_client.is_connected():
+                    self.dolphin_client.connect()
+                game_id = self.dolphin_client.read_address(_GC_GAME_ID_ADDRESS, 6)
+                last_error = None
+            except DolphinException as e:
+                game_id = None
+                last_error = e
+
+            recognized = game_id is not None and (
+                game_id == _EMPTY_GAME_ID or any(v.game_id == game_id for v in versions.VERSIONS)
+            )
+            if recognized or attempt == attempts - 1:
+                break
+            time.sleep(delay)
+            delay = min(delay * 2, max_delay)
+
+        if last_error is not None:
             self.version = None
-            self.last_connect_error = str(e)
+            self.last_connect_error = str(last_error)
             return
 
         matched = next((v for v in versions.VERSIONS if v.game_id == game_id), None)
