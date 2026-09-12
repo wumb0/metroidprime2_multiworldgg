@@ -509,16 +509,24 @@ Goal detection, two mechanisms:
 14. **`VanillaGreatTempleEmeraldGate` stays pinned to 1**, deliberately diverging from randovania's `if configuration.teleporters.is_vanilla` (`prime2/generator/bootstrap.py`). That conditional belongs to the *old* patcher. This world targets OPR, whose `specific_area_patches.rebalance_patches.register_all` applies `temple_sanctuary_emerald_gate` ("keep the Emerald gate active from the beginning") unconditionally for every seed (`patcher.py:372`), and randovania's own OPR-paired database (`games/prime2_opr/logic_database/Great Temple.json`) never references the flag at all -- only the non-OPR `prime2` DB vendored here does. With the flag at 1, `Temple Sanctuary/Door to Transport A Access -> Room Center` folds to statically true (its other conjunct is a negated event), i.e. the door is free, matching the shipped ISO. Setting it to 0 under elevator/teleporter rando would make logic **stricter than the game actually is**. Documented in `constants.py`.
 15. **Accepted deviations, deliberately not fixed.** (a) `_leave_requirement` applies a `hint` node's `requirement_to_collect` to that node's outgoing edges, where randovania gates only *collecting* the hint, not passing through. Harmless in practice -- all 31 hint nodes are verified dead-ends with a single outgoing edge back where you came from, so the 5 "Lore Scan" nodes that additionally require a translator can always be routed around -- but it is not randovania's semantics. (b) `item_pool.create_item_pool`'s `pool = pool[:target]` trim would silently drop Sky Temple Keys (appended last) if the pool ever exceeded the location count; unreachable today since the pool is always <= 119, but a silent-progression-loss shape if the item table grows.
 
-## M. `missile_expansions_unlock_launcher` and `show_item_locations`
+## M. `missile_expansions_unlock_launcher`, `power_bomb_expansions_unlock_power_bombs`, and `show_item_locations`
 
-Two independent options, done together only because they touch overlapping files.
+Three independent options, done together only because they touch overlapping files.
 
 **`missile_expansions_unlock_launcher` (item pool option).** Off by default, matching Randovania: a Missile Expansion grants nothing (0 capacity, launcher flag stays off) until the Missile Launcher itself is collected. The rule "missile capacity requires the launcher (or, with the option, at least one expansion)" is **duplicated in two places that must be kept in sync**:
 
 - `logic/item_mapping.expression`'s `Missile` branch (generation-time logic: what counts toward a `Missile` resource requirement). Takes a `missile_expansions_unlock_launcher` kwarg, threaded through `logic/requirements.StaticContext`/`build_static_context` and both of that module's `item_mapping.expression(...)` call sites (`_compile_item`, `_reductions_for`). `build_static_context`'s two callers (`logic/regions.create_regions`, `logic/dock_rando._build_compiler`) pass `bool(world.options.missile_expansions_unlock_launcher)`.
 - `client/receive_items.compute_desired_capacities` (the in-game grant: what capacity/flags actually get written to the OPR inventory). Takes the same flag as its third parameter, read by `client.py`'s `_handle_grant_items` out of slot_data (`ctx.slot_data.get("missile_expansions_unlock_launcher", False)` -- the `.get` default keeps old `.apmp2` files working). Lands in slot_data automatically since `_slot_data_option_names()` includes every non-base option.
 
+The logic database itself needed **no edit**, but it does gate on the launcher in two places, which is easy to miss: `MissileLauncher` (item id 73) has zero requirement references in any of the 9 region files, yet `header.json`'s `resource_database.requirement_template` uses it in `Destroy Seeker Locks` and `Destroy Underwater Seeker Locks` -- templates reached from **15 requirement sites** (Agon Wastes x4, Sky Temple Grounds x4, Temple Grounds x2, Torvus Bog x2, Dark Torvus Bog x1, plus the Seeker Missile Blast Shield dock type). Those gate on the launcher *item*, not on `Missile` capacity, so widening only the `Missile` expression would have left logic **stricter than the patched game** at all 15 (a Seeker Launcher + one expansion really does break those locks once the client sets slot 73). Both expressions therefore share one `item_mapping._effective_launcher` predicate, so they cannot drift apart. An audit of all 52 item short names the database actually references confirms `MissileLauncher` is the only main-item-style gate the option touches; `PowerBomb` has the same shape (a counted-ammo expression gated on a main pickup) but was, at the time, deliberately left alone (no equivalent option had been asked for) -- see below for where that changed.
+
 Consequence for **precollected** items: `patch_data.starting_items_config` sums raw `gains_for` over `multiworld.precollected_items`, so a precollected Missile Expansion (e.g. via `start_inventory`) writes capacity into item 44 but never sets the launcher flag (item 73) on its own -- `gains_for("Missile Expansion", ...)` only ever touches id 44. With the option on, `starting_items_config` now also sets id 73 to 1 whenever id 44's capacity is nonzero, so the ISO's own starting inventory is consistent with what the option grants at runtime; without this, the client would have to correct it on the very first tick, and `plan_grants` logs a spurious "capacity is already above desired" warning when it does.
+
+**`power_bomb_expansions_unlock_power_bombs` (item pool option, the Power Bomb counterpart).** Same option shape and default (off) as the missile toggle, and the same duplicated-rule discipline: `item_mapping.expression`'s `PowerBomb` branch (via a new `_effective_power_bomb` predicate) and `client/receive_items.compute_desired_capacities`'s Power Bomb block must agree, so both take the flag and both are exercised end to end in the tests. `StaticContext`/`build_static_context` gained a matching `power_bomb_expansions_unlock_power_bombs` field/parameter, threaded through both `item_mapping.expression(...)` call sites in `requirements.py` (`_compile_item`, `_reductions_for`) exactly like the missile flag, and both `build_static_context` callers (`regions.create_regions`, `dock_rando._build_compiler`) pass `bool(world.options.power_bomb_expansions_unlock_power_bombs)`.
+
+The key **contrast** with missiles, worth recording because it is the fact most likely to be re-litigated: `MissileLauncher` is its own logic-DB resource (item id 73), separately gated in the two `requirement_template`s described above (15 usage sites) -- so the missile option has to widen *two* independent expressions (`MissileLauncher`'s own `_effective_launcher` check, and `Missile`'s count formula) via one shared predicate, or logic would be stricter than the patched game at those 15 sites. **Power Bombs have no such main-item resource at all.** `PowerBomb` (id 43) is the only power-bomb-shaped DB item; there is no `requirement_template` anywhere that gates on a bare "Power Bomb collected" boolean the way the two Seeker Lock templates gate on `MissileLauncher`. So the entire gate for this option lives in exactly one place, `item_mapping.expression`'s `PowerBomb` branch (guarded by `_effective_power_bomb`, which -- unlike `_effective_launcher` -- has only that one caller and says so in its own docstring); nothing under `data/` needed inspection or change, and `DB_ITEM_TO_AP_ITEM` gained no new entry.
+
+`patch_data.starting_items_config` needed a **subtractive** fix that missiles did not, for a reason specific to how OPR treats each ammo type. Missile capacity (id 44) is inert without the separate launcher flag (id 73) being set, so a precollected Missile Expansion writing capacity into id 44 alone was always harmless in-game (unusable ammo, just a latent number) -- the existing fix is purely additive (also set id 73 when the option is on). Power Bombs have no such flag: `open_prime_rando`'s `PlayerItemEnum.PowerBomb` (43) is directly settable and `StartingItemConfig.amount` defaults to `capacity`, so a precollected Power Bomb Expansion with **no** unlock mechanism at all (the option didn't exist yet) would have started the player with a genuinely usable power bomb count that neither logic nor the client's `compute_desired_capacities` credited -- worse than inert, and it made `plan_grants` log its "capacity is already above desired" warning every tick once the client noticed capacity 43 sitting above its own computed desired value of 0. So `starting_items_config` now drops id 43 entirely (rather than leaving whatever `gains_for` summed for expansions alone) whenever `power_bomb_expansions_unlock_power_bombs` is off and no main `Power Bomb` was itself precollected -- determined from the same `precollected_items` loop that already walks every item, not a second pass. The identical failure mode existed for missiles all along (just masked by the launcher flag keeping the capacity unusable rather than making it a live warning), so the same subtractive treatment was added to id 44 symmetrically in this change: `missile_expansions_unlock_launcher` off and no main `Missile Launcher` precollected now also drops id 44. This is a **behavior change**: `start_inventory` with only an expansion (either kind) no longer starts the player with usable ammo unless the corresponding unlock option is on -- see `patch_data.starting_items_config`'s docstring and `test/test_patch_data.py`'s updated `TestStartingItemsWithPrecollectedMissileExpansionAndOptionOff.test_launcher_flag_not_set`.
 
 **`show_item_locations` (internal patch-time flag, driven by the `map_visibility` cosmetic option).** open-prime-rando 0.20.1 already adds a map icon for every pickup it patches: `open_prime_rando.echoes.pickups.pickup_editing._add_map_icon` appends a `MappableObject` of custom `object_type=0x12` with `visibility_mode=ObjectVisibility.AreaVisitOrMapStation` hardcoded -- the dot only shows once the room has been visited or a map station used. OPR's own `map_visibility.unvisited_map_icons` option does **not** cover pickup icons: `general_changes.py`'s `objects_to_reveal` set (the object types that setting forces visible) lists only Elevator/SaveStation/Portal/LightTeleporter/TranslatorGate/Up-DownArrow. `_add_map_icon` has exactly one call site, `patch_simple_pickup` (an unqualified module-global lookup, resolved at call time -- the same mechanism `goal_trigger_installed` relies on for `register_world_changes`); `patch_complex_pickup` delegates to `patch_simple_pickup`, so monkeypatching the module attribute covers every pickup regardless of stage count.
 
@@ -529,3 +537,59 @@ Like `warp_to_start`, this is a **patch-time** setting with no home in OPR's `Ra
 **`map_visibility` (the player-facing option, folded from two Toggles).** `show_item_locations` originally shipped alongside a second, independent `reveal_map` Toggle (`config.json`'s `map_visibility.reveal_map_at_start`, unrelated to this one's name beyond both concerning the map) with the interaction noted above: the map doesn't draw a room at all until the room itself has been revealed, so in an unvisited room `show_item_locations`'s dot was only visible when `reveal_map` was *also* on. That made "item dots without the revealed map" a real, selectable, but meaningless combination -- indistinguishable from vanilla. The two Toggles were folded into one `options.py` Choice, `MapVisibility` (`vanilla`/`full_map`/`full_map_and_items`), making the invalid combination unrepresentable: `patch_data.make_rando_configuration` sets `reveal_map_at_start` for anything other than `option_vanilla`, and `MetroidPrime2World.generate_output` sets the internal `show_item_locations` flag only for `option_full_map_and_items`.
 
 `reveal_map` itself had already shipped in 1.0.0 by the time of the fold (`show_item_locations` had not -- added and folded away in the same uncommitted change, so it needed no compatibility shim). The last field of `MetroidPrime2Options` is therefore `reveal_map: RevealMapRemoved`, a hidden (`Visibility.none`) `FreeText` subclass that raises, naming `map_visibility` as the replacement, only for a value that actually asked for a revealed map. It is deliberately **not** `Options.Removed`: that class rejects every value, because `FreeText.from_any` is `cls(str(data))` and so YAML's `false` reaches it as the *truthy string* `"False"` -- and `reveal_map: false` is exactly what 1.0.0's own `example_world_config.yaml` shipped, so a bare `Removed` would abort generation for every YAML copied from it while losing nothing (`false` means what `map_visibility: vanilla` now means). The shim's tests go through `from_any`, not the constructor, for the same reason.
+
+## N. `/grant_item` bypassing the desired-capacity model (bug fix)
+
+`MetroidPrime2CommandProcessor._cmd_grant_item` used to look the requested
+name up in `items.ITEM_TABLE` and push its raw `gains` (or, for a
+progressive item, only `progression[0]`) straight to game memory via
+`ctx.game_interface.grant(...)`, entirely bypassing the
+`compute_desired_capacities`/`plan_grants` model described in section J.
+That model recomputes every OPR inventory slot's target capacity from the
+*entire* `ctx.items_received` list every tick, and `plan_grants` only ever
+emits the positive difference against live game memory -- a negative delta
+is logged and never acted on, because capacities are assumed to only grow.
+
+For any item whose capacity is cross-computed from *other* received items
+rather than being a flat "1 if received" (Missile Launcher, Seeker
+Launcher, Power Bomb, Power Bomb Expansion, Missile Expansion, Dark/Light
+Beam, the beam ammo expansions, Energy Tank, Varia Suit -- the ids in
+`receive_items._COUNTED_AMMO_IDS`), this could strand the player below
+their true capacity forever: e.g. `/grant_item Missile Launcher` after 8
+Missile Expansions had already been received applied raw gains of only 5
+missile capacity, since the command's raw gains for the launcher don't
+know about expansions already in `items_received`. Every following tick,
+`compute_desired_capacities` still saw "8 expansions, no launcher" (the
+manual grant never touched `items_received`), so `desired[44]` stayed 0
+and `plan_grants` refused to lower the now-higher live capacity -- the
+player was capped at 5 missiles instead of 45, with a "capacity is already
+above the desired" warning logged every ~0.5s tick indefinitely.
+
+**Fix.** `_cmd_grant_item` no longer touches game memory at command time.
+It appends the matched item name to a new session-scoped
+`ctx.manual_grants: list[str]` (per-instance, initialized in
+`MetroidPrime2Context.__init__` -- unlike `slot_data`'s class-level `{}`
+default, this list is *appended* to in place rather than wholesale
+replaced, so a shared class-level default would leak across instances).
+`_handle_grant_items` builds its `received` list as `ctx.items_received`
+plus one `(item_name, ctx.slot)` entry per queued manual grant, appended
+after the real items (using `ctx.slot` as the sender makes the "last item"
+HUD message read `"<item> acquired"` instead of crediting another player).
+The command's `data.progression[0]` special-casing is gone entirely --
+`compute_desired_capacities` already applies the k-th progressive stage to
+the k-th received copy of an item by name, so appending the bare name is
+*more* correct than the command's old behavior, not less. Manual grants
+are session-only (never persisted): a client restart forgets them, and
+since capacities only ever grow, the game simply keeps whatever it already
+has. The command's `has_pending_op()` guard (needed only because the old
+path wrote to memory synchronously) is gone; the `IN_GAME` connection-state
+check is kept as a user-facing sanity check, though it is no longer load
+bearing for correctness.
+
+`plan_grants`'s negative-delta warning is now deduplicated: a module-level
+`_last_negative_delta_warning: dict[item_id, (current_capacity,
+desired_capacity)]` in `receive_items.py` suppresses repeats of the exact
+same triple, so the diagnosis is still logged (immediately, and again if
+the numbers change) without spamming every tick forever. The message now
+also names the two realistic causes: a manual `/grant_item` from before
+this fix, or a save file ahead of the current received-items list.

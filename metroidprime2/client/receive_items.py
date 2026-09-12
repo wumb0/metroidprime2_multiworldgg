@@ -26,6 +26,16 @@ from ..items import ITEM_TABLE, gains_for
 
 logger = logging.getLogger(__name__)
 
+# Last (current_capacity, desired_capacity) warned about per item id, so
+# plan_grants only logs a change once instead of every ~0.5s tick forever
+# (see the docstring below and PLAN.md's manual-grant fix -- the reported
+# bug was exactly this: two warnings/second, indefinitely, for a capacity
+# that was never going to change again). Module-level and never cleared:
+# there's no per-connection lifecycle hook to reset it from, and re-logging
+# once per fresh (item_id, current, desired) triple after a reconnect is
+# harmless.
+_last_negative_delta_warning: dict[int, tuple[int, int]] = {}
+
 # Item ids (OPR PlayerItemEnum inventory slots) whose desired capacity is
 # NOT simply "1 if received" or "sum of gains" -- they depend on which
 # *other* items were received, or are clamped to a fixed maximum. Skipped
@@ -71,6 +81,7 @@ def compute_desired_capacities(
     received: list[tuple[str, int]],
     first_non_starting_item_index: int,
     missile_expansions_unlock_launcher: bool = False,
+    power_bomb_expansions_unlock_power_bombs: bool = False,
 ) -> dict[int, int]:
     """Computes the capacity every OPR inventory slot *should* have, given
     the full list of ``(item_name, sender_slot)`` pairs received so far (in
@@ -90,6 +101,11 @@ def compute_desired_capacities(
     Missile Expansion also unlocks the launcher flag, matching the
     identical rule in ``logic/item_mapping.expression``'s ``Missile``
     branch -- the two implementations must be kept in sync.
+
+    ``power_bomb_expansions_unlock_power_bombs`` is the Power Bomb
+    counterpart: when set, any received Power Bomb Expansion also unlocks
+    Power Bombs, matching ``logic/item_mapping.expression``'s ``PowerBomb``
+    branch -- again, the two implementations must be kept in sync.
     """
     desired: dict[int, int] = {}
     progressive_copy_index: dict[str, int] = {}
@@ -171,8 +187,16 @@ def compute_desired_capacities(
         5 * (launcher_main + seeker_launchers + missile_expansions) if missiles_unlocked else 0
     )
 
-    # Power Bomb: 0 without the main pickup; otherwise 2 + expansions.
-    desired[_POWER_BOMB_ITEM] = (2 + power_bomb_expansions) if has_power_bomb_main else 0
+    # Power Bomb: 0 without the main pickup (or, with
+    # power_bomb_expansions_unlock_power_bombs, without any expansion);
+    # otherwise 2 for the main pickup plus 1 per expansion.
+    power_bomb_main = 2 if has_power_bomb_main else 0
+    power_bombs_unlocked = has_power_bomb_main or (
+        power_bomb_expansions_unlock_power_bombs and power_bomb_expansions > 0
+    )
+    desired[_POWER_BOMB_ITEM] = (
+        power_bomb_main + power_bomb_expansions if power_bombs_unlocked else 0
+    )
 
     # Dark/Light Beam ammo: 50 per beam, 20 per matching expansion, 200 per
     # (shared) Beam Ammo Expansion.
@@ -192,8 +216,16 @@ def plan_grants(
 
     Capacities only ever grow: a negative delta means the game's current
     capacity is somehow ahead of what we think it should be (should not
-    happen in normal play -- e.g. a stale/mismatched save) and is logged
-    rather than acted on.
+    happen in normal play) and is logged rather than acted on. The two
+    realistic causes are a manual ``/grant_item`` from before the
+    manual-grant fix (which used to write raw gains straight to game memory,
+    permanently outrunning what this function would ever compute) or a save
+    file that is otherwise ahead of ``ctx.items_received`` (e.g. loaded on a
+    different/newer session than the one that granted it). The warning is
+    logged only once per distinct (item_id, current_capacity,
+    desired_capacity) triple -- this function is called every ~0.5s tick,
+    and without that the same diagnosis would repeat forever for a
+    situation that, once true, normally stays true.
     """
     grants: list[tuple[int, int]] = []
     for item_id in sorted(desired):
@@ -203,8 +235,13 @@ def plan_grants(
         if delta > 0:
             grants.append((item_id, delta))
         elif delta < 0:
-            logger.warning(
-                f"Item {item_id}: current capacity {current_capacity} is already above the "
-                f"desired {desired_capacity}; capacities only grow, not touching it."
-            )
+            key = (current_capacity, desired_capacity)
+            if _last_negative_delta_warning.get(item_id) != key:
+                _last_negative_delta_warning[item_id] = key
+                logger.warning(
+                    f"Item {item_id}: current capacity {current_capacity} is already above the "
+                    f"desired {desired_capacity}; capacities only grow, not touching it. Likely "
+                    "cause: a manual /grant_item from before the manual-grant fix, or a save file "
+                    "ahead of the current received-items list."
+                )
     return grants

@@ -298,6 +298,9 @@ def create_regions(world: MetroidPrime2World) -> None:
         progressive_suit=bool(world.options.progressive_suit),
         progressive_grapple=bool(world.options.progressive_grapple),
         missile_expansions_unlock_launcher=bool(world.options.missile_expansions_unlock_launcher),
+        power_bomb_expansions_unlock_power_bombs=bool(
+            world.options.power_bomb_expansions_unlock_power_bombs
+        ),
     )
     compiler = RequirementCompiler(db, ctx)
 

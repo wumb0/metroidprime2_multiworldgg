@@ -115,11 +115,30 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         self.ctx.notification_manager.queue_notification(" ".join(map(str, args)))
 
     def _cmd_grant_item(self, *args: list[Any]) -> None:
-        """Grant an item directly, bypassing the normal AP item-receipt
-        flow (useful for testing). Usage: /grant_item <item name>, e.g.
+        """Queue an item to be granted as if it had been received from AP
+        (useful for testing). Usage: /grant_item <item name>, e.g.
         /grant_item Missile Expansion. Item names are matched
-        case-insensitively against items.ITEM_TABLE; progressive items
-        (e.g. Progressive Suit) grant their first stage."""
+        case-insensitively against items.ITEM_TABLE.
+
+        The grant is *not* applied immediately: it is appended to
+        ``ctx.manual_grants`` and picked up by the next
+        ``_handle_grant_items`` tick, which folds it into the same
+        ``compute_desired_capacities``/``plan_grants`` pass used for real AP
+        items (see receive_items.py). This used to write the item's raw
+        ``gains`` straight to game memory, bypassing that model entirely --
+        for any item whose capacity is cross-computed from the *whole*
+        received list (Missile Launcher, Power Bomb, the beam ammo
+        expansions, etc.) that could strand the player below their true
+        capacity forever, since ``plan_grants`` never lowers a capacity it
+        thinks is already too high (PLAN.md's manual-grant fix). Going
+        through the normal path also means a progressive item lands on the
+        correct stage for however many copies have already been received,
+        rather than always granting stage 1.
+
+        Manual grants live only for this client session: they are not
+        persisted anywhere, so restarting the client forgets them and the
+        game simply keeps whatever capacity it already has (nothing is ever
+        taken away)."""
         if not args:
             logger.error("Usage: /grant_item <item name>")
             return
@@ -134,17 +153,8 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
             logger.error("Not connected to a running game.")
             return
 
-        if self.ctx.game_interface.has_pending_op():
-            logger.error("A remote-execution op is already pending; try again in a moment.")
-            return
-
-        data = ITEM_TABLE[match]
-        gains = data.progression[0] if data.progression is not None else data.gains
-        leftovers = self.ctx.game_interface.grant(list(gains), f"{match} granted")
-        if leftovers:
-            logger.warning(f"Grant for {match} deferred (remote-execution body budget); try again.")
-        else:
-            logger.info(f"Granted {match}.")
+        self.ctx.manual_grants.append(match)
+        logger.info(f"Queued {match}; it will be granted on the next sync tick.")
 
     def _cmd_mp2_debug_inventory(self, *_args: list[Any]) -> None:
         """Print the raw inventory (amount/capacity per item id) read from
@@ -205,6 +215,14 @@ class MetroidPrime2Context(CommonContext):
     mp2_iso: str | None = None
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
+    # Names queued by /grant_item, folded into _handle_grant_items's
+    # received list on the next tick (see receive_items.py and PLAN.md's
+    # manual-grant fix). Unlike slot_data (whose class-level {} default is
+    # safe because on_package always *replaces* it wholesale) this list is
+    # *appended* to in place, so a shared class-level default would leak
+    # across MetroidPrime2Context instances -- no default here; __init__
+    # below gives every instance its own list.
+    manual_grants: list[str]
 
     def __init__(
         self,
@@ -219,6 +237,7 @@ class MetroidPrime2Context(CommonContext):
         self.notification_manager = NotificationManager(HUD_MESSAGE_DURATION, self.game_interface.send_hud_message)
         self.apmp2_file = apmp2_file
         self.mp2_iso = mp2_iso
+        self.manual_grants = []
 
     async def server_auth(self, password_requested: bool = False) -> None:
         if password_requested and not self.password:
@@ -385,18 +404,31 @@ async def _handle_magic_item_amount(ctx: MetroidPrime2Context, amount: int) -> N
 
 
 async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tuple]) -> None:
-    if not ctx.items_received:
+    if not ctx.items_received and not ctx.manual_grants:
         return
 
+    # Manual grants (queued by /grant_item) are appended after the real AP
+    # items, attributed to ctx.slot itself so the "last item" HUD message
+    # below reads "<item> acquired" rather than crediting another player --
+    # see MetroidPrime2CommandProcessor._cmd_grant_item's docstring and
+    # PLAN.md's manual-grant fix. They fold into the same
+    # compute_desired_capacities/plan_grants pass as real items, so a
+    # manually granted item's capacity is computed against the *entire*
+    # received history (real + manual) exactly like any other item.
     received = [
         (ctx.item_names.lookup_in_game(network_item.item, ctx.game), network_item.player)
         for network_item in ctx.items_received
-    ]
+    ] + [(name, ctx.slot) for name in ctx.manual_grants]
     first_non_starting = ctx.slot_data.get("first_non_starting_item_index", 0)
     # .get default keeps older .apmp2/slot_data (generated before this option
     # existed) working, matching the flag-off behavior.
     unlock_launcher = bool(ctx.slot_data.get("missile_expansions_unlock_launcher", False))
-    desired = compute_desired_capacities(received, first_non_starting, unlock_launcher)
+    unlock_power_bombs = bool(
+        ctx.slot_data.get("power_bomb_expansions_unlock_power_bombs", False)
+    )
+    desired = compute_desired_capacities(
+        received, first_non_starting, unlock_launcher, unlock_power_bombs
+    )
     deltas = plan_grants(desired, inventory)
     if not deltas:
         return

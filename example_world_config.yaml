@@ -45,6 +45,14 @@ requires:
   # Options: true, false
   missile_expansions_unlock_launcher: false
 
+  # Receiving any Power Bomb Expansion also unlocks Power Bombs
+  # themselves, so expansions are usable before the main Power Bomb
+  # pickup is found. Off matches Randovania (expansions grant nothing
+  # without the main pickup); this also affects logic, not just the
+  # in-game grant.
+  # Options: true, false
+  power_bomb_expansions_unlock_power_bombs: false
+
   # ------------------------------------------------------------------
   # Logic
   # ------------------------------------------------------------------

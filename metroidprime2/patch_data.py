@@ -75,6 +75,23 @@ _ENERGY_TANK_MAX_STARTING_CAPACITY = 14
 # M).
 _MISSILE_ITEM_ID = 44
 _MISSILE_LAUNCHER_ITEM_ID = 73
+# AP main-pickup item name, used (alongside _POWER_BOMB_MAIN_ITEM_NAME
+# below) to tell "the main pickup itself was precollected" apart from
+# "only expansions were precollected" -- gains_for accumulates capacity
+# for either case identically, so the raw capacities dict can't
+# distinguish them on its own.
+_MISSILE_LAUNCHER_ITEM_NAME = "Missile Launcher"
+
+# Power Bomb capacity id (OPR PlayerItemEnum slot 43) and the AP main
+# pickup's item name (items.py:143, AP item id 21). Unlike missiles, there
+# is no separate "unlocked" flag id to set here -- capacity id 43 is the
+# *only* OPR resource Power Bombs have (PLAN.md section M: the whole gate
+# lives in item_mapping's PowerBomb branch, not in the logic database) --
+# so the fix below is purely subtractive: drop the capacity gains_for
+# already wrote when neither the main pickup nor the unlock option would
+# make it usable.
+_POWER_BOMB_ITEM_ID = 43
+_POWER_BOMB_MAIN_ITEM_NAME = "Power Bomb"
 
 
 def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
@@ -89,13 +106,36 @@ def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
     Launcher flag (id 73) if any missile capacity was precollected, so the
     ISO's starting inventory matches what the option grants in-game instead
     of relying on the client to fix it up on the first tick.
+
+    **Behavior change:** ``gains_for`` writes ammo capacity for a
+    precollected expansion regardless of whether its main item was also
+    precollected, which used to mean ``start_inventory: {Missile Expansion:
+    1}`` (or the Power Bomb equivalent) started the player with genuinely
+    usable ammo the in-game grant/logic would never agree to on their own,
+    and made ``plan_grants`` log a "capacity is already above desired"
+    warning every tick once the client noticed the mismatch. So: when the
+    relevant unlock option is off and the main pickup (``Missile Launcher``
+    / ``Power Bomb``) was not itself precollected, the corresponding
+    capacity (id 44 / id 43) is dropped entirely rather than left at
+    whatever ``gains_for`` summed for expansions alone -- ``start_inventory``
+    with only an expansion no longer starts you with usable ammo unless the
+    corresponding unlock option is on. Power Bombs need this treatment
+    unconditionally (there is no flag to compensate with); Missiles only
+    need the subtractive half added here since the additive half (setting
+    flag 73) already existed.
     """
     capacities: dict[int, int] = {}
     copy_index: dict[str, int] = {}
+    has_missile_launcher = False
+    has_power_bomb_main = False
 
     for item in world.multiworld.precollected_items[world.player]:
         index = copy_index.get(item.name, 0)
         copy_index[item.name] = index + 1
+        if item.name == _MISSILE_LAUNCHER_ITEM_NAME:
+            has_missile_launcher = True
+        elif item.name == _POWER_BOMB_MAIN_ITEM_NAME:
+            has_power_bomb_main = True
         if item.name not in ITEM_TABLE:
             # Not one of ours (e.g. a foreign item_link'd in some future
             # setup); nothing to grant in the ISO for it.
@@ -116,6 +156,21 @@ def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
         _MISSILE_ITEM_ID, 0
     ) > 0:
         capacities.setdefault(_MISSILE_LAUNCHER_ITEM_ID, 1)
+    elif not bool(world.options.missile_expansions_unlock_launcher) and not has_missile_launcher:
+        # A precollected expansion alone would otherwise leave capacity 44
+        # nonzero while the launcher flag stays 0 and logic credits no
+        # missiles -- unusable in-game and a per-tick plan_grants warning.
+        capacities.pop(_MISSILE_ITEM_ID, None)
+
+    if (
+        not bool(world.options.power_bomb_expansions_unlock_power_bombs)
+        and not has_power_bomb_main
+    ):
+        # Same fix as missiles above, but Power Bombs have no flag to set
+        # in the "option on" case -- capacity 43 IS the unlock, so nothing
+        # needs to change there; only the off-and-unmain case needs
+        # correcting.
+        capacities.pop(_POWER_BOMB_ITEM_ID, None)
 
     return [{"item": item_id, "capacity": capacities[item_id]} for item_id in sorted(capacities)]
 

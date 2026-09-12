@@ -394,6 +394,23 @@ class MissileExpansionsUnlockLauncher(Toggle):
     display_name = "Missile Expansions Unlock Launcher"
 
 
+class PowerBombExpansionsUnlockPowerBombs(Toggle):
+    """If enabled, receiving any Power Bomb Expansion also unlocks Power
+    Bombs themselves, so expansions are usable without finding the main
+    Power Bomb pickup.
+
+    Off (the default) matches Randovania: Power Bomb Expansions grant
+    nothing until the Power Bomb pickup is collected. The setting affects
+    logic as well as the in-game grant, so an expansion counts toward
+    Power Bomb requirements when it is on.
+
+    The Missile counterpart is `missile_expansions_unlock_launcher`; the
+    two are independent (either combination is meaningful).
+    """
+
+    display_name = "Power Bomb Expansions Unlock Power Bombs"
+
+
 @dataclass
 class MetroidPrime2Options(PerGameCommonOptions):
     start_inventory_from_pool: StartInventoryPool
@@ -402,6 +419,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     progressive_suit: ProgressiveSuit
     progressive_grapple: ProgressiveGrapple
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
+    power_bomb_expansions_unlock_power_bombs: PowerBombExpansionsUnlockPowerBombs
 
     trick_level: TrickLevel
     trick_airunderwater: TrickAirUnderwater
@@ -462,7 +480,13 @@ class MetroidPrime2Options(PerGameCommonOptions):
 OPTION_GROUPS: list[OptionGroup] = [
     OptionGroup("Goal", [SkyTempleKeys]),
     OptionGroup(
-        "Item Pool", [ProgressiveSuit, ProgressiveGrapple, MissileExpansionsUnlockLauncher]
+        "Item Pool",
+        [
+            ProgressiveSuit,
+            ProgressiveGrapple,
+            MissileExpansionsUnlockLauncher,
+            PowerBombExpansionsUnlockPowerBombs,
+        ],
     ),
     OptionGroup(
         "Logic",

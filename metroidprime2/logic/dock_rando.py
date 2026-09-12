@@ -629,6 +629,9 @@ def _build_compiler(world: MetroidPrime2World, db: GameDatabase) -> RequirementC
         progressive_suit=bool(world.options.progressive_suit),
         progressive_grapple=bool(world.options.progressive_grapple),
         missile_expansions_unlock_launcher=bool(world.options.missile_expansions_unlock_launcher),
+        power_bomb_expansions_unlock_power_bombs=bool(
+            world.options.power_bomb_expansions_unlock_power_bombs
+        ),
     )
     return RequirementCompiler(db, ctx)
 

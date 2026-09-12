@@ -397,9 +397,88 @@ class TestStartingItemsWithPrecollectedMissileExpansionAndOptionOff(MP2TestBase)
         self.config = patch_data.make_rando_configuration(self.world)
 
     def test_launcher_flag_not_set(self) -> None:
+        # Behavior change (PLAN.md section M): a precollected expansion
+        # alone, with the option off, used to leave capacity 44 at 5 (from
+        # gains_for) while the launcher flag stayed unset -- unusable
+        # in-game and a per-tick plan_grants warning. starting_items_config
+        # now drops id 44 entirely in this case, matching what
+        # compute_desired_capacities/logic would credit (0).
         capacities = {entry["item"]: entry["capacity"] for entry in self.config["starting_items"]}
-        self.assertEqual(5, capacities.get(44))
+        self.assertNotIn(44, capacities)
         self.assertNotIn(73, capacities)
+
+
+class TestStartingItemsWithPrecollectedPowerBombExpansionAndUnlockOption(MP2TestBase):
+    """Power Bomb counterpart of
+    ``TestStartingItemsWithPrecollectedMissileExpansionAndUnlockOption``: a
+    precollected Power Bomb Expansion (no main Power Bomb pickup) writes
+    capacity into id 43 via gains_for; with
+    power_bomb_expansions_unlock_power_bombs on, that capacity is left
+    alone (there is no separate flag id to also set -- capacity 43 IS the
+    unlock, PLAN.md section M)."""
+
+    options = {
+        "start_inventory": {"Power Bomb Expansion": 1},
+        "power_bomb_expansions_unlock_power_bombs": True,
+    }
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        for item_name, count in self.world.options.start_inventory.value.items():
+            for _ in range(count):
+                self.multiworld.push_precollected(self.multiworld.create_item(item_name, self.player))
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_capacity_kept_with_option_on(self) -> None:
+        capacities = {entry["item"]: entry["capacity"] for entry in self.config["starting_items"]}
+        self.assertEqual(1, capacities.get(43))
+
+
+class TestStartingItemsWithPrecollectedPowerBombExpansionAndOptionOff(MP2TestBase):
+    """Same precollected inventory as above, but with the option left at
+    its default (off): item 43 must be absent, matching what
+    compute_desired_capacities/logic would credit (0) -- otherwise the ISO
+    would start with a genuinely usable power bomb the option never
+    intended to grant, and plan_grants would warn every tick (PLAN.md
+    section M)."""
+
+    options = {"start_inventory": {"Power Bomb Expansion": 1}}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        for item_name, count in self.world.options.start_inventory.value.items():
+            for _ in range(count):
+                self.multiworld.push_precollected(self.multiworld.create_item(item_name, self.player))
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_capacity_absent_with_option_off(self) -> None:
+        capacities = {entry["item"]: entry["capacity"] for entry in self.config["starting_items"]}
+        self.assertNotIn(43, capacities)
+
+
+class TestStartingItemsWithPrecollectedPowerBombMainAndOptionOff(MP2TestBase):
+    """Main pickup + expansion precollected, option off: capacity is the
+    full 2 (main) + 1 (expansion) = 3, unaffected by the subtractive fix
+    above since the main pickup itself was precollected."""
+
+    options = {"start_inventory": {"Power Bomb": 1, "Power Bomb Expansion": 1}}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        for item_name, count in self.world.options.start_inventory.value.items():
+            for _ in range(count):
+                self.multiworld.push_precollected(self.multiworld.create_item(item_name, self.player))
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_main_plus_expansion_capacity(self) -> None:
+        capacities = {entry["item"]: entry["capacity"] for entry in self.config["starting_items"]}
+        self.assertEqual(2 + 1, capacities.get(43))
 
 
 class TestDetectIsoVersion(unittest.TestCase):

@@ -196,6 +196,97 @@ class TestMissileExpansionsUnlockLauncher(unittest.TestCase):
         assert rule is not None
         self.assertTrue(rule(FakeState({"Missile Expansion": 2})))
 
+    def test_missile_launcher_item_requirement_honors_the_flag(self) -> None:
+        # The DB gates 15 requirement sites on the `MissileLauncher` *item*
+        # rather than on Missile capacity (the `Destroy Seeker Locks` and
+        # `Destroy Underwater Seeker Locks` templates in header.json), so
+        # that expression has to widen with the option too -- otherwise
+        # logic stays stricter than the patched game, which really does set
+        # the launcher flag for an expansion holder.
+        req = _resource("items", "MissileLauncher", amount=1)
+        state = FakeState({"Missile Expansion": 1})
+
+        rule_off = self._compiler(False).compile(req)
+        assert rule_off is not None
+        self.assertFalse(rule_off(state))
+
+        rule_on = self._compiler(True).compile(req)
+        assert rule_on is not None
+        self.assertTrue(rule_on(state))
+
+    def test_real_seeker_lock_template_honors_the_flag(self) -> None:
+        # End-to-end through the actual vendored template, not a
+        # hand-written stand-in: Seeker Launcher + one expansion is enough
+        # to break a Seeker Lock in the patched game once the option is on.
+        req = {"type": "template", "data": "Destroy Seeker Locks"}
+        state = FakeState(
+            {"Missile Expansion": 1, "Seeker Launcher": 1, "Combat Visor": 1}
+        )
+
+        rule_off = self._compiler(False).compile(req)
+        assert rule_off is not None
+        self.assertFalse(rule_off(state))
+
+        rule_on = self._compiler(True).compile(req)
+        assert rule_on is not None
+        self.assertTrue(rule_on(state))
+
+    def test_real_seeker_lock_template_still_needs_seekers(self) -> None:
+        # The option widens only the launcher half; a Seeker Lock still
+        # needs the Seeker Launcher.
+        req = {"type": "template", "data": "Destroy Seeker Locks"}
+        rule = self._compiler(True).compile(req)
+        assert rule is not None
+        self.assertFalse(rule(FakeState({"Missile Expansion": 4, "Combat Visor": 1})))
+
+
+class TestPowerBombExpansionsUnlockPowerBombs(unittest.TestCase):
+    """A ``PowerBomb`` resource requirement of amount 1 is unsatisfied by 2
+    Power Bomb Expansions alone with the option off (matching Randovania:
+    no Power Bomb main pickup means 0 power bomb capacity), and satisfied
+    with it on (PLAN.md section M) -- item_mapping.expression's PowerBomb
+    branch counts expansions toward capacity without the main pickup when
+    the flag is set. Unlike missiles, there is no second gated resource to
+    check here: the logic database has no main-item resource for power
+    bombs at all, so the entire gate lives in this one branch."""
+
+    def _compiler(self, power_bomb_expansions_unlock_power_bombs: bool) -> RequirementCompiler:
+        db = load_game_database()
+        ctx = build_static_context(
+            player=PLAYER,
+            trick_levels={},
+            damage_strictness=1.5,
+            energy_per_tank=100,
+            dark_aether_damage=6.0,
+            dark_suit_damage=1.2,
+            progressive_suit=False,
+            progressive_grapple=False,
+            power_bomb_expansions_unlock_power_bombs=power_bomb_expansions_unlock_power_bombs,
+        )
+        return RequirementCompiler(db, ctx)
+
+    def test_unsatisfied_by_two_expansions_when_flag_off(self) -> None:
+        compiler = self._compiler(False)
+        req = _resource("items", "PowerBomb", amount=1)
+        rule = compiler.compile(req)
+        assert rule is not None
+        self.assertFalse(rule(FakeState({"Power Bomb Expansion": 2})))
+
+    def test_satisfied_by_two_expansions_when_flag_on(self) -> None:
+        compiler = self._compiler(True)
+        req = _resource("items", "PowerBomb", amount=1)
+        rule = compiler.compile(req)
+        assert rule is not None
+        self.assertTrue(rule(FakeState({"Power Bomb Expansion": 2})))
+
+    def test_amount_four_needs_four_expansions_when_flag_on(self) -> None:
+        compiler = self._compiler(True)
+        req = _resource("items", "PowerBomb", amount=4)
+        rule = compiler.compile(req)
+        assert rule is not None
+        self.assertFalse(rule(FakeState({"Power Bomb Expansion": 3})))
+        self.assertTrue(rule(FakeState({"Power Bomb Expansion": 4})))
+
 
 class TestNegationPolicy(RequirementsTestBase):
     def test_negated_event_compiles_to_none(self) -> None:

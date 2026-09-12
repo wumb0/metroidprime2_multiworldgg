@@ -45,6 +45,11 @@ def event_item_name(db: GameDatabase, short_name: str) -> str:
 # alternatives), Missile/PowerBomb/DarkAmmo/LightAmmo/EnergyTank (counted
 # expressions), and the constant-0 items (Percent, Multiworld, ETM,
 # ObjectCount, Health, Temporary1, Temporary2, ChargeCombo).
+#
+# MissileLauncher is listed here (its vanilla placement is still the plain
+# "Missile Launcher" item) but is NOT served from this table by
+# ``expression`` -- it gets the _effective_launcher predicate below, which
+# missile_expansions_unlock_launcher widens. See that helper.
 # --------------------------------------------------------------------------
 DB_ITEM_TO_AP_ITEM: dict[str, str] = {
     "Power": "Power Beam",
@@ -113,8 +118,70 @@ CONST_ZERO_ITEMS: frozenset[str] = frozenset(
 )
 
 
+def _effective_launcher(player: int, missile_expansions_unlock_launcher: bool) -> Expression:
+    """Predicate for "the Missile Launcher is unlocked", shared by the
+    ``MissileLauncher`` and ``Missile`` expressions so the two can never
+    disagree.
+
+    With ``missile_expansions_unlock_launcher`` set, any Missile Expansion
+    unlocks the launcher: ``client/receive_items.compute_desired_capacities``
+    writes capacity 1 into OPR inventory slot 73 (the launcher flag) in that
+    case, so the patched game really does let the player fire missiles. Logic
+    has to agree, or it ends up *stricter* than the game -- notably at the 15
+    requirement sites that reach the ``Destroy Seeker Locks`` /
+    ``Destroy Underwater Seeker Locks`` templates, which gate on the
+    ``MissileLauncher`` item itself rather than on ``Missile`` capacity.
+
+    With the option off this is exactly ``state.has("Missile Launcher")``.
+    """
+
+    def _unlocked(state, _p=player, _unlock=missile_expansions_unlock_launcher) -> bool:
+        if state.has("Missile Launcher", _p):
+            return True
+        return bool(_unlock) and state.count("Missile Expansion", _p) >= 1
+
+    return _unlocked
+
+
+def _effective_power_bomb(
+    player: int, power_bomb_expansions_unlock_power_bombs: bool
+) -> Expression:
+    """Predicate for "Power Bombs are unlocked", used only by the
+    ``PowerBomb`` branch of ``expression`` below.
+
+    Unlike missiles, **there is no separate DB main-item resource for Power
+    Bombs to widen** -- ``PowerBomb`` (id 43) is the only power-bomb-shaped
+    logic-DB item, and it is never referenced as a gate on its own (no
+    ``requirement_template`` parallels ``Destroy Seeker Locks``' gate on the
+    ``MissileLauncher`` item). So this predicate exists purely to keep the
+    ``PowerBomb`` count expression's "is it unlocked at all" check in one
+    place; there is no second call site that needs to agree with it the way
+    ``MissileLauncher``'s branch has to agree with ``_effective_launcher``.
+
+    With ``power_bomb_expansions_unlock_power_bombs`` set, any Power Bomb
+    Expansion unlocks Power Bombs: ``client/receive_items.
+    compute_desired_capacities`` grants nonzero capacity into OPR inventory
+    slot 43 in that case, so logic has to agree or it ends up stricter than
+    the patched game.
+
+    With the option off this is exactly ``state.has("Power Bomb")``.
+    """
+
+    def _unlocked(
+        state, _p=player, _unlock=power_bomb_expansions_unlock_power_bombs
+    ) -> bool:
+        if state.has("Power Bomb", _p):
+            return True
+        return bool(_unlock) and state.count("Power Bomb Expansion", _p) >= 1
+
+    return _unlocked
+
+
 def expression(
-    short_name: str, player: int, missile_expansions_unlock_launcher: bool = False
+    short_name: str,
+    player: int,
+    missile_expansions_unlock_launcher: bool = False,
+    power_bomb_expansions_unlock_power_bombs: bool = False,
 ) -> tuple[Kind, Expression]:
     """Return ``(kind, callable)`` for a DB item short_name.
 
@@ -127,8 +194,18 @@ def expression(
     ``compute_desired_capacities`` implements the identical rule for the
     in-game grant, and the two must be kept in sync.
 
+    ``power_bomb_expansions_unlock_power_bombs`` mirrors the option of the
+    same name and does the same thing for the ``PowerBomb`` branch, via
+    ``_effective_power_bomb`` -- see that helper for why it needs no second
+    call site the way the Missile Launcher predicate does.
+
     Raises ``KeyError`` for unknown short names.
     """
+    if short_name == "MissileLauncher":
+        # Checked before the 1:1 table so the option can widen it; see
+        # _effective_launcher.
+        return ("bool", _effective_launcher(player, missile_expansions_unlock_launcher))
+
     if short_name in DB_ITEM_TO_AP_ITEM:
         ap_name = DB_ITEM_TO_AP_ITEM[short_name]
         return ("bool", lambda state, _n=ap_name, _p=player: state.has(_n, _p))
@@ -159,20 +236,33 @@ def expression(
         )
 
     if short_name == "Missile":
-        def _missile(state, _p=player, _unlock=missile_expansions_unlock_launcher):
-            launcher = 1 if state.has("Missile Launcher", _p) else 0
-            expansions = state.count("Missile Expansion", _p)
-            if not launcher and not (_unlock and expansions):
+        unlocked = _effective_launcher(player, missile_expansions_unlock_launcher)
+
+        def _missile(state, _p=player, _unlocked=unlocked):
+            if not _unlocked(state):
                 return 0
-            return 5 * (launcher + state.count("Seeker Launcher", _p) + expansions)
+            # The launcher itself carries 5 missiles; Seeker Launcher and
+            # each expansion add 5 more. Without the launcher (only
+            # reachable with the option on) there is no launcher 5 to count.
+            launcher = 1 if state.has("Missile Launcher", _p) else 0
+            return 5 * (
+                launcher
+                + state.count("Seeker Launcher", _p)
+                + state.count("Missile Expansion", _p)
+            )
 
         return ("count", _missile)
 
     if short_name == "PowerBomb":
-        def _power_bomb(state, _p=player):
-            if not state.has("Power Bomb", _p):
+        unlocked = _effective_power_bomb(player, power_bomb_expansions_unlock_power_bombs)
+
+        def _power_bomb(state, _p=player, _unlocked=unlocked):
+            if not _unlocked(state):
                 return 0
-            return 2 + state.count("Power Bomb Expansion", _p)
+            # The main pickup carries 2; each expansion adds 1. Without the
+            # main pickup (only reachable with the option on) there is no 2.
+            main = 2 if state.has("Power Bomb", _p) else 0
+            return main + state.count("Power Bomb Expansion", _p)
 
         return ("count", _power_bomb)
 
