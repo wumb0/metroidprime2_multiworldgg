@@ -9,6 +9,7 @@ import json
 import multiprocessing
 import os
 import subprocess
+import time
 import traceback
 import zipfile
 from typing import TYPE_CHECKING, Any
@@ -179,9 +180,12 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         self.ctx.notification_manager.queue_notification(message)
 
     def _cmd_test_deathlink(self, *args: list[Any]) -> None:
-        """Send a test DeathLink to the rest of the group, without touching
-        in-game health, to verify the send/receive path end-to-end. Usage:
-        /test_deathlink [reason]. Requires DeathLink to be enabled (see
+        """Test the DeathLink send or receive path. Usage:
+        /test_deathlink <incoming|outgoing> [reason]. 'outgoing' sends a
+        test DeathLink to the rest of the group without touching in-game
+        health, to verify the send path. 'incoming' simulates a DeathLink
+        arriving from another player, which does kill you in-game, to
+        verify the receive path. Requires DeathLink to be enabled (see
         /deathlink) and a connection to the server."""
         if not self.ctx.death_link_enabled:
             logger.error("DeathLink is disabled; enable it with /deathlink first.")
@@ -189,13 +193,26 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         if not self.ctx.slot:
             logger.error("Not connected to a server.")
             return
+        if not args or str(args[0]).lower() not in ("incoming", "outgoing"):
+            logger.error("Usage: /test_deathlink <incoming|outgoing> [reason]")
+            return
 
-        reason = " ".join(map(str, args)) if args else "triggered a test DeathLink"
-        Utils.async_start(
-            self.ctx.send_death(f"{self.ctx.player_names[self.ctx.slot]} {reason}"),
-            name="Test Deathlink",
-        )
-        logger.info("Sent test DeathLink.")
+        direction, *reason_words = args
+        reason = " ".join(map(str, reason_words)) if reason_words else "triggered a test DeathLink"
+
+        if str(direction).lower() == "outgoing":
+            Utils.async_start(
+                self.ctx.send_death(f"{self.ctx.player_names[self.ctx.slot]} {reason}"),
+                name="Test Deathlink",
+            )
+            logger.info("Sent test DeathLink.")
+        else:
+            self.ctx.on_deathlink({
+                "time": time.time(),
+                "source": self.ctx.player_names[self.ctx.slot],
+                "cause": reason,
+            })
+            logger.info("Simulated an incoming DeathLink.")
 
 
 class MetroidPrime2Context(CommonContext):
@@ -438,7 +455,10 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
         sender_name = ctx.player_names.get(last_sender, "another world")
         message = f"Received {last_item_name} from {sender_name}"
     else:
-        message = f"{last_item_name} acquired"
+        # The game already shows its own pickup HUD message when you find
+        # one of your own items in-game; queuing another one here would
+        # double it up.
+        message = None
 
     leftovers = ctx.game_interface.grant(deltas, message)
     if leftovers:
