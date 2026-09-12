@@ -86,6 +86,7 @@ class StaticContext:
     progressive_suit: bool
     progressive_grapple: bool
     absent_items: frozenset[str] = field(default_factory=frozenset)
+    missile_expansions_unlock_launcher: bool = False
 
 
 def build_static_context(
@@ -98,6 +99,7 @@ def build_static_context(
     progressive_suit: bool,
     progressive_grapple: bool,
     absent_items: frozenset[str] = DEFAULT_ABSENT_ITEMS,
+    missile_expansions_unlock_launcher: bool = False,
 ) -> StaticContext:
     """Build a ``StaticContext`` from resolved option values.
 
@@ -118,6 +120,7 @@ def build_static_context(
         progressive_suit=progressive_suit,
         progressive_grapple=progressive_grapple,
         absent_items=frozenset(absent_items),
+        missile_expansions_unlock_launcher=missile_expansions_unlock_launcher,
     )
 
 
@@ -335,7 +338,9 @@ class RequirementCompiler:
         if name in self.ctx.absent_items:
             raise Impossible
 
-        kind, fn = item_mapping.expression(name, self.ctx.player)
+        kind, fn = item_mapping.expression(
+            name, self.ctx.player, self.ctx.missile_expansions_unlock_launcher
+        )
 
         if kind == "bool":
             if amount <= 0:
@@ -412,7 +417,9 @@ class RequirementCompiler:
             if item_short_name is None:
                 result.append((None, quantity, multiplier))
                 continue
-            kind, fn = item_mapping.expression(item_short_name, player)
+            kind, fn = item_mapping.expression(
+                item_short_name, player, self.ctx.missile_expansions_unlock_launcher
+            )
             count_fn: Callable[[object], int]
             if kind == "bool":
                 def count_fn(s, _fn=fn):

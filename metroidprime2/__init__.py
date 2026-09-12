@@ -27,6 +27,7 @@ from .logic.dock_rando import DockRandoAssignment, build_dock_rando_assignment
 from .logic.translator_gate_rando import TranslatorGateAssignment, build_translator_gate_assignment
 from .options import (
     OPTION_GROUPS,
+    MapVisibility,
     MetroidPrime2Options,
     trick_levels_from_options,
 )
@@ -224,6 +225,9 @@ class MetroidPrime2World(World):
                 # RandoConfiguration (config.json is validated with
                 # extra="forbid"), so the client reads them from here.
                 "warp_to_start": bool(self.options.warp_to_start),
+                "show_item_locations": bool(
+                    self.options.map_visibility.value == MapVisibility.option_full_map_and_items
+                ),
             },
             indent=4,
         )

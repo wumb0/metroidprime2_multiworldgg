@@ -38,6 +38,13 @@ requires:
   # Options: true, false
   progressive_grapple: false
 
+  # Receiving any Missile Expansion also unlocks the Missile Launcher
+  # itself, so expansions are usable before the launcher is found. Off
+  # matches Randovania (expansions grant nothing without the launcher);
+  # this also affects logic, not just the in-game grant.
+  # Options: true, false
+  missile_expansions_unlock_launcher: false
+
   # ------------------------------------------------------------------
   # Logic
   # ------------------------------------------------------------------
@@ -258,10 +265,15 @@ requires:
   # Options: none, match_game
   display_nonlocal_items: match_game
 
-  # Start with the in-game map fully revealed (rooms still need to be
-  # visited for name/details).
-  # Options: true, false
-  reveal_map: false
+  # How much of the in-game map is revealed from the start. vanilla:
+  # fills in as you explore, item dots wait for their room to be visited
+  # or a map station used. full_map: every room is drawn from the start
+  # (rooms still need to be visited for name/details), but item dots
+  # still wait for their room. full_map_and_items: as full_map, plus a
+  # dot at every item location from the start, mirroring the Metroid
+  # Prime 1 randomizer.
+  # Options: vanilla, full_map, full_map_and_items
+  map_visibility: vanilla
 
   # Show room names on the map for rooms not yet visited.
   # Options: true, false

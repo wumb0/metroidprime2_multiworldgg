@@ -68,7 +68,9 @@ _ENERGY_TANK = "Energy Tank"
 
 
 def compute_desired_capacities(
-    received: list[tuple[str, int]], first_non_starting_item_index: int
+    received: list[tuple[str, int]],
+    first_non_starting_item_index: int,
+    missile_expansions_unlock_launcher: bool = False,
 ) -> dict[int, int]:
     """Computes the capacity every OPR inventory slot *should* have, given
     the full list of ``(item_name, sender_slot)`` pairs received so far (in
@@ -82,6 +84,12 @@ def compute_desired_capacities(
     Missile Launcher must unlock later Missile Expansions).
     ``first_non_starting_item_index`` is accepted for slot_data
     compatibility and ignored.
+
+    ``missile_expansions_unlock_launcher`` mirrors the option of the same
+    name (``client.py`` reads it out of slot_data): when set, any received
+    Missile Expansion also unlocks the launcher flag, matching the
+    identical rule in ``logic/item_mapping.expression``'s ``Missile``
+    branch -- the two implementations must be kept in sync.
     """
     desired: dict[int, int] = {}
     progressive_copy_index: dict[str, int] = {}
@@ -151,11 +159,16 @@ def compute_desired_capacities(
     # Energy Tank: real max is 14 regardless of how many were received.
     desired[_ENERGY_TANK_ITEM] = min(energy_tanks, _ENERGY_TANK_CAP)
 
-    # Missile: 0 without the launcher; otherwise 5 per (launcher + each
-    # Seeker Launcher + each Missile Expansion).
-    desired[_MISSILE_LAUNCHER_FLAG] = 1 if has_missile_launcher else 0
+    # Missile: 0 without the launcher (or, with
+    # missile_expansions_unlock_launcher, without any expansion); otherwise
+    # 5 per (launcher + each Seeker Launcher + each Missile Expansion).
+    launcher_main = 1 if has_missile_launcher else 0
+    missiles_unlocked = has_missile_launcher or (
+        missile_expansions_unlock_launcher and missile_expansions > 0
+    )
+    desired[_MISSILE_LAUNCHER_FLAG] = 1 if missiles_unlocked else 0
     desired[_MISSILE_ITEM] = (
-        5 * (1 + seeker_launchers + missile_expansions) if has_missile_launcher else 0
+        5 * (launcher_main + seeker_launchers + missile_expansions) if missiles_unlocked else 0
     )
 
     # Power Bomb: 0 without the main pickup; otherwise 2 + expansions.

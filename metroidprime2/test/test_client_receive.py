@@ -51,6 +51,50 @@ class TestMissileGating(unittest.TestCase):
         )
         self.assertEqual(5 * (1 + 1 + 0), desired_with_launcher[44])
 
+    def test_flag_off_is_byte_for_byte_the_old_behavior(self) -> None:
+        # Default (flag omitted) must match passing False explicitly, for
+        # every case above.
+        cases = [
+            _received("Missile Expansion", "Missile Expansion"),
+            _received("Missile Launcher"),
+            _received("Missile Launcher", "Missile Expansion", "Missile Expansion"),
+            _received("Seeker Launcher"),
+            _received("Missile Launcher", "Seeker Launcher"),
+        ]
+        for received in cases:
+            with self.subTest(received=received):
+                self.assertEqual(
+                    compute_desired_capacities(received, 0),
+                    compute_desired_capacities(received, 0, False),
+                )
+
+    def test_unlock_option_expansions_alone_unlock_launcher(self) -> None:
+        # With missile_expansions_unlock_launcher on, expansions alone (no
+        # Missile Launcher) unlock the launcher flag and grant 5 capacity
+        # per expansion.
+        for n in (1, 2, 3):
+            with self.subTest(n=n):
+                desired = compute_desired_capacities(
+                    _received(*(["Missile Expansion"] * n)), 0, True
+                )
+                self.assertEqual(1, desired[73])
+                self.assertEqual(5 * n, desired[44])
+
+    def test_unlock_option_launcher_plus_expansions_unchanged(self) -> None:
+        # Launcher + expansions already unlocked without the option; the
+        # option must not change that result.
+        received = _received("Missile Launcher", "Missile Expansion", "Missile Expansion")
+        desired_off = compute_desired_capacities(received, 0, False)
+        desired_on = compute_desired_capacities(received, 0, True)
+        self.assertEqual(desired_off, desired_on)
+
+    def test_unlock_option_seeker_launcher_alone_still_grants_nothing(self) -> None:
+        # Seeker Launcher alone is neither a Missile Launcher nor a Missile
+        # Expansion, so the option must not unlock anything for it.
+        desired = compute_desired_capacities(_received("Seeker Launcher"), 0, True)
+        self.assertEqual(0, desired[73])
+        self.assertEqual(0, desired[44])
+
 
 class TestPowerBombGating(unittest.TestCase):
     def test_no_main_no_power_bombs(self) -> None:

@@ -231,6 +231,60 @@ def warp_to_start_installed(dol_version: Any, starting_area: Any):
         opr_patcher.register_world_changes = original_register_world_changes
 
 
+@contextlib.contextmanager
+def item_map_icons_always_visible():
+    """Context manager: for its duration, every pickup's map icon is
+    forced to ``ObjectVisibility.Always`` instead of open-prime-rando's
+    hardcoded ``AreaVisitOrMapStation``, implementing the player-facing
+    ``map_visibility`` option's ``full_map_and_items`` value -- delivered
+    here as ``options.json``'s ``show_item_locations`` flag, the internal
+    patch-time setting derived from it (PLAN.md section M).
+
+    open-prime-rando already adds a map icon for every pickup it patches
+    (``open_prime_rando.echoes.pickups.pickup_editing._add_map_icon``, a
+    ``MappableObject`` of custom ``object_type=0x12``), but hardcodes
+    ``visibility_mode=ObjectVisibility.AreaVisitOrMapStation`` -- the dot
+    only shows once the room has been visited or a map station used.
+    OPR's own ``map_visibility.unvisited_map_icons`` setting does not cover
+    these: ``general_changes.py``'s ``objects_to_reveal`` set (the object
+    types that setting forces visible) lists only Elevator/SaveStation/
+    Portal/LightTeleporter/TranslatorGate/Up-DownArrow, not pickups.
+
+    ``_add_map_icon`` is called from exactly one place,
+    ``patch_simple_pickup`` (an unqualified global lookup resolved against
+    the module's namespace at call time, the same mechanism
+    ``goal_trigger_installed`` above relies on for
+    ``register_world_changes``); ``patch_complex_pickup`` delegates to
+    ``patch_simple_pickup``, so replacing the module attribute here covers
+    every pickup regardless of stage count. The wrapper calls the original
+    to append the icon exactly as before, then walks the mappable objects
+    it just added (tracked by a before/after length -- the append is the
+    only mutation ``_add_map_icon`` makes to ``area.mapa.mappable_objects``)
+    and flips ``visibility_mode``, whose ``Field`` descriptor
+    (``retro_data_structures.construct_extensions.wrapper_classes.Field``)
+    has a working ``__set__``, exactly as
+    ``open_prime_rando.echoes.general_changes``'s own
+    ``mappable.visibility_mode = ObjectVisibility.AreaVisitOrMapStation``
+    line relies on.
+    """
+    from open_prime_rando.echoes.pickups import pickup_editing
+    from retro_data_structures.formats.mapa import ObjectVisibility
+
+    original_add_map_icon = pickup_editing._add_map_icon
+
+    def _add_map_icon_always_visible(editor, mlvl, area, instances) -> None:
+        before = len(area.mapa.mappable_objects)
+        original_add_map_icon(editor, mlvl, area, instances)
+        for mappable in area.mapa.mappable_objects[before:]:
+            mappable.visibility_mode = ObjectVisibility.Always
+
+    pickup_editing._add_map_icon = _add_map_icon_always_visible
+    try:
+        yield
+    finally:
+        pickup_editing._add_map_icon = original_add_map_icon
+
+
 # --------------------------------------------------------------------------
 # Configuration loading + cosmetics
 # --------------------------------------------------------------------------
@@ -319,9 +373,11 @@ def patch_iso_with_ap(
     configuration = _load_configuration(apmp2_file, settings)
     # Patch-time settings that the OPR RandoConfiguration has no field for
     # (config.json is validated with extra="forbid"), so they travel in the
-    # .apmp2's options.json instead. Defaulted for .apmp2 files produced
-    # before the option existed.
-    warp_to_start = bool(_read_apmp2_json(apmp2_file, "options.json").get("warp_to_start", False))
+    # .apmp2's options.json instead. Both .get defaults keep .apmp2 files
+    # produced before the respective option existed working.
+    apmp2_options = _read_apmp2_json(apmp2_file, "options.json")
+    warp_to_start = bool(apmp2_options.get("warp_to_start", False))
+    show_item_locations = bool(apmp2_options.get("show_item_locations", False))
 
     _report("Reading input ISO", 0.0)
     provider = IsoFileProvider(input_iso)  # type: ignore[arg-type]
@@ -348,6 +404,8 @@ def patch_iso_with_ap(
                 patches.enter_context(
                     warp_to_start_installed(dol_version, configuration.starting_area)
                 )
+            if show_item_locations:
+                patches.enter_context(item_map_icons_always_visible())
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)
 
         def _write_callback(bytes_written: int, total_bytes: int) -> None:

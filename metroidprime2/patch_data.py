@@ -25,7 +25,7 @@ from . import constants
 from .items import ITEM_TABLE, gains_for
 from .locations import LOCATION_TABLE
 from .logic.db_reader import GameDatabase, Node, NodeId, load_game_database
-from .options import DisplayNonLocalItems, dark_damage_per_second
+from .options import DisplayNonLocalItems, MapVisibility, dark_damage_per_second
 
 if TYPE_CHECKING:
     from . import MetroidPrime2World
@@ -64,6 +64,18 @@ _VARIA_STARTING_CAPACITY = 1
 _ENERGY_TANK_ITEM_ID = 42
 _ENERGY_TANK_MAX_STARTING_CAPACITY = 14
 
+# Missile capacity / launcher-unlock flag ids (mirrors the same ids in
+# client/receive_items.py's _MISSILE_ITEM/_MISSILE_LAUNCHER_FLAG). Needed
+# here because a *precollected* Missile Expansion (e.g. via start_inventory)
+# writes capacity into id 44 via gains_for but never sets id 73, so with
+# missile_expansions_unlock_launcher on, the ISO itself would start
+# inconsistent with the option's grant rule -- the client would have to
+# correct it on the very first tick, and plan_grants logs a spurious
+# "capacity is already above desired" warning when it does (PLAN.md section
+# M).
+_MISSILE_ITEM_ID = 44
+_MISSILE_LAUNCHER_ITEM_ID = 73
+
 
 def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
     """``[{"item": id, "capacity": n}, ...]`` for every precollected item
@@ -72,6 +84,11 @@ def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
     copy of a progressive item (0-based) applies that item's k-th stage --
     plus the mandatory six, then clamps Varia Suit to exactly 1 and Energy
     Tank to at most 14 (PLAN.md section H).
+
+    With ``missile_expansions_unlock_launcher`` on, also sets the Missile
+    Launcher flag (id 73) if any missile capacity was precollected, so the
+    ISO's starting inventory matches what the option grants in-game instead
+    of relying on the client to fix it up on the first tick.
     """
     capacities: dict[int, int] = {}
     copy_index: dict[str, int] = {}
@@ -94,6 +111,11 @@ def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
         capacities[_ENERGY_TANK_ITEM_ID] = min(
             capacities[_ENERGY_TANK_ITEM_ID], _ENERGY_TANK_MAX_STARTING_CAPACITY
         )
+
+    if bool(world.options.missile_expansions_unlock_launcher) and capacities.get(
+        _MISSILE_ITEM_ID, 0
+    ) > 0:
+        capacities.setdefault(_MISSILE_LAUNCHER_ITEM_ID, 1)
 
     return [{"item": item_id, "capacity": capacities[item_id]} for item_id in sorted(capacities)]
 
@@ -473,7 +495,7 @@ def make_rando_configuration(world: MetroidPrime2World) -> dict[str, Any]:
         },
         "starting_items": starting_items_config(world),
         "map_visibility": {
-            "reveal_map_at_start": bool(world.options.reveal_map.value),
+            "reveal_map_at_start": world.options.map_visibility.value != MapVisibility.option_vanilla,
             "unvisited_room_names": bool(world.options.unvisited_room_names.value),
             "areas_to_never_reveal": [],
             "unvisited_map_icons": False,

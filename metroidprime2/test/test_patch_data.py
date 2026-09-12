@@ -8,13 +8,19 @@ PLAN.md sections H, I, J and K (M2).
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
+import pathlib
 import tempfile
 import unittest
+import zipfile
+
+from Options import Visibility
 
 from .. import patch_data
 from ..constants import LANDING_SITE_MREA, OPR_MODEL_NAMES, TEMPLE_GROUNDS_MLVL
 from ..logic.db_reader import load_game_database
+from ..options import MetroidPrime2Options, RevealMapRemoved
 from .bases import MP2TestBase
 
 _OPR_AVAILABLE = importlib.util.find_spec("open_prime_rando") is not None
@@ -347,6 +353,55 @@ class TestStartingItemsWithPrecollectedMissileLauncher(MP2TestBase):
         self.assertEqual(5, capacities.get(44))
 
 
+class TestStartingItemsWithPrecollectedMissileExpansionAndUnlockOption(MP2TestBase):
+    """A precollected Missile Expansion (no Missile Launcher) writes
+    capacity into id 44 via gains_for but never sets id 73 on its own; with
+    missile_expansions_unlock_launcher on, starting_items_config must also
+    set the launcher flag so the ISO's starting inventory is consistent
+    with what the option grants in-game (PLAN.md section M)."""
+
+    options = {
+        "start_inventory": {"Missile Expansion": 1},
+        "missile_expansions_unlock_launcher": True,
+    }
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        for item_name, count in self.world.options.start_inventory.value.items():
+            for _ in range(count):
+                self.multiworld.push_precollected(self.multiworld.create_item(item_name, self.player))
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_launcher_flag_set_alongside_missile_capacity(self) -> None:
+        capacities = {entry["item"]: entry["capacity"] for entry in self.config["starting_items"]}
+        self.assertEqual(5, capacities.get(44))
+        self.assertEqual(1, capacities.get(73))
+
+
+class TestStartingItemsWithPrecollectedMissileExpansionAndOptionOff(MP2TestBase):
+    """Same precollected inventory as above, but with the option left at
+    its default (off): the launcher flag must NOT be set, matching
+    Randovania's behavior (an expansion alone grants no launcher)."""
+
+    options = {"start_inventory": {"Missile Expansion": 1}}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        for item_name, count in self.world.options.start_inventory.value.items():
+            for _ in range(count):
+                self.multiworld.push_precollected(self.multiworld.create_item(item_name, self.player))
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_launcher_flag_not_set(self) -> None:
+        capacities = {entry["item"]: entry["capacity"] for entry in self.config["starting_items"]}
+        self.assertEqual(5, capacities.get(44))
+        self.assertNotIn(73, capacities)
+
+
 class TestDetectIsoVersion(unittest.TestCase):
     def _write_fake_iso(self, header: bytes) -> str:
         fd, path = tempfile.mkstemp(suffix=".iso")
@@ -421,3 +476,188 @@ class TestPatcherRunnerDryImport(unittest.TestCase):
             with goal_trigger_installed():
                 raise RuntimeError("boom")
         self.assertIs(opr_patcher.register_world_changes, original)
+
+
+class TestItemMapIconsAlwaysVisible(unittest.TestCase):
+    """``item_map_icons_always_visible`` (client/patcher_runner.py):
+    implements ``map_visibility``'s ``full_map_and_items`` value -- carried
+    to the client as ``options.json``'s ``show_item_locations`` flag -- by
+    forcing every pickup map icon open-prime-rando adds to
+    ``ObjectVisibility.Always`` instead of its hardcoded
+    ``AreaVisitOrMapStation`` (PLAN.md section M)."""
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_wraps_and_restores_add_map_icon(self) -> None:
+        from open_prime_rando.echoes.pickups import pickup_editing
+
+        from ..client.patcher_runner import item_map_icons_always_visible
+
+        original = pickup_editing._add_map_icon
+        with item_map_icons_always_visible():
+            self.assertIsNot(pickup_editing._add_map_icon, original)
+        self.assertIs(pickup_editing._add_map_icon, original)
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_restores_even_on_exception(self) -> None:
+        from open_prime_rando.echoes.pickups import pickup_editing
+
+        from ..client.patcher_runner import item_map_icons_always_visible
+
+        original = pickup_editing._add_map_icon
+        with self.assertRaises(RuntimeError):
+            with item_map_icons_always_visible():
+                raise RuntimeError("boom")
+        self.assertIs(pickup_editing._add_map_icon, original)
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_forces_appended_mappable_objects_to_always_visible(self) -> None:
+        # Exercises the real wrapper (not a reimplementation of it), against
+        # a stub "original" _add_map_icon and a fake area/mapa, so this
+        # doesn't need a real ISO/MREA to run. The stub reproduces the one
+        # real side effect the wrapper depends on -- appending exactly one
+        # MappableObject-shaped stand-in to area.mapa.mappable_objects --
+        # and this asserts the *real* item_map_icons_always_visible code
+        # (before/after length diffing, then setting visibility_mode) is
+        # what turns that into ObjectVisibility.Always, not a test double.
+        from open_prime_rando.echoes.pickups import pickup_editing
+        from retro_data_structures.formats.mapa import ObjectVisibility
+
+        from ..client.patcher_runner import item_map_icons_always_visible
+
+        class _FakeMappable:
+            def __init__(self) -> None:
+                self.visibility_mode = ObjectVisibility.AreaVisitOrMapStation
+
+        class _FakeMapa:
+            def __init__(self) -> None:
+                self.mappable_objects: list[_FakeMappable] = []
+
+        class _FakeArea:
+            def __init__(self) -> None:
+                self.mapa = _FakeMapa()
+
+        area = _FakeArea()
+        stub_calls = []
+
+        def _stub_original_add_map_icon(editor, mlvl, area, instances) -> None:
+            stub_calls.append((editor, mlvl, area, instances))
+            area.mapa.mappable_objects.append(_FakeMappable())
+
+        original = pickup_editing._add_map_icon
+        pickup_editing._add_map_icon = _stub_original_add_map_icon
+        try:
+            with item_map_icons_always_visible():
+                pickup_editing._add_map_icon("editor", "mlvl", area, "instances")
+        finally:
+            pickup_editing._add_map_icon = original
+
+        self.assertEqual(1, len(stub_calls))
+        self.assertEqual(1, len(area.mapa.mappable_objects))
+        self.assertEqual(ObjectVisibility.Always, area.mapa.mappable_objects[0].visibility_mode)
+
+
+class _MapVisibilityOptionTest(MP2TestBase):
+    """Same rationale as test_warp_patch.py's ``_WarpToStartOptionTest``:
+    show_item_locations is a patch-time setting with no home in OPR's
+    RandoConfiguration (config.json is validated ``extra="forbid"``), so it
+    has to travel in options.json instead -- which is exactly where
+    ``patcher_runner.patch_iso_with_ap`` reads it back from.
+
+    ``map_visibility`` (options.py) is a single Choice covering both flags
+    at once, because an item dot needs its room drawn to be visible at all
+    -- ``full_map_and_items`` implies ``reveal_map_at_start`` is also true.
+    Each subclass below asserts the full pair for one Choice value."""
+
+    expected_reveal_map_at_start: bool
+    expected_show_item_locations: bool
+
+    def _generate_container(self) -> tuple[dict[str, object], dict[str, object]]:
+        with tempfile.TemporaryDirectory() as output_directory:
+            self.world.generate_output(output_directory)
+            containers = list(pathlib.Path(output_directory).glob("*.apmp2"))
+            self.assertEqual(len(containers), 1)
+            with zipfile.ZipFile(containers[0]) as container:
+                options = json.loads(container.read("options.json"))
+                config = json.loads(container.read("config.json"))
+        self.assertNotIn("show_item_locations", config)
+        return options, config
+
+    def test_flags_land_in_options_json_and_config_json(self) -> None:
+        if type(self) is _MapVisibilityOptionTest:
+            self.skipTest("base class")
+        options, config = self._generate_container()
+        self.assertEqual(options["show_item_locations"], self.expected_show_item_locations)
+        self.assertEqual(
+            config["map_visibility"]["reveal_map_at_start"], self.expected_reveal_map_at_start
+        )
+
+
+class TestMapVisibilityVanilla(_MapVisibilityOptionTest):
+    options = {"map_visibility": "vanilla"}
+    expected_reveal_map_at_start = False
+    expected_show_item_locations = False
+
+
+class TestMapVisibilityFullMap(_MapVisibilityOptionTest):
+    options = {"map_visibility": "full_map"}
+    expected_reveal_map_at_start = True
+    expected_show_item_locations = False
+
+
+class TestMapVisibilityFullMapAndItems(_MapVisibilityOptionTest):
+    options = {"map_visibility": "full_map_and_items"}
+    expected_reveal_map_at_start = True
+    expected_show_item_locations = True
+
+
+class TestRevealMapRemovedShim(unittest.TestCase):
+    """``reveal_map`` (options.py) was folded into ``map_visibility``
+    (PLAN.md section M), but the released 1.0.0 *did* ship it, so old YAMLs
+    may still carry the key. ``RevealMapRemoved`` accepts the values that
+    mean what ``map_visibility``'s ``vanilla`` default already means and
+    raises, naming the replacement, for one that asked for a revealed map.
+
+    Every case goes through ``from_any`` rather than the constructor,
+    because that is the path a YAML value actually takes
+    (``FreeText.from_any`` is ``cls(str(data))``, so YAML's ``false``
+    arrives as the *truthy string* ``"False"`` -- the exact reason a plain
+    ``Options.Removed`` is unusable here). Resolution goes through
+    ``MetroidPrime2Options.type_hints``, the same ``typing.get_type_hints``
+    lookup AP's own option loading uses, to prove the *dataclass field*
+    really resolves to this class."""
+
+    def test_reveal_map_field_is_the_shim(self) -> None:
+        self.assertIs(MetroidPrime2Options.type_hints["reveal_map"], RevealMapRemoved)
+
+    def test_field_is_hidden_from_option_uis(self) -> None:
+        self.assertEqual(Visibility.none, MetroidPrime2Options.type_hints["reveal_map"].visibility)
+
+    def test_requesting_a_revealed_map_raises_naming_the_replacement(self) -> None:
+        reveal_map_option = MetroidPrime2Options.type_hints["reveal_map"]
+        # Raises a bare Exception, matching Options.Removed's own shape.
+        for value in (True, "true", 1):
+            with self.subTest(value=value):
+                with self.assertRaises(Exception) as caught:
+                    reveal_map_option.from_any(value)
+                self.assertIn("map_visibility", str(caught.exception))
+
+    def test_declining_a_revealed_map_generates_normally(self) -> None:
+        # `reveal_map: false` is what 1.0.0's own example_world_config.yaml
+        # shipped, so this is the common case in copied YAMLs; it means
+        # exactly what map_visibility's `vanilla` default means, so it must
+        # not abort generation. "" is the absent-key default.
+        reveal_map_option = MetroidPrime2Options.type_hints["reveal_map"]
+        for value in (False, "false", 0, ""):
+            with self.subTest(value=value):
+                self.assertEqual("", reveal_map_option.from_any(value).value)
+
+
+class TestRevealMapAbsentGeneratesFine(MP2TestBase):
+    """Companion to TestRevealMapRemovedShim: a world with no `reveal_map`
+    key at all (the normal case for every YAML written after this option
+    was folded into `map_visibility`) must generate exactly like any other
+    default-options world -- MP2TestBase.setUp() generating self.world
+    without error is the assertion."""
+
+    def test_world_generated(self) -> None:
+        self.assertIsNotNone(self.world)

@@ -168,6 +168,25 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         logger.info(message)
         self.ctx.notification_manager.queue_notification(message)
 
+    def _cmd_test_deathlink(self, *args: list[Any]) -> None:
+        """Send a test DeathLink to the rest of the group, without touching
+        in-game health, to verify the send/receive path end-to-end. Usage:
+        /test_deathlink [reason]. Requires DeathLink to be enabled (see
+        /deathlink) and a connection to the server."""
+        if not self.ctx.death_link_enabled:
+            logger.error("DeathLink is disabled; enable it with /deathlink first.")
+            return
+        if not self.ctx.slot:
+            logger.error("Not connected to a server.")
+            return
+
+        reason = " ".join(map(str, args)) if args else "triggered a test DeathLink"
+        Utils.async_start(
+            self.ctx.send_death(f"{self.ctx.player_names[self.ctx.slot]} {reason}"),
+            name="Test Deathlink",
+        )
+        logger.info("Sent test DeathLink.")
+
 
 class MetroidPrime2Context(CommonContext):
     command_processor = MetroidPrime2CommandProcessor
@@ -374,7 +393,10 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
         for network_item in ctx.items_received
     ]
     first_non_starting = ctx.slot_data.get("first_non_starting_item_index", 0)
-    desired = compute_desired_capacities(received, first_non_starting)
+    # .get default keeps older .apmp2/slot_data (generated before this option
+    # existed) working, matching the flag-off behavior.
+    unlock_launcher = bool(ctx.slot_data.get("missile_expansions_unlock_launcher", False))
+    desired = compute_desired_capacities(received, first_non_starting, unlock_launcher)
     deltas = plan_grants(desired, inventory)
     if not deltas:
         return

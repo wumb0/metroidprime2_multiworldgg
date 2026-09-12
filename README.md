@@ -72,6 +72,7 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 | `sky_temple_keys` | Choice: `0`-`9`, `all_bosses`, `all_guardians` | `9` | How many of the 9 Sky Temple Keys are shuffled into the general pool vs. pre-placed/pre-collected. `all_bosses` places one key on each of the 9 boss/guardian locations; `all_guardians` places keys on the 3 dark temple guardians and pre-collects the rest. |
 | `progressive_suit` | Toggle (on by default) | on | Combine Dark Suit and Light Suit into two copies of a single Progressive Suit item. |
 | `progressive_grapple` | Toggle | off | Combine Grapple Beam and Screw Attack into two copies of a single Progressive Grapple item. |
+| `missile_expansions_unlock_launcher` | Toggle | off | Receiving any Missile Expansion also unlocks the Missile Launcher itself, so expansions are usable before the launcher is found. Off matches Randovania (expansions grant nothing without the launcher); this also affects logic, not just the in-game grant. |
 
 ### Logic
 
@@ -140,7 +141,7 @@ override just that one. Every trick option shares the same scale: `use_global` (
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `display_nonlocal_items` | Choice: `none`/`match_game` | `match_game` | Whether items belonging to other Echoes players show a matching in-game model, or a generic model. |
-| `reveal_map` | Toggle | off | Start with the in-game map fully revealed (rooms still need to be visited for name/details). |
+| `map_visibility` | Choice: `vanilla`/`full_map`/`full_map_and_items` | `vanilla` | How much of the in-game map is revealed from the start. `vanilla`: fills in as you explore, item dots wait for their room to be visited or a map station used. `full_map`: every room is drawn from the start (rooms still need to be visited for name/details), but item dots still wait for their room. `full_map_and_items`: as `full_map`, plus a dot at every item location from the start, mirroring the Metroid Prime 1 randomizer. One setting rather than two toggles because an item dot needs its room drawn to be visible at all. |
 | `unvisited_room_names` | Toggle (on by default) | on | Show room names on the map for rooms not yet visited. |
 
 ### Common Archipelago options

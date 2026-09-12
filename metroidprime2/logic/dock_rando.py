@@ -628,6 +628,7 @@ def _build_compiler(world: MetroidPrime2World, db: GameDatabase) -> RequirementC
         dark_suit_damage=dark_damage_per_second(world.options.dark_suit_damage.value),
         progressive_suit=bool(world.options.progressive_suit),
         progressive_grapple=bool(world.options.progressive_grapple),
+        missile_expansions_unlock_launcher=bool(world.options.missile_expansions_unlock_launcher),
     )
     return RequirementCompiler(db, ctx)
 

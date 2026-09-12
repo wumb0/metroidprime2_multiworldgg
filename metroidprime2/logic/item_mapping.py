@@ -113,8 +113,19 @@ CONST_ZERO_ITEMS: frozenset[str] = frozenset(
 )
 
 
-def expression(short_name: str, player: int) -> tuple[Kind, Expression]:
+def expression(
+    short_name: str, player: int, missile_expansions_unlock_launcher: bool = False
+) -> tuple[Kind, Expression]:
     """Return ``(kind, callable)`` for a DB item short_name.
+
+    ``missile_expansions_unlock_launcher`` mirrors the
+    ``missile_expansions_unlock_launcher`` option (PLAN.md section M): when
+    set, it changes the ``Missile`` expression below so that owning at
+    least one Missile Expansion is enough to count missile capacity, even
+    without the Missile Launcher itself. This is the generation-time half
+    of that option; ``client/receive_items.py``'s
+    ``compute_desired_capacities`` implements the identical rule for the
+    in-game grant, and the two must be kept in sync.
 
     Raises ``KeyError`` for unknown short names.
     """
@@ -148,14 +159,12 @@ def expression(short_name: str, player: int) -> tuple[Kind, Expression]:
         )
 
     if short_name == "Missile":
-        def _missile(state, _p=player):
-            if not state.has("Missile Launcher", _p):
+        def _missile(state, _p=player, _unlock=missile_expansions_unlock_launcher):
+            launcher = 1 if state.has("Missile Launcher", _p) else 0
+            expansions = state.count("Missile Expansion", _p)
+            if not launcher and not (_unlock and expansions):
                 return 0
-            return 5 * (
-                1
-                + state.count("Seeker Launcher", _p)
-                + state.count("Missile Expansion", _p)
-            )
+            return 5 * (launcher + state.count("Seeker Launcher", _p) + expansions)
 
         return ("count", _missile)
 

@@ -160,6 +160,43 @@ class TestDamageDarkWorld1(RequirementsTestBase):
         self.assertTrue(rule(FakeState({"Light Suit": 1})))
 
 
+class TestMissileExpansionsUnlockLauncher(unittest.TestCase):
+    """A ``Missile`` resource requirement of amount 5 is unsatisfied by 2
+    Missile Expansions alone with the option off (matching Randovania: no
+    Missile Launcher means 0 missile capacity), and satisfied with it on
+    (PLAN.md section M) -- item_mapping.expression's Missile branch counts
+    expansions toward capacity without the launcher when the flag is set."""
+
+    def _compiler(self, missile_expansions_unlock_launcher: bool) -> RequirementCompiler:
+        db = load_game_database()
+        ctx = build_static_context(
+            player=PLAYER,
+            trick_levels={},
+            damage_strictness=1.5,
+            energy_per_tank=100,
+            dark_aether_damage=6.0,
+            dark_suit_damage=1.2,
+            progressive_suit=False,
+            progressive_grapple=False,
+            missile_expansions_unlock_launcher=missile_expansions_unlock_launcher,
+        )
+        return RequirementCompiler(db, ctx)
+
+    def test_unsatisfied_by_two_expansions_when_flag_off(self) -> None:
+        compiler = self._compiler(False)
+        req = _resource("items", "Missile", amount=5)
+        rule = compiler.compile(req)
+        assert rule is not None
+        self.assertFalse(rule(FakeState({"Missile Expansion": 2})))
+
+    def test_satisfied_by_two_expansions_when_flag_on(self) -> None:
+        compiler = self._compiler(True)
+        req = _resource("items", "Missile", amount=5)
+        rule = compiler.compile(req)
+        assert rule is not None
+        self.assertTrue(rule(FakeState({"Missile Expansion": 2})))
+
+
 class TestNegationPolicy(RequirementsTestBase):
     def test_negated_event_compiles_to_none(self) -> None:
         # Event1 ("Industrial Site Gate") is not pre-granted; the default

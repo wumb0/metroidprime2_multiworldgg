@@ -16,11 +16,13 @@ from Options import (
     Choice,
     DeathLink,
     DefaultOnToggle,
+    FreeText,
     OptionGroup,
     PerGameCommonOptions,
     Range,
     StartInventoryPool,
     Toggle,
+    Visibility,
 )
 
 from .options_tricks import (
@@ -304,18 +306,69 @@ class DisplayNonLocalItems(Choice):
     default = 1
 
 
-class RevealMap(Toggle):
-    """If enabled, the in-game map starts fully revealed (rooms still need
-    to be visited to show their name/details)."""
-
-    display_name = "Reveal Map"
-
-
 class UnvisitedRoomNames(DefaultOnToggle):
     """If enabled, the map shows room names for rooms that have not been
     visited yet."""
 
     display_name = "Unvisited Room Names"
+
+
+class MapVisibility(Choice):
+    """How much of the in-game map is revealed from the start.
+
+    `vanilla`: the map fills in as you explore, and an item's dot appears
+    only once its room has been visited or its map station used.
+
+    `full_map`: every room is drawn from the start (rooms still need to be
+    visited to show their name/details), but item dots still wait for their
+    room to be visited.
+
+    `full_map_and_items`: as `full_map`, plus a dot at every item location
+    from the start, mirroring the Metroid Prime 1 randomizer.
+
+    These are one setting rather than two toggles because an item dot needs
+    its room drawn to be visible at all -- "item dots without the revealed
+    map" would be indistinguishable from `vanilla`.
+    """
+
+    display_name = "Map Visibility"
+    option_vanilla = 0
+    option_full_map = 1
+    option_full_map_and_items = 2
+    default = 0
+
+
+
+class RevealMapRemoved(FreeText):
+    """Removed: ``reveal_map`` was folded into ``map_visibility`` (PLAN.md
+    section M). Present only so an old YAML that still sets it says so.
+
+    Deliberately *not* a plain ``Options.Removed``: that class rejects any
+    value once ``FreeText.from_any`` has stringified it (``cls(str(data))``
+    -- so YAML's ``false`` arrives as the truthy string ``"False"``), and
+    ``reveal_map: false`` is the line 1.0.0's own
+    ``example_world_config.yaml`` shipped. Failing generation for every
+    YAML copied from it would be noise: ``false`` means exactly what
+    ``map_visibility``'s ``vanilla`` default now means, so nothing is lost.
+    Only a value that actually asked for a revealed map loses information,
+    so only that is an error.
+    """
+
+    visibility = Visibility.none
+    default = ""
+
+    # Everything YAML/AP can hand over for a "no" answer, lowercased:
+    # absent (the "" default), false, 0, none, off.
+    _NOTHING_TO_SAY = frozenset({"", "false", "0", "none", "off"})
+
+    def __init__(self, value: str) -> None:
+        if str(value).strip().lower() not in self._NOTHING_TO_SAY:
+            raise Exception(
+                "`reveal_map` has been replaced by `map_visibility`: use "
+                "`map_visibility: full_map`, or `full_map_and_items` to also show "
+                "every item location on the map. Then delete the `reveal_map` line."
+            )
+        super().__init__("")
 
 
 class WarpToStart(DefaultOnToggle):
@@ -328,6 +381,19 @@ class WarpToStart(DefaultOnToggle):
     display_name = "Warp to Start"
 
 
+class MissileExpansionsUnlockLauncher(Toggle):
+    """If enabled, receiving any Missile Expansion also unlocks the Missile
+    Launcher itself, so expansions are usable without finding the launcher.
+
+    Off (the default) matches Randovania: Missile Expansions grant nothing
+    until the Missile Launcher is collected. The setting affects logic as
+    well as the in-game grant, so an expansion counts toward missile
+    requirements when it is on.
+    """
+
+    display_name = "Missile Expansions Unlock Launcher"
+
+
 @dataclass
 class MetroidPrime2Options(PerGameCommonOptions):
     start_inventory_from_pool: StartInventoryPool
@@ -335,6 +401,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     sky_temple_keys: SkyTempleKeys
     progressive_suit: ProgressiveSuit
     progressive_grapple: ProgressiveGrapple
+    missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
 
     trick_level: TrickLevel
     trick_airunderwater: TrickAirUnderwater
@@ -379,15 +446,24 @@ class MetroidPrime2Options(PerGameCommonOptions):
     warp_to_start: WarpToStart
 
     display_nonlocal_items: DisplayNonLocalItems
-    reveal_map: RevealMap
+    map_visibility: MapVisibility
     unvisited_room_names: UnvisitedRoomNames
 
     death_link: DeathLink
 
+    # Folded into map_visibility (PLAN.md section M). Shipped in 1.0.0, so
+    # this shim makes an old YAML's `reveal_map: true` fail with a message
+    # naming its replacement instead of being silently dropped, while
+    # `reveal_map: false` -- what the 1.0.0 example config shipped, and
+    # equivalent to map_visibility's `vanilla` default -- still generates.
+    reveal_map: RevealMapRemoved
+
 
 OPTION_GROUPS: list[OptionGroup] = [
     OptionGroup("Goal", [SkyTempleKeys]),
-    OptionGroup("Item Pool", [ProgressiveSuit, ProgressiveGrapple]),
+    OptionGroup(
+        "Item Pool", [ProgressiveSuit, ProgressiveGrapple, MissileExpansionsUnlockLauncher]
+    ),
     OptionGroup(
         "Logic",
         [
@@ -444,7 +520,7 @@ OPTION_GROUPS: list[OptionGroup] = [
     OptionGroup("Quality of Life", [WarpToStart]),
     OptionGroup(
         "Cosmetic",
-        [DisplayNonLocalItems, RevealMap, UnvisitedRoomNames],
+        [DisplayNonLocalItems, MapVisibility, UnvisitedRoomNames],
     ),
 ]
 
