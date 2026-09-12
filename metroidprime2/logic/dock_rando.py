@@ -150,6 +150,65 @@ DOOR_CAN_CHANGE_TO: tuple[str, ...] = (
 )
 
 
+# The one weakness name every save-station door face is forced to under
+# `normal_save_station_doors` (options.py). It already exists as both a
+# DOOR_CAN_CHANGE_FROM source and a DOOR_CAN_CHANGE_TO target, so this is
+# purely a readability alias, not a new value.
+_NORMAL_DOOR = "Normal Door"
+
+
+def save_station_door_faces(db: GameDatabase, pairs: dict[NodeId, NodeId]) -> frozenset[NodeId]:
+    """Every door dock node id that a save-station room's protection
+    (``options.py``'s ``normal_save_station_doors``) must force to
+    ``"Normal Door"``: a door physically inside a save-station area, or the
+    ``pairs`` partner of one (the far face, which is the one you shoot from
+    the neighbouring room to get *in* -- protecting only the near face
+    would still leave the room unreachable with a restrictive lock).
+
+    Save-station areas are derived from
+    ``db.starting_location_candidates("save_stations")`` -- reusing that
+    method rather than re-implementing its "generic node literally named
+    'Save Station' with valid_starting_location" predicate so the two can
+    never drift apart after a DB resync -- by collapsing each returned
+    node id down to its ``(region, area)``.
+
+    Restricted to nodes whose ``default_dock_weakness`` is in
+    ``DOOR_CAN_CHANGE_FROM``: a door the randomizer would never touch in
+    the first place (e.g. a permanently-locked or forced-open vanilla
+    door) is left exactly as the game shipped it -- this function only
+    ever narrows what door-lock rando is allowed to do, it never widens
+    the set of doors that can change.
+
+    Measured against the vendored DB (see ``PLAN.md``): 18 save-station
+    areas, 25 door dock nodes inside them, 25 distinct ``pairs`` partners,
+    50 faces total out of 556 shuffleable doors. A DB resync that moves
+    this count will make the corresponding test fail loudly rather than
+    silently shrinking (or growing) the protected set.
+    """
+    save_station_areas = {
+        (node_id.region, node_id.area) for node_id in db.starting_location_candidates("save_stations")
+    }
+    faces: set[NodeId] = set()
+    for node in db.all_nodes():
+        if node.node_type != "dock" or node.dock_type != "door":
+            continue
+        if node.default_dock_weakness not in DOOR_CAN_CHANGE_FROM:
+            continue
+        if (node.id.region, node.id.area) in save_station_areas:
+            faces.add(node.id)
+            partner_id = pairs.get(node.id)
+            if partner_id is not None:
+                faces.add(partner_id)
+    # A partner face's own weakness might not be in DOOR_CAN_CHANGE_FROM
+    # (e.g. it dead-ends into something the randomizer never touches);
+    # filter those back out so every returned id is genuinely eligible.
+    return frozenset(
+        node_id
+        for node_id in faces
+        if db.node(node_id).default_dock_weakness in DOOR_CAN_CHANGE_FROM
+    )
+
+
 def _door_pairs(db: GameDatabase) -> dict[NodeId, NodeId]:
     """``{node_id: target_id}`` for every door dock node whose vanilla
     target is itself a door dock node -- the physically-paired case
@@ -199,7 +258,10 @@ def _global_weakness_mapping(world: MetroidPrime2World) -> dict[str, str]:
 
 
 def _sample_door_lock_candidate(
-    world: MetroidPrime2World, db: GameDatabase, pairs: dict[NodeId, NodeId]
+    world: MetroidPrime2World,
+    db: GameDatabase,
+    pairs: dict[NodeId, NodeId],
+    protected: frozenset[NodeId] = frozenset(),
 ) -> dict[NodeId, str]:
     """One candidate ``{door_node_id: new_weakness_name}`` assignment:
     every eligible door gets ``mapping[its vanilla weakness]``, and when
@@ -208,7 +270,24 @@ def _sample_door_lock_candidate(
     independently mapping its own (usually different) vanilla weakness --
     otherwise a single physical door could end up with two unrelated
     locks, one per face, which randovania's own ``force_change_two_way``
-    exists specifically to prevent."""
+    exists specifically to prevent.
+
+    ``protected`` (``save_station_door_faces``'s result, or empty when
+    ``normal_save_station_doors`` is off) is applied *after* the main loop
+    below, forcing every id in it to ``"Normal Door"``. This has to be a
+    post-hoc override rather than a change to the pools it draws from:
+    door lock rando is a single global weakness-type substitution
+    (``_global_weakness_mapping``) applied uniformly to every eligible
+    door, not a per-door roll, so there is no per-door pool to remove a
+    save-station face from -- excluding "Normal Door" as a *source* type
+    would still let other sources map onto it, and excluding it as a
+    *target* would break the substitution for every non-save-station door
+    of that source type too. Applying the override last also means it
+    wins over both the global mapping and the two-way mirroring step
+    above (a save-station face's *partner* could otherwise still get
+    overwritten by mirroring from an unprotected node that mapped to it
+    first -- forcing protected ids last after everything else has settled
+    rules that out)."""
     mapping = _global_weakness_mapping(world)
     assignment: dict[NodeId, str] = {}
     handled: set[NodeId] = set()
@@ -228,6 +307,9 @@ def _sample_door_lock_candidate(
         if partner.default_dock_weakness in DOOR_CAN_CHANGE_FROM:
             assignment[partner_id] = new_weakness
             handled.add(partner_id)
+
+    for node_id in protected:
+        assignment[node_id] = _NORMAL_DOOR
     return assignment
 
 
@@ -650,15 +732,29 @@ def build_door_lock_assignment(world: MetroidPrime2World, db: GameDatabase) -> d
     pickup_ids = frozenset(node.id for node in db.all_nodes() if node.node_type == "pickup")
     starting_names = frozenset(constants.DEFAULT_STARTING_ITEMS)
 
+    # save_station_door_faces is a pure function of the (static) DB and
+    # pairs, so it's computed once here rather than inside the retry loop
+    # below -- forcing the same doors open on every attempt doesn't need
+    # recomputing per-attempt. Empty when the option is off, which makes
+    # _sample_door_lock_candidate's override a no-op and falls back to
+    # plain global-mapping behaviour.
+    protected = (
+        save_station_door_faces(db, pairs) if world.options.normal_save_station_doors else frozenset()
+    )
+
     # Elevator assignment hasn't been decided yet at this point in
     # build_dock_rando_assignment (door locks are built first) -- probe
     # against vanilla elevator topology (DockRandoAssignment's empty
     # elevator dict, below). That pool gets its own _meets_progression_bar
     # check once it's built (see build_elevator_assignment), including
     # this door lock assignment once it's final, so the joint case is
-    # still covered.
+    # still covered. Forcing doors in `protected` open only ever *loosens*
+    # the graph (a Normal Door opens with any beam, a strict subset of
+    # requirements versus any other lock type), so it can only make
+    # _meets_progression_bar succeed more often, never less -- no change
+    # needed to the bar itself or the attempt budget.
     for _attempt in range(_MAX_DOOR_LOCK_ATTEMPTS):
-        candidate_doors = _sample_door_lock_candidate(world, db, pairs)
+        candidate_doors = _sample_door_lock_candidate(world, db, pairs, protected)
         candidate = DockRandoAssignment(door_lock=candidate_doors)
         if _meets_progression_bar(world, db, compiler, pickup_ids, starting_names, candidate):
             return candidate_doors

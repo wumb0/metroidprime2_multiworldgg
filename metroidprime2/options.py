@@ -204,6 +204,26 @@ class DoorLockRando(Toggle):
     display_name = "Door Lock Randomization"
 
 
+class NormalSaveStationDoors(DefaultOnToggle):
+    """If enabled, door lock randomization never puts a restrictive lock on
+    a room containing a Save Station: every door of such a room -- and the
+    matching face on the far side, which is the one you shoot to get in --
+    is forced to a Normal Door (opens with any beam).
+
+    On by default so a save station is always reachable with whatever beam
+    you have. Because both faces of a physical door must agree, this also
+    makes the neighbouring room's side of that door normal.
+
+    Note this can also *remove* a lock the vanilla game had: a few save
+    rooms ship with a Missile Blast Shield or Dark Door, and those are
+    normalized too rather than merely left un-randomized.
+
+    No effect unless `door_lock_rando` is on.
+    """
+
+    display_name = "Normal Save Station Doors"
+
+
 class ElevatorRando(Toggle):
     """If enabled, elevators are shuffled into new two-way connections
     (every region reachable via vanilla elevators stays reachable, but not
@@ -455,6 +475,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     dangerous_energy_tanks: DangerousEnergyTanks
 
     door_lock_rando: DoorLockRando
+    normal_save_station_doors: NormalSaveStationDoors
     elevator_rando: ElevatorRando
     portal_rando: PortalRando
     translator_gate_rando: TranslatorGateRando
@@ -503,6 +524,7 @@ OPTION_GROUPS: list[OptionGroup] = [
         "Entrances",
         [
             DoorLockRando,
+            NormalSaveStationDoors,
             ElevatorRando,
             PortalRando,
             TranslatorGateRando,

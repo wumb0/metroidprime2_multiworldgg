@@ -19,11 +19,13 @@ from ..logic.dock_rando import (
     DOOR_CAN_CHANGE_FROM,
     DOOR_CAN_CHANGE_TO,
     ELEVATOR_EXCLUDED_AP_NAMES,
+    _door_pairs,
     _portal_region_pairs,
     _reciprocal_pairs,
     build_door_lock_assignment,
     build_elevator_assignment,
     build_portal_assignment,
+    save_station_door_faces,
 )
 from .bases import MP2TestBase
 
@@ -49,6 +51,15 @@ class TestBuildDoorLockAssignmentOff(unittest.TestCase):
     def test_off_returns_empty(self) -> None:
         db = load_game_database()
         world = _FakeWorld(door_lock_rando=False)
+        self.assertEqual({}, build_door_lock_assignment(world, db))  # type: ignore[arg-type]
+
+    def test_off_returns_empty_regardless_of_save_station_protection(self) -> None:
+        # door_lock_rando's short-circuit must come first regardless of
+        # normal_save_station_doors's value -- the protection only ever
+        # narrows a door-lock-rando assignment that door_lock_rando off
+        # never produces in the first place.
+        db = load_game_database()
+        world = _FakeWorld(door_lock_rando=False, normal_save_station_doors=True)
         self.assertEqual({}, build_door_lock_assignment(world, db))  # type: ignore[arg-type]
 
 
@@ -109,8 +120,6 @@ class TestBuildDoorLockAssignment(MP2TestBase):
                 self.assertNotIn(node.id, assignment)
 
     def test_paired_doors_share_the_same_new_weakness(self) -> None:
-        from ..logic.dock_rando import _door_pairs
-
         db = load_game_database()
         assignment = build_door_lock_assignment(self.world, db)
         pairs = _door_pairs(db)
@@ -123,6 +132,112 @@ class TestBuildDoorLockAssignment(MP2TestBase):
                     f"{node_id.ap_name} and its physical pair partner {partner_id.ap_name} "
                     "got different weaknesses",
                 )
+
+
+class TestSaveStationDoorFaces(unittest.TestCase):
+    """``save_station_door_faces`` is a pure function of the (static)
+    vendored DB, so these don't need a generated world -- ``load_game_database``
+    and ``_door_pairs`` are enough, same as the module-level constants
+    above."""
+
+    def test_returns_50_faces_from_18_areas(self) -> None:
+        db = load_game_database()
+        pairs = _door_pairs(db)
+        faces = save_station_door_faces(db, pairs)
+
+        # Exact numbers per PLAN.md / dock_rando.py's docstring: 18
+        # save-station areas, 25 door nodes inside them, 25 distinct
+        # _door_pairs partners, 50 faces total. Asserted exactly so a DB
+        # resync that shrinks (or grows) this set fails loudly.
+        save_station_areas = {
+            (node_id.region, node_id.area) for node_id in db.starting_location_candidates("save_stations")
+        }
+        self.assertEqual(18, len(save_station_areas))
+
+        inside = {node_id for node_id in faces if (node_id.region, node_id.area) in save_station_areas}
+        self.assertEqual(25, len(inside))
+        self.assertEqual(50, len(faces))
+
+        for node_id in faces:
+            node = db.node(node_id)
+            self.assertEqual("dock", node.node_type)
+            self.assertEqual("door", node.dock_type)
+
+
+class TestBuildDoorLockAssignmentSaveStationProtection(MP2TestBase):
+    """``normal_save_station_doors`` defaults on (``DefaultOnToggle``), so
+    just turning on ``door_lock_rando`` is enough to exercise it."""
+
+    options = {"door_lock_rando": True}
+
+    def test_protected_faces_forced_to_normal_door(self) -> None:
+        db = load_game_database()
+        pairs = _door_pairs(db)
+        protected = save_station_door_faces(db, pairs)
+        assignment = build_door_lock_assignment(self.world, db)
+
+        for node_id in protected:
+            self.assertEqual(
+                "Normal Door",
+                assignment[node_id],
+                f"{node_id.ap_name} is a protected save-station face but got a non-Normal lock",
+            )
+
+    def test_protected_pairs_still_agree(self) -> None:
+        db = load_game_database()
+        pairs = _door_pairs(db)
+        protected = save_station_door_faces(db, pairs)
+        assignment = build_door_lock_assignment(self.world, db)
+
+        for node_id in protected:
+            partner_id = pairs.get(node_id)
+            if partner_id is not None and partner_id in assignment:
+                self.assertEqual(
+                    assignment[node_id],
+                    assignment[partner_id],
+                    f"{node_id.ap_name} and its physical pair partner {partner_id.ap_name} disagree",
+                )
+
+
+class TestBuildDoorLockAssignmentSaveStationProtectionOff(MP2TestBase):
+    """With the option off, protected faces go back through the ordinary
+    global weakness mapping like any other door -- this must NOT be
+    vacuously true, so it draws several independent assignments (each
+    call to ``build_door_lock_assignment`` advances ``self.world.random``,
+    giving a fresh global mapping every time -- effectively a fresh seed
+    per draw without needing WorldTestBase's seed-pinning, which
+    test_fill.py's docstring notes isn't reliably available from a test
+    method) and asserts over their union that at least one protected face
+    ends up with something other than "Normal Door". In practice this
+    passes on the very first draw: _global_weakness_mapping is a bijection
+    (see its docstring), so at most one of the several vanilla weakness
+    types among the protected faces ("Normal Door", "Missile Blast
+    Shield", "Dark Door") can map to "Normal Door" in any given draw --
+    the others are then guaranteed to be something else. The loop is kept
+    anyway per the task's instruction to iterate rather than rely on a
+    single seed."""
+
+    options = {"door_lock_rando": True, "normal_save_station_doors": False}
+
+    def test_option_off_does_not_force_every_protected_face_normal(self) -> None:
+        db = load_game_database()
+        pairs = _door_pairs(db)
+        protected = save_station_door_faces(db, pairs)
+
+        non_normal_faces: set = set()
+        for _ in range(10):
+            assignment = build_door_lock_assignment(self.world, db)
+            non_normal_faces |= {
+                node_id for node_id in protected if assignment.get(node_id) != "Normal Door"
+            }
+            if non_normal_faces:
+                break
+
+        self.assertTrue(
+            non_normal_faces,
+            "expected at least one protected save-station face to get a non-Normal lock "
+            "across several draws with normal_save_station_doors off",
+        )
 
 
 class TestBuildElevatorAssignment(MP2TestBase):

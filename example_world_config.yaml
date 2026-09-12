@@ -100,6 +100,15 @@ requires:
   # Options: true, false
   door_lock_rando: false
 
+  # When door_lock_rando is on, force every door of a Save Station room --
+  # and the matching face on the far side, the one you shoot to get in --
+  # to a Normal Door (any beam opens it), so a save is always reachable.
+  # Can also remove a vanilla lock: a few save rooms ship with a Missile
+  # Blast Shield or Dark Door, and those get normalized too. No effect
+  # unless door_lock_rando is on.
+  # Options: true, false
+  normal_save_station_doors: true
+
   # Shuffle elevators into new two-way connections (every region stays
   # reachable, just not necessarily via the same elevator). The one-way
   # trip to Sky Temple and the intra-Aerie elevator are never shuffled.
