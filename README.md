@@ -74,6 +74,7 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 | `progressive_grapple` | Toggle | off | Combine Grapple Beam and Screw Attack into two copies of a single Progressive Grapple item. |
 | `missile_expansions_unlock_launcher` | Toggle | off | Receiving any Missile Expansion also unlocks the Missile Launcher itself, so expansions are usable before the launcher is found. Off matches Randovania (expansions grant nothing without the launcher); this also affects logic, not just the in-game grant. |
 | `power_bomb_expansions_unlock_power_bombs` | Toggle | off | Receiving any Power Bomb Expansion also unlocks Power Bombs themselves, so expansions are usable before the main Power Bomb pickup is found. Off matches Randovania (expansions grant nothing without the main pickup); this also affects logic, not just the in-game grant. Independent of `missile_expansions_unlock_launcher`. |
+| `split_beam_ammo` | Toggle (on by default) | on | On: 10 Dark Ammo Expansions + 10 Light Ammo Expansions, 20 ammo each (matches vanilla/Randovania's default). Off: both are replaced by 20 unified Beam Ammo Expansions granting 10 Dark + 10 Light ammo each (Randovania's "Split Beam Ammo Expansions" toggle, inverted) — same total ammo economy, fewer/bigger pickups. |
 
 ### Logic
 
@@ -138,11 +139,22 @@ override just that one. Every trick option shares the same scale: `use_global` (
 |---|---|---|---|
 | `warp_to_start` | Toggle (on by default) | on | Declining to save at a Save Station while holding L+R warps you back to the starting room (Samus' ship in Landing Site, or wherever `starting_room` chose). Declining without L+R held behaves exactly as in vanilla. |
 
+Cutscenes are always skippable (press Start) -- this isn't a configurable option because open-prime-rando's `patch_iso` applies it unconditionally to every seed, the same way it always randomizes a couple of small cosmetic puzzle colors (Main Gyro Chamber, the Sanctuary/Temple Grounds "echo lock" panels) from your seed.
+
+### Combat
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `beam_ammo_costs` | Choice: `vanilla`/`cheap`/`expensive`/`free` | `vanilla` | How much Dark/Light Ammo the Dark Beam, Light Beam, and Annihilator Beam cost per shot. `cheap`/`expensive` halve/double the uncharged, charged, and charge-combo ammo costs; `free` zeroes them (the charge combo's missile cost is untouched either way -- open-prime-rando requires it to stay >=1). Doesn't affect logic, which only cares about ammo capacity, not consumption rate. |
+| `annihilator_ammo_source` | Choice: `both`/`dark_only`/`light_only` | `both` | Which ammo pool(s) the Annihilator Beam draws from per shot. `both` is vanilla (costs Dark and Light Ammo simultaneously); the other two make it cost only one type. Doesn't affect logic (the Annihilator Beam is a simple boolean requirement there). |
+| `double_damage_multiplier` | Range 100-500 (percent) | `200` | Damage multiplier granted by the Double Damage item. Not in the default item pool, so this only matters if a copy reaches you some other way (e.g. `start_inventory`). |
+| `defense_up_damage_reduction` | Range 0-90 (percent) | `0` | Percentage of incoming damage permanently negated by the Defense Up custom item, on top of the Dark Aether/Dark Suit damage math `dark_aether_damage`/`dark_suit_damage` already model. Since Varia Suit's capacity is always locked at exactly 1, this is a single flat value applied from the start of the game, not a stacking pickup. Not modeled in logic -- a non-zero value can only make survival easier than logic assumes, never harder. |
+
 ### Cosmetic
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `display_nonlocal_items` | Choice: `none`/`match_game` | `match_game` | Whether items belonging to other Echoes players show a matching in-game model, or a generic model. |
+| `display_nonlocal_items` | Choice: `none`/`match_game` | `match_game` | Whether items belonging to other players show a matching in-game model, or a generic model. `match_game` covers other Echoes players and conceptually-equivalent items from MultiWorldGG's other Metroid games (Metroid Prime, Metroid: Zero Mission, Metroid Fusion, Super Metroid) -- e.g. another player's Metroid Prime Energy Tank or Super Metroid Missile shows up using this game's own Energy Tank/Missile Expansion model. A few of these cross-game matches are experimental (never independently verified safe to place outside their own vanilla spot -- see `patch_data.py`'s `_CROSS_GAME_ITEM_NAMES`/`_CROSS_GAME_MODEL_OVERRIDES`); anything unmatched still falls back to the generic model. |
 | `map_visibility` | Choice: `vanilla`/`full_map`/`full_map_and_items` | `vanilla` | How much of the in-game map is revealed from the start. `vanilla`: fills in as you explore, item dots wait for their room to be visited or a map station used. `full_map`: every room is drawn from the start (rooms still need to be visited for name/details), but item dots still wait for their room. `full_map_and_items`: as `full_map`, plus a dot at every item location from the start, mirroring the Metroid Prime 1 randomizer. One setting rather than two toggles because an item dot needs its room drawn to be visible at all. |
 | `unvisited_room_names` | Toggle (on by default) | on | Show room names on the map for rooms not yet visited. |
 

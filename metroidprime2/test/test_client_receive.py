@@ -172,8 +172,8 @@ class TestBeamAmmo(unittest.TestCase):
             ),
             0,
         )
-        self.assertEqual(50 * 1 + 20 * 2 + 200 * 1, desired[45])
-        self.assertEqual(50 * 1 + 20 * 1 + 200 * 1, desired[46])
+        self.assertEqual(50 * 1 + 20 * 2 + 10 * 1, desired[45])
+        self.assertEqual(50 * 1 + 20 * 1 + 10 * 1, desired[46])
 
     def test_no_beam_no_ammo(self) -> None:
         desired = compute_desired_capacities(_received("Dark Ammo Expansion"), 0)

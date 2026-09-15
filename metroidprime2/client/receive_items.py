@@ -198,10 +198,11 @@ def compute_desired_capacities(
         power_bomb_main + power_bomb_expansions if power_bombs_unlocked else 0
     )
 
-    # Dark/Light Beam ammo: 50 per beam, 20 per matching expansion, 200 per
-    # (shared) Beam Ammo Expansion.
-    desired[_DARK_AMMO_ITEM] = 50 * dark_beams + 20 * dark_ammo_expansions + 200 * beam_ammo_expansions
-    desired[_LIGHT_AMMO_ITEM] = 50 * light_beams + 20 * light_ammo_expansions + 200 * beam_ammo_expansions
+    # Dark/Light Beam ammo: 50 per beam, 20 per matching expansion, 10 per
+    # (shared) Beam Ammo Expansion (split_beam_ammo=False's alternative to
+    # 10 Dark + 10 Light Ammo Expansions -- see items.py's entries 36-38).
+    desired[_DARK_AMMO_ITEM] = 50 * dark_beams + 20 * dark_ammo_expansions + 10 * beam_ammo_expansions
+    desired[_LIGHT_AMMO_ITEM] = 50 * light_beams + 20 * light_ammo_expansions + 10 * beam_ammo_expansions
 
     return desired
 

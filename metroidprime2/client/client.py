@@ -349,52 +349,60 @@ async def _handle_game_not_ready(ctx: MetroidPrime2Context) -> None:
     await asyncio.sleep(1)
 
 
+_DEFAULT_TICK_DELAY = 0.5
+
+
 async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
-    if not ctx.server or not ctx.slot:
-        message = "Waiting for player to connect to server"
-        if ctx.last_error_message != message:
-            logger.info(message)
-            ctx.last_error_message = message
-        await asyncio.sleep(1)
-        return
-    ctx.last_error_message = None
+    """Every early return below falls through to the ``finally``'s sleep
+    (defaulting to ``_DEFAULT_TICK_DELAY``, overridable per branch via
+    ``delay``), so a future branch added here can't accidentally skip
+    throttling the way an ad-hoc ``sleep()``-then-``return`` per branch
+    could."""
+    delay = _DEFAULT_TICK_DELAY
+    try:
+        if not ctx.server or not ctx.slot:
+            message = "Waiting for player to connect to server"
+            if ctx.last_error_message != message:
+                logger.info(message)
+                ctx.last_error_message = message
+            delay = 1
+            return
+        ctx.last_error_message = None
 
-    # 1. Pending-op guard: never write over a body the game hasn't consumed yet.
-    if ctx.game_interface.has_pending_op():
-        await asyncio.sleep(0.1)
-        return
+        # 1. Pending-op guard: never write over a body the game hasn't consumed yet.
+        if ctx.game_interface.has_pending_op():
+            delay = 0.1
+            return
 
-    # 2. Inventory read + one-time magic item capacity top-up per connection.
-    inventory = ctx.game_interface.read_inventory()
-    if inventory is None:
-        await asyncio.sleep(0.5)
-        return
+        # 2. Inventory read + one-time magic item capacity top-up per connection.
+        inventory = ctx.game_interface.read_inventory()
+        if inventory is None:
+            return
 
-    magic_amount, magic_capacity = inventory[constants.MAGIC_ITEM]
+        magic_amount, magic_capacity = inventory[constants.MAGIC_ITEM]
 
-    if not ctx.magic_capacity_ensured:
-        ctx.game_interface.ensure_magic_capacity(magic_capacity)
-        ctx.magic_capacity_ensured = True
-        await asyncio.sleep(0.5)
-        return
+        if not ctx.magic_capacity_ensured:
+            ctx.game_interface.ensure_magic_capacity(magic_capacity)
+            ctx.magic_capacity_ensured = True
+            return
 
-    # 3./4. Magic item protocol: a collected pickup (amount > 0) takes
-    # priority over granting received items, exactly one body per tick.
-    if magic_amount > 0:
-        await _handle_magic_item_amount(ctx, magic_amount)
-    else:
-        await _handle_grant_items(ctx, inventory)
+        # 3./4. Magic item protocol: a collected pickup (amount > 0) takes
+        # priority over granting received items, exactly one body per tick.
+        if magic_amount > 0:
+            await _handle_magic_item_amount(ctx, magic_amount)
+        else:
+            await _handle_grant_items(ctx, inventory)
 
-    # 5. Idle-time notification flush + tracker datastorage.
-    if not ctx.game_interface.has_pending_op():
-        ctx.notification_manager.handle_notifications()
+        # 5. Idle-time notification flush + tracker datastorage.
+        if not ctx.game_interface.has_pending_op():
+            ctx.notification_manager.handle_notifications()
 
-    await _send_mlvl_datastorage(ctx)
+        await _send_mlvl_datastorage(ctx)
 
-    if ctx.death_link_enabled:
-        await _handle_check_deathlink(ctx)
-
-    await asyncio.sleep(0.5)
+        if ctx.death_link_enabled:
+            await _handle_check_deathlink(ctx)
+    finally:
+        await asyncio.sleep(delay)
 
 
 async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:

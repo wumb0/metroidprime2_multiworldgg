@@ -165,9 +165,17 @@ _ROWS: tuple[ItemData, ...] = (
     _entry(33, "Energy Tank", PROG, ((42, 1),), "EnergyTank", 14),
     _entry(34, "Missile Expansion", PROG_SKIP, ((44, 5),), "MissileExpansion", 33),
     _entry(35, "Power Bomb Expansion", PROG_SKIP, ((43, 1),), "PowerBombExpansion", 8),
+    # Dark/Light Ammo Expansion vs. Beam Ammo Expansion are mutually
+    # exclusive alternatives selected by the `split_beam_ammo` option (see
+    # item_pool.py's `_pool_count_for`) -- Randovania's own "Split Beam
+    # Ammo Expansions" toggle. Both economies total 200 Dark + 200 Light
+    # ammo across 20 pickups; only the split changes (10+10 expansions of
+    # 20 each vs. 20 unified expansions of 10+10 each). Their equivalent
+    # `logic/item_mapping.py` DarkAmmo/LightAmmo multipliers must stay in
+    # sync with the per-pickup amounts here.
     _entry(36, "Dark Ammo Expansion", PROG_SKIP, ((45, 20),), "DarkBeamAmmoExpansion", 10),
     _entry(37, "Light Ammo Expansion", PROG_SKIP, ((46, 20),), "LightBeamAmmoExpansion", 10),
-    _entry(38, "Beam Ammo Expansion", PROG_SKIP, ((45, 200), (46, 200)), "BeamAmmoExpansion", 0),
+    _entry(38, "Beam Ammo Expansion", PROG_SKIP, ((45, 10), (46, 10)), "BeamAmmoExpansion", 0),
     # Sky Temple Keys 1-9 (positions 39-47). default_pool_count=1 assumes
     # the default sky_temple_keys=9 (all 9 keys in the pool); item_pool.py
     # overrides actual placement/precollection per the configured STK mode.

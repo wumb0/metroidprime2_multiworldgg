@@ -53,6 +53,14 @@ requires:
   # Options: true, false
   power_bomb_expansions_unlock_power_bombs: false
 
+  # On: 10 Dark Ammo Expansions + 10 Light Ammo Expansions, 20 ammo each
+  # (matches vanilla/Randovania's default). Off: both are replaced by 20
+  # unified Beam Ammo Expansions granting 10 Dark + 10 Light ammo each
+  # (Randovania's "Split Beam Ammo Expansions" toggle, inverted) -- same
+  # total ammo economy, fewer/bigger pickups.
+  # Options: true, false
+  split_beam_ammo: true
+
   # ------------------------------------------------------------------
   # Logic
   # ------------------------------------------------------------------
@@ -90,6 +98,37 @@ requires:
   # damage requirement, without another tank to make the trip safe.
   # Options: true, false
   dangerous_energy_tanks: false
+
+  # ------------------------------------------------------------------
+  # Combat
+  # ------------------------------------------------------------------
+
+  # How much Dark/Light Ammo the Dark Beam, Light Beam, and Annihilator
+  # Beam cost per shot. cheap/expensive halve/double the uncharged,
+  # charged, and charge-combo ammo costs; free zeroes them (the charge
+  # combo's missile cost is untouched either way). Doesn't affect logic.
+  # Options: vanilla, cheap, expensive, free
+  beam_ammo_costs: vanilla
+
+  # Which ammo pool(s) the Annihilator Beam draws from per shot. "both" is
+  # vanilla (costs Dark and Light Ammo simultaneously); the other two make
+  # it cost only one type. Doesn't affect logic.
+  # Options: both, dark_only, light_only
+  annihilator_ammo_source: both
+
+  # Damage multiplier (percent) granted by the Double Damage item. Not in
+  # the default item pool, so this only matters if a copy reaches you some
+  # other way (e.g. start_inventory).
+  # Range: 100-500
+  double_damage_multiplier: 200
+
+  # Percentage of incoming damage permanently negated by the Defense Up
+  # custom item, on top of the Dark Aether/Dark Suit damage math above.
+  # A flat value applied from the start of the game, not a stacking
+  # pickup. Not modeled in logic -- can only make survival easier than
+  # logic assumes, never harder.
+  # Range: 0-90
+  defense_up_damage_reduction: 0
 
   # ------------------------------------------------------------------
   # Entrance randomization

@@ -30,6 +30,12 @@ STK_ITEM_NAMES: tuple[str, ...] = tuple(f"Sky Temple Key {n}" for n in range(1, 
 _SUIT_TRIO = ("Dark Suit", "Light Suit", "Progressive Suit")
 _GRAPPLE_TRIO = ("Grapple Beam", "Screw Attack", "Progressive Grapple")
 
+# Beam-ammo alternatives gated by split_beam_ammo (see items.py's entries
+# 36-38): split -> 10 Dark + 10 Light Ammo Expansions; unified -> 20 Beam
+# Ammo Expansions. Both total 200 Dark + 200 Light ammo across 20 pickups.
+_SPLIT_AMMO_COUNT = 10
+_UNIFIED_AMMO_COUNT = 20
+
 # Guardian pickup_index values (Amorbis, Chykka, Quadraxis), in the order
 # Sky Temple Keys 1-3 are locked onto them for the "all_guardians" mode.
 _GUARDIAN_PICKUP_INDICES: tuple[int, ...] = (43, 79, 115)
@@ -52,6 +58,13 @@ def _pool_count_for(item_name: str, world: MetroidPrime2World) -> int:
         return 0 if progressive_grapple else 1
     if item_name == "Progressive Grapple":
         return 2 if progressive_grapple else 0
+
+    split_beam_ammo = bool(world.options.split_beam_ammo)
+    if item_name in ("Dark Ammo Expansion", "Light Ammo Expansion"):
+        return _SPLIT_AMMO_COUNT if split_beam_ammo else 0
+    if item_name == "Beam Ammo Expansion":
+        return 0 if split_beam_ammo else _UNIFIED_AMMO_COUNT
+
     return data.default_pool_count
 
 

@@ -10,11 +10,19 @@ Every value here must be plain JSON-able Python (``dict``/``list``/``str``/
 
 Deliberately NOT included here (left at open-prime-rando's own defaults,
 which ``RandoConfiguration``'s pydantic model default-constructs when the
-key is absent): ``beam_configuration``, ``custom_items``,
-``game_options_defaults``, ``suit_replacement``, ``hud_color``. The last
-two are cosmetic, host.yaml-controlled settings applied client-side at
-patch time (``client/patcher_runner.py``), not generation-time data.
-"""
+key is absent): ``game_options_defaults``, ``suit_replacement``,
+``hud_color``. The last two are cosmetic, host.yaml-controlled settings
+applied client-side at patch time (``client/patcher_runner.py``), not
+generation-time data.
+
+``beam_configuration`` (``beam_ammo_costs``/``annihilator_ammo_source``)
+and ``custom_items`` (``double_damage_multiplier``/
+``defense_up_damage_reduction``) ARE included, always explicitly -- see
+``_beam_configuration``/``_custom_items`` below -- rather than left at
+open-prime-rando's own pydantic defaults, because at least one of those
+defaults is not vanilla-preserving (``MassiveDamageConfig.
+damage_increase_multiplier`` defaults to 1.0, a no-op, not the real
+double-damage value of 2.0)."""
 
 from __future__ import annotations
 
@@ -25,7 +33,7 @@ from . import constants
 from .items import ITEM_TABLE, gains_for
 from .locations import LOCATION_TABLE
 from .logic.db_reader import GameDatabase, Node, NodeId, load_game_database
-from .options import DisplayNonLocalItems, MapVisibility, dark_damage_per_second
+from .options import AnnihilatorAmmoSource, BeamAmmoCosts, DisplayNonLocalItems, MapVisibility, dark_damage_per_second
 
 if TYPE_CHECKING:
     from . import MetroidPrime2World
@@ -219,6 +227,169 @@ _EXPANSION_MODELS = frozenset(
 # every call site).
 _FALLBACK_MODEL = "EnergyTransferModule"
 
+# --------------------------------------------------------------------------
+# Cross-game item models (``display_nonlocal_items``): when a pickup
+# belongs to a player of one of MultiWorldGG's other Metroid worlds
+# (Metroid Prime, Metroid: Zero Mission, Metroid Fusion, Super Metroid --
+# the only other Metroid games in this MultiWorldGG fork, see
+# ``worlds/metroidprime``/``mzm``/``metroidfusion``/``sm``), and their AP
+# item name is a straightforward conceptual match to one of ours,
+# ``ITEM_TABLE``'s Echoes-appropriate model is used instead of the generic
+# fallback. Keyed by (``item.game``, their AP item name) -> our AP item
+# name (so the existing ``ITEM_TABLE[...].model`` lookup handles it
+# identically to a same-game match).
+#
+# Deliberately excludes anything suit-related (``Varia Suit``, which all
+# four games happen to name identically, included): our own "VariaSuit"
+# model crashes the game when placed anywhere but its single vanilla
+# location (see items.py's "Progressive Suit" entry), and that risk was
+# never independently verified for other suit models either, so no suit
+# name is matched here regardless of the other game -- see
+# ``_UNSAFE_CROSS_GAME_MODELS`` below for the hard backstop. "Gravity
+# Suit" is the one exception: it maps to our "Gravity Boost", which is
+# architecturally a plain ability pickup here (`default_pool_count=1`,
+# not in the "Suits" item group in items.py), not a suit-swap model, so it
+# doesn't share Varia Suit's specific defect.
+#
+# Also deliberately excludes anything whose match is conceptually fuzzy
+# (e.g. Metroid: Zero Mission's "Super Missile Tank" is a Super Missile
+# *ammo* expansion, not our "Super Missile" beam-unlock item; Super
+# Metroid's "Spring Ball"/"Reserve Tank"/"X-Ray Scope" and every game's
+# other-element beams (Ice/Wave/Plasma/Spazer/...) have no Echoes
+# equivalent at all) -- only names that mean the same thing in both games
+# are included.
+#
+# Split into two tiers:
+#
+# _VERIFIED_CROSS_GAME_ITEM_NAMES targets an AP item name that this
+# world's OWN generation actually places at an arbitrary pickup location
+# under some reachable option combination (nonzero pool count somewhere in
+# item_pool.py) -- i.e. the model is proven to work anywhere by our own
+# seeds, the same standard "Progressive Suit" deliberately picked
+# "DarkSuit" over "VariaSuit" to meet.
+#
+# _EXPERIMENTAL_CROSS_GAME_ITEM_NAMES targets an AP item name with
+# ``default_pool_count == 0`` under every option this world has (Charge
+# Beam, Morph Ball, Combat Visor, Scan Visor, Unlimited Missiles -- all
+# mandatory starting items or never-placed useful items here, per
+# items.py), meaning open-prime-rando has, as far as this codebase knows,
+# never actually been asked to place that specific model at a non-vanilla
+# pickup location either -- the same unverified-placement profile that
+# turned out to crash the game for "VariaSuit". Shipped anyway, per
+# explicit instruction to try it; if a player reports a crash tied to one
+# of these, move that one entry out rather than reverting the whole
+# feature.
+_VERIFIED_CROSS_GAME_ITEM_NAMES: dict[tuple[str, str], str] = {
+    # Metroid Prime (MultiWorldGG/worlds/metroidprime, game = "Metroid Prime").
+    ("Metroid Prime", "Energy Tank"): "Energy Tank",
+    ("Metroid Prime", "Missile Expansion"): "Missile Expansion",
+    ("Metroid Prime", "Power Bomb Expansion"): "Power Bomb Expansion",
+    ("Metroid Prime", "Missile Launcher"): "Missile Launcher",
+    ("Metroid Prime", "Power Bomb (Main)"): "Power Bomb",
+    ("Metroid Prime", "Super Missile"): "Super Missile",
+    ("Metroid Prime", "Grapple Beam"): "Grapple Beam",
+    ("Metroid Prime", "Boost Ball"): "Boost Ball",
+    ("Metroid Prime", "Spider Ball"): "Spider Ball",
+    ("Metroid Prime", "Morph Ball Bomb"): "Morph Ball Bomb",
+    ("Metroid Prime", "Space Jump Boots"): "Space Jump Boots",
+    ("Metroid Prime", "Gravity Suit"): "Gravity Boost",
+    # Metroid: Zero Mission (MultiWorldGG/worlds/mzm, game = "Metroid: Zero Mission").
+    ("Metroid: Zero Mission", "Energy Tank"): "Energy Tank",
+    ("Metroid: Zero Mission", "Missile Tank"): "Missile Expansion",
+    ("Metroid: Zero Mission", "Power Bomb Tank"): "Power Bomb Expansion",
+    ("Metroid: Zero Mission", "Bomb"): "Morph Ball Bomb",
+    ("Metroid: Zero Mission", "Screw Attack"): "Screw Attack",
+    ("Metroid: Zero Mission", "Space Jump"): "Space Jump Boots",
+    ("Metroid: Zero Mission", "Gravity Suit"): "Gravity Boost",
+    # Metroid Fusion (MultiWorldGG/worlds/metroidfusion, game = "Metroid Fusion").
+    ("Metroid Fusion", "Energy Tank"): "Energy Tank",
+    ("Metroid Fusion", "Missile Tank"): "Missile Expansion",
+    ("Metroid Fusion", "Missile Data"): "Missile Launcher",
+    ("Metroid Fusion", "Power Bomb Tank"): "Power Bomb Expansion",
+    ("Metroid Fusion", "Power Bomb Data"): "Power Bomb",
+    ("Metroid Fusion", "Bomb Data"): "Morph Ball Bomb",
+    ("Metroid Fusion", "Screw Attack"): "Screw Attack",
+    ("Metroid Fusion", "Space Jump"): "Space Jump Boots",
+    ("Metroid Fusion", "Gravity Suit"): "Gravity Boost",
+    # Super Metroid (MultiWorldGG/worlds/sm, game = "Super Metroid"). SM has
+    # no separate missile/power-bomb "launcher"/ability item -- the first
+    # copy of "Missile"/"Power Bomb" grants both the ability and capacity,
+    # every copy after that just adds capacity -- so both map to our
+    # *Expansion* items (the common case for most copies received).
+    ("Super Metroid", "Energy Tank"): "Energy Tank",
+    ("Super Metroid", "Missile"): "Missile Expansion",
+    ("Super Metroid", "Power Bomb"): "Power Bomb Expansion",
+    ("Super Metroid", "Super Missile"): "Super Missile",
+    ("Super Metroid", "Grappling Beam"): "Grapple Beam",
+    ("Super Metroid", "Screw Attack"): "Screw Attack",
+    ("Super Metroid", "Space Jump"): "Space Jump Boots",
+    ("Super Metroid", "Gravity Suit"): "Gravity Boost",
+}
+
+_EXPERIMENTAL_CROSS_GAME_ITEM_NAMES: dict[tuple[str, str], str] = {
+    ("Metroid Prime", "Charge Beam"): "Charge Beam",
+    ("Metroid Prime", "Morph Ball"): "Morph Ball",
+    ("Metroid Prime", "Combat Visor"): "Combat Visor",
+    ("Metroid Prime", "Scan Visor"): "Scan Visor",
+    ("Metroid Prime", "Unlimited Missiles"): "Unlimited Missiles",
+    ("Metroid: Zero Mission", "Charge Beam"): "Charge Beam",
+    ("Metroid: Zero Mission", "Morph Ball"): "Morph Ball",
+    ("Metroid Fusion", "Charge Beam"): "Charge Beam",
+    ("Metroid Fusion", "Morph Ball"): "Morph Ball",
+    ("Super Metroid", "Charge Beam"): "Charge Beam",
+    ("Super Metroid", "Morph Ball"): "Morph Ball",
+}
+
+_CROSS_GAME_ITEM_NAMES: dict[tuple[str, str], str] = {
+    **_VERIFIED_CROSS_GAME_ITEM_NAMES,
+    **_EXPERIMENTAL_CROSS_GAME_ITEM_NAMES,
+}
+
+# Model overrides for specific cross-game matches where a source-game-
+# specific reskin exists, applied on top of (and only when) the plain
+# name match above already succeeded -- bypasses ITEM_TABLE's ordinary
+# model for that one (game, their item name) pair.
+#
+# EXPERIMENTAL, same caveat as _EXPERIMENTAL_CROSS_GAME_ITEM_NAMES above,
+# arguably more so: "MissileExpansionPrime1" (open-prime-rando's Missile
+# Expansion model styled after Metroid Prime 1's) has -- as far as this
+# codebase knows -- never been placed by ANY seed, ours or randovania's
+# prime2/prime2_opr, at any pickup location; the plain "MissileExpansion"
+# it would otherwise resolve to (via "Missile Expansion" ->
+# _VERIFIED_CROSS_GAME_ITEM_NAMES) is fully verified-safe. Shipped anyway
+# per explicit instruction to try it. If Metroid Prime Missile Expansion
+# pickups turn out to crash the game, delete this one entry (falls back
+# to plain "MissileExpansion", not the generic fallback) rather than
+# reverting cross-game matching entirely.
+_CROSS_GAME_MODEL_OVERRIDES: dict[tuple[str, str], str] = {
+    ("Metroid Prime", "Missile Expansion"): "MissileExpansionPrime1",
+}
+
+# Hard backstop, independent of what the tables above say: never resolve
+# a cross-game match to one of these models. Currently just "VariaSuit"
+# (see the comment above); kept as an explicit set rather than relying
+# solely on the tables above being curated correctly.
+_UNSAFE_CROSS_GAME_MODELS = frozenset({"VariaSuit"})
+
+for _our_name in _CROSS_GAME_ITEM_NAMES.values():
+    assert _our_name in ITEM_TABLE, f"_CROSS_GAME_ITEM_NAMES: {_our_name!r} is not an ITEM_TABLE entry"
+    assert ITEM_TABLE[_our_name].model not in _UNSAFE_CROSS_GAME_MODELS, (
+        f"_CROSS_GAME_ITEM_NAMES: {_our_name!r} resolves to an unsafe model"
+    )
+del _our_name
+
+for _game_and_name, _override_model in _CROSS_GAME_MODEL_OVERRIDES.items():
+    assert _game_and_name in _CROSS_GAME_ITEM_NAMES, (
+        f"_CROSS_GAME_MODEL_OVERRIDES: {_game_and_name!r} has no plain name match to override"
+    )
+    assert _override_model in constants.OPR_MODEL_NAMES, (
+        f"_CROSS_GAME_MODEL_OVERRIDES: {_override_model!r} is not a known OPR model"
+    )
+    assert _override_model not in _UNSAFE_CROSS_GAME_MODELS, (
+        f"_CROSS_GAME_MODEL_OVERRIDES: {_override_model!r} is an unsafe model"
+    )
+del _game_and_name, _override_model
+
 # HUD memo text is deduplicated by open-prime-rando via the STRG name it
 # derives from the text itself (PLAN.md Context facts), so keeping it short
 # and free of characters that upset that string table is worth doing
@@ -252,6 +423,12 @@ def _pickup_appearance(world: MetroidPrime2World, location_name: str) -> dict[st
     ``generate_output``); that's treated the same as an off-world item with
     no match, i.e. the generic ETM fallback, so the resulting config is
     still fully valid JSON/schema-wise.
+
+    A non-local item (belonging to another player) gets a matching model
+    under ``display_nonlocal_items=match_game`` if it's either another
+    Echoes player's item with the same AP item name, or another Metroid
+    game's item with a conceptual match in ``_CROSS_GAME_ITEM_NAMES``;
+    otherwise (including the option being off) it's the generic fallback.
     """
     location = world.multiworld.get_location(location_name, world.player)
     item = location.item
@@ -267,12 +444,17 @@ def _pickup_appearance(world: MetroidPrime2World, location_name: str) -> dict[st
         scan = f"{item.name}."
     else:
         recipient = world.multiworld.get_player_name(item.player)
-        match_game = (
-            item.game == constants.GAME_NAME
-            and item.name in ITEM_TABLE
-            and world.options.display_nonlocal_items.value == DisplayNonLocalItems.option_match_game
-        )
-        model = ITEM_TABLE[item.name].model if match_game else _FALLBACK_MODEL
+        if item.game == constants.GAME_NAME:
+            our_name = item.name if item.name in ITEM_TABLE else None
+        else:
+            our_name = _CROSS_GAME_ITEM_NAMES.get((item.game, item.name))
+
+        model = _FALLBACK_MODEL
+        if our_name is not None and world.options.display_nonlocal_items.value == DisplayNonLocalItems.option_match_game:
+            candidate_model = _CROSS_GAME_MODEL_OVERRIDES.get((item.game, item.name), ITEM_TABLE[our_name].model)
+            if candidate_model not in _UNSAFE_CROSS_GAME_MODELS:
+                model = candidate_model
+
         hud_text = f"Sent {item.name} to {recipient}!"
         scan = f"{recipient}'s {item.name}."
 
@@ -515,6 +697,86 @@ def _world_changes(world: MetroidPrime2World, db: GameDatabase) -> list[dict[str
 
 
 # --------------------------------------------------------------------------
+# Beam ammo costs / Annihilator ammo source (beam_configuration)
+# --------------------------------------------------------------------------
+
+# PlayerItemEnum.DarkAmmo/LightAmmo (retro_data_structures.enums.echoes),
+# matching the item ids used everywhere else in this world (items.py,
+# client/receive_items.py, logic/item_mapping.py).
+_DARK_AMMO_ID = 45
+_LIGHT_AMMO_ID = 46
+
+# (uncharged_cost, charged_cost, combo_missile_cost, combo_ammo_cost) --
+# open-prime-rando's ``BeamAmmoConfiguration`` fields, identical across
+# Dark/Light/Annihilator in vanilla. combo_missile_cost is left at its
+# vanilla value even for "free": open-prime-rando requires it >= 1 (it's a
+# missile cost, not a beam-ammo cost).
+_BEAM_AMMO_COST_PRESETS: dict[int, tuple[int, int, int, int]] = {
+    BeamAmmoCosts.option_vanilla: (1, 5, 5, 30),
+    BeamAmmoCosts.option_cheap: (1, 3, 5, 15),
+    BeamAmmoCosts.option_expensive: (2, 10, 5, 60),
+    BeamAmmoCosts.option_free: (0, 0, 5, 0),
+}
+
+_ANNIHILATOR_AMMO_SOURCES: dict[int, tuple[int, int | None]] = {
+    AnnihilatorAmmoSource.option_both: (_DARK_AMMO_ID, _LIGHT_AMMO_ID),
+    AnnihilatorAmmoSource.option_dark_only: (_DARK_AMMO_ID, None),
+    AnnihilatorAmmoSource.option_light_only: (_LIGHT_AMMO_ID, None),
+}
+
+
+def _beam_ammo_config(ammo_a: int | None, ammo_b: int | None, costs: tuple[int, int, int, int]) -> dict[str, Any]:
+    uncharged_cost, charged_cost, combo_missile_cost, combo_ammo_cost = costs
+    return {
+        "ammo_a": ammo_a,
+        "ammo_b": ammo_b,
+        "uncharged_cost": uncharged_cost,
+        "charged_cost": charged_cost,
+        "combo_missile_cost": combo_missile_cost,
+        "combo_ammo_cost": combo_ammo_cost,
+    }
+
+
+def _beam_configuration(world: MetroidPrime2World) -> dict[str, Any]:
+    """open-prime-rando ``BeamConfiguration`` -- costs for
+    ``beam_ammo_costs``, ammo source remapping for
+    ``annihilator_ammo_source``. ``power`` is left unspecified (it has no
+    ammo cost in vanilla or here; open-prime-rando's own field default
+    applies)."""
+    costs = _BEAM_AMMO_COST_PRESETS[world.options.beam_ammo_costs.value]
+    ammo_a, ammo_b = _ANNIHILATOR_AMMO_SOURCES[world.options.annihilator_ammo_source.value]
+    return {
+        "dark": _beam_ammo_config(_DARK_AMMO_ID, None, costs),
+        "light": _beam_ammo_config(_LIGHT_AMMO_ID, None, costs),
+        "annihilator": _beam_ammo_config(ammo_a, ammo_b, costs),
+    }
+
+
+# --------------------------------------------------------------------------
+# Custom items (Double Damage / Defense Up)
+# --------------------------------------------------------------------------
+
+
+def _custom_items(world: MetroidPrime2World) -> dict[str, Any]:
+    """open-prime-rando ``CustomItemsConfig``. ``max_count`` is always 1
+    for both -- Defense Up's counter is the Varia Suit inventory slot,
+    whose capacity this world always locks at exactly 1 (see
+    ``client/receive_items.py``); Double Damage is never granted more than
+    once by the generic gains loop either way (see ``items.py``'s entry),
+    so raising it would have no observable effect."""
+    return {
+        "massive_damage_config": {
+            "damage_increase_multiplier": world.options.double_damage_multiplier.value / 100,
+            "max_count": 1,
+        },
+        "defense_up_config": {
+            "damage_reduction_multiplier": world.options.defense_up_damage_reduction.value / 100,
+            "max_count": 1,
+        },
+    }
+
+
+# --------------------------------------------------------------------------
 # Top level
 # --------------------------------------------------------------------------
 
@@ -566,6 +828,8 @@ def make_rando_configuration(world: MetroidPrime2World) -> dict[str, Any]:
             "dark_world_damage": dark_aether_damage,
             "dark_suit_protection": dark_suit_damage / dark_aether_damage,
         },
+        "beam_configuration": _beam_configuration(world),
+        "custom_items": _custom_items(world),
         "world_changes": _world_changes(world, db),
         "string_changes": [],
     }

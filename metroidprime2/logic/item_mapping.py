@@ -272,7 +272,7 @@ def expression(
             lambda state, _p=player: (
                 50 * state.count("Dark Beam", _p)
                 + 20 * state.count("Dark Ammo Expansion", _p)
-                + 200 * state.count("Beam Ammo Expansion", _p)
+                + 10 * state.count("Beam Ammo Expansion", _p)
             ),
         )
     if short_name == "LightAmmo":
@@ -281,7 +281,7 @@ def expression(
             lambda state, _p=player: (
                 50 * state.count("Light Beam", _p)
                 + 20 * state.count("Light Ammo Expansion", _p)
-                + 200 * state.count("Beam Ammo Expansion", _p)
+                + 10 * state.count("Beam Ammo Expansion", _p)
             ),
         )
 

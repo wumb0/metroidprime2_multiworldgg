@@ -318,7 +318,19 @@ class DisplayNonLocalItems(Choice):
     None: only this world's own items get matching in-game models; every
     other item shows as a generic Energy Transfer Module.
     Match Game: items belonging to another Metroid Prime 2: Echoes player
-    also get a matching model."""
+    also get a matching model, and so do conceptually-equivalent items
+    from MultiWorldGG's other Metroid games (Metroid Prime, Metroid: Zero
+    Mission, Metroid Fusion, Super Metroid) -- e.g. a Metroid Prime Energy
+    Tank or a Super Metroid Missile shows up as this game's own Energy
+    Tank/Missile Expansion model (see ``patch_data.py``'s
+    ``_CROSS_GAME_ITEM_NAMES``). A handful of these cross-game matches
+    (and the Metroid Prime Missile Expansion reskin,
+    ``_CROSS_GAME_MODEL_OVERRIDES``) are experimental: they resolve to a
+    model this world has never independently verified is safe to place
+    outside its own default spot, the same category of open-prime-rando
+    defect that made the "Varia Suit" model (never matched, on any game)
+    crash the game elsewhere. Anything without a curated match (or from a
+    game not in that list) still falls back to the generic model."""
 
     display_name = "Display Non-Local Items"
     option_none = 0
@@ -431,6 +443,111 @@ class PowerBombExpansionsUnlockPowerBombs(Toggle):
     display_name = "Power Bomb Expansions Unlock Power Bombs"
 
 
+class SplitBeamAmmo(DefaultOnToggle):
+    """If enabled (the default, matching vanilla and Randovania's own
+    default), Dark Ammo and Light Ammo are collected as two separate
+    expansion types: 10 Dark Ammo Expansions and 10 Light Ammo Expansions,
+    each granting 20 of their own ammo type.
+
+    If disabled, both ammo types are instead collected together from a
+    single unified pickup type -- Randovania's "Beam Ammo Expansion" (its
+    GUI calls this option "Split Beam Ammo Expansions", inverted): 20 Beam
+    Ammo Expansions, each granting 10 Dark Ammo and 10 Light Ammo. The
+    total ammo economy is identical either way (200 Dark + 200 Light
+    across 20 pickups); only how it's split across pickups changes. Open-
+    prime-rando already ships the combined pickup model this needs
+    (`BeamAmmoExpansion`)."""
+
+    display_name = "Split Beam Ammo Expansions"
+
+
+class BeamAmmoCosts(Choice):
+    """How much Dark Ammo / Light Ammo each shot of the Dark Beam, Light
+    Beam, and Annihilator Beam costs (open-prime-rando's per-beam
+    ``BeamConfiguration``). Vanilla costs 1 ammo per uncharged shot, 5 per
+    charged shot, and 30 per charge combo (plus 5 missiles) -- identical
+    across all three beams.
+
+    Vanilla: unchanged. Cheap: uncharged/charged/combo-ammo costs halved
+    (combo missile cost unchanged). Expensive: doubled. Free: uncharged,
+    charged, and combo-ammo costs are all 0 (the combo missile cost still
+    applies -- open-prime-rando requires it to be at least 1).
+
+    Doesn't affect logic: ammo *capacity* requirements (how many
+    expansions are needed to progress) are unchanged by this option, only
+    how fast that ammo is spent in combat."""
+
+    display_name = "Beam Ammo Costs"
+    option_vanilla = 0
+    option_cheap = 1
+    option_expensive = 2
+    option_free = 3
+    default = 0
+
+
+class AnnihilatorAmmoSource(Choice):
+    """Which ammo pool(s) the Annihilator Beam draws from per shot
+    (open-prime-rando's per-beam ``BeamConfiguration.ammo_a``/``ammo_b``
+    resource remapping).
+
+    Both (vanilla, default): costs Dark Ammo and Light Ammo simultaneously,
+    same as every other Prime 2 randomizer/vanilla. Dark Only / Light
+    Only: the Annihilator Beam instead costs only that one ammo type,
+    effectively free with respect to the other.
+
+    Doesn't affect logic: the Annihilator Beam item itself is still a
+    simple boolean requirement in the logic database (it doesn't model
+    per-shot ammo consumption), so this is purely a combat-feel/difficulty
+    tweak."""
+
+    display_name = "Annihilator Beam Ammo Source"
+    option_both = 0
+    option_dark_only = 1
+    option_light_only = 2
+    default = 0
+
+
+class DoubleDamageMultiplier(Range):
+    """Damage multiplier (in percent) granted by the Double Damage item
+    (open-prime-rando's "Massive Damage" custom item -- see
+    ``custom_items.massive_damage_config.damage_increase_multiplier``).
+
+    Default 200 (2.0x, i.e. actual double damage). Note open-prime-rando's
+    own internal default for this field is 1.0 (100%, a no-op) -- this
+    world always sets it explicitly so the item does what its name says
+    unless deliberately changed.
+
+    Double Damage isn't in the default item pool (`default_pool_count=0`
+    in ``items.py``) so this only matters if a copy reaches you some other
+    way (e.g. `start_inventory`)."""
+
+    display_name = "Double Damage Multiplier"
+    range_start = 100
+    range_end = 500
+    default = 200
+
+
+class DefenseUpDamageReduction(Range):
+    """Percentage of incoming damage permanently negated by open-prime-
+    rando's "Defense Up" custom item (``custom_items.defense_up_config.
+    damage_reduction_multiplier``), on top of (and independent of) the
+    Dark Aether/Dark Suit damage math `dark_aether_damage`/
+    `dark_suit_damage` already model.
+
+    Default 0 (vanilla -- no effect). Defense Up reuses the Varia Suit
+    inventory slot as its internal counter, and this world always keeps
+    Varia Suit's capacity locked at exactly 1 (see
+    ``client/receive_items.py``), so this is a single flat value applied
+    from the start of the game -- not a stacking pickup. Not modeled in
+    logic (a non-zero value can only make survival easier than logic
+    assumes, never harder)."""
+
+    display_name = "Defense Up Damage Reduction"
+    range_start = 0
+    range_end = 90
+    default = 0
+
+
 @dataclass
 class MetroidPrime2Options(PerGameCommonOptions):
     start_inventory_from_pool: StartInventoryPool
@@ -440,6 +557,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     progressive_grapple: ProgressiveGrapple
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
     power_bomb_expansions_unlock_power_bombs: PowerBombExpansionsUnlockPowerBombs
+    split_beam_ammo: SplitBeamAmmo
 
     trick_level: TrickLevel
     trick_airunderwater: TrickAirUnderwater
@@ -474,6 +592,11 @@ class MetroidPrime2Options(PerGameCommonOptions):
     dark_suit_damage: DarkSuitDamage
     dangerous_energy_tanks: DangerousEnergyTanks
 
+    beam_ammo_costs: BeamAmmoCosts
+    annihilator_ammo_source: AnnihilatorAmmoSource
+    double_damage_multiplier: DoubleDamageMultiplier
+    defense_up_damage_reduction: DefenseUpDamageReduction
+
     door_lock_rando: DoorLockRando
     normal_save_station_doors: NormalSaveStationDoors
     elevator_rando: ElevatorRando
@@ -507,6 +630,7 @@ OPTION_GROUPS: list[OptionGroup] = [
             ProgressiveGrapple,
             MissileExpansionsUnlockLauncher,
             PowerBombExpansionsUnlockPowerBombs,
+            SplitBeamAmmo,
         ],
     ),
     OptionGroup(
@@ -518,6 +642,15 @@ OPTION_GROUPS: list[OptionGroup] = [
             DarkAetherDamage,
             DarkSuitDamage,
             DangerousEnergyTanks,
+        ],
+    ),
+    OptionGroup(
+        "Combat",
+        [
+            BeamAmmoCosts,
+            AnnihilatorAmmoSource,
+            DoubleDamageMultiplier,
+            DefenseUpDamageReduction,
         ],
     ),
     OptionGroup(

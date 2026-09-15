@@ -147,3 +147,23 @@ class TestProgressiveGrappleOff(MP2TestBase):
         self.assertEqual(0, counts["Progressive Grapple"])
         self.assertEqual(1, counts["Grapple Beam"])
         self.assertEqual(1, counts["Screw Attack"])
+
+
+class TestSplitBeamAmmoOn(MP2TestBase):
+    options = {"split_beam_ammo": True}
+
+    def test_separate_dark_and_light_ammo_expansions(self) -> None:
+        counts = Counter(_own_pool_names(self))
+        self.assertEqual(10, counts["Dark Ammo Expansion"])
+        self.assertEqual(10, counts["Light Ammo Expansion"])
+        self.assertEqual(0, counts["Beam Ammo Expansion"])
+
+
+class TestSplitBeamAmmoOff(MP2TestBase):
+    options = {"split_beam_ammo": False}
+
+    def test_unified_beam_ammo_expansion_replaces_split_pair(self) -> None:
+        counts = Counter(_own_pool_names(self))
+        self.assertEqual(0, counts["Dark Ammo Expansion"])
+        self.assertEqual(0, counts["Light Ammo Expansion"])
+        self.assertEqual(20, counts["Beam Ammo Expansion"])

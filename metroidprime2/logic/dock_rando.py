@@ -863,6 +863,22 @@ def build_elevator_assignment(
 # only its *target* is reassigned. Scan Portal nodes keep requiring only
 # Scan Visor; Light/Dark Portal nodes keep requiring their own beam,
 # wherever the shuffle now points them.
+#
+# Inter-region (cross-pair) portal shuffling -- e.g. a Temple Grounds
+# portal targeting a Torvus one -- was investigated and is NOT possible
+# with open-prime-rando's patcher, not just unimplemented here.
+# ``PortalChange`` (``echoes/portal.py``) has no ``target_mlvl_id``
+# sibling field, only ``target_mrea_id``; its docstring states the target
+# "[m]ust belong to the same world", and ``apply_portal_change`` enforces
+# this structurally by resolving the target via
+# ``area.parent_mlvl.get_area(change.target_mrea_id)`` -- the *source*
+# area's own MLVL, with no way to name a different one. Each light/dark
+# region pair here corresponds to exactly one MLVL (dark regions share
+# their light counterpart's MLVL -- ``extra.associated_region``, see the
+# module docstring in ``logic/regions.py``), so this is precisely the
+# same four-way partition portals are physically restricted to; there is
+# no lower-level primitive to route around it. Free region-to-region
+# shuffling already exists via ``elevator_rando`` instead.
 
 
 def _portal_region_pairs(db: GameDatabase) -> list[tuple[str, list[Node], list[Node]]]:

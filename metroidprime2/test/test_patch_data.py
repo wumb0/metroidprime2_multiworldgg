@@ -15,13 +15,26 @@ import tempfile
 import unittest
 import zipfile
 
+from BaseClasses import Item, ItemClassification
 from Options import Visibility
 
 from .. import patch_data
 from ..constants import LANDING_SITE_MREA, OPR_MODEL_NAMES, TEMPLE_GROUNDS_MLVL
+from ..items import ITEM_TABLE
+from ..locations import LOCATION_TABLE
 from ..logic.db_reader import load_game_database
-from ..options import MetroidPrime2Options, RevealMapRemoved
+from ..options import DisplayNonLocalItems, MetroidPrime2Options, RevealMapRemoved
 from .bases import MP2TestBase
+
+
+def _other_game_item(game: str, name: str, player: int) -> Item:
+    """A minimal fake item belonging to a different player/game, for
+    exercising ``patch_data._pickup_appearance``'s cross-game model
+    matching without needing a real second World instance. ``Item.game``
+    is a plain class attribute (see ``BaseClasses.Item``), so a one-off
+    subclass is the only way to fake a specific value for it."""
+    cls = type("_OtherGameItem", (Item,), {"game": game})
+    return cls(name, ItemClassification.progression, 999, player)
 
 _OPR_AVAILABLE = importlib.util.find_spec("open_prime_rando") is not None
 
@@ -130,6 +143,175 @@ class TestMakeRandoConfiguration(MP2TestBase):
 
         for pickup in _all_pickups(self.config):
             PickupModification.model_validate(pickup)
+
+
+class TestCrossGameItemModels(MP2TestBase):
+    """M2 tests: ``_pickup_appearance``'s cross-game model matching
+    (``display_nonlocal_items=match_game`` extended beyond same-game
+    players -- see ``patch_data._CROSS_GAME_ITEM_NAMES``)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.multiworld.player_name[2] = "OtherPlayer"
+        # Any real pickup location belonging to this (player 1) world.
+        self.location_name = LOCATION_TABLE[0].name
+
+    def _appearance_for(self, item: Item) -> dict:
+        location = self.multiworld.get_location(self.location_name, self.world.player)
+        location.item = item
+        return patch_data._pickup_appearance(self.world, self.location_name)
+
+    def test_metroid_prime_energy_tank_matches(self) -> None:
+        appearance = self._appearance_for(_other_game_item("Metroid Prime", "Energy Tank", 2))
+        self.assertEqual(ITEM_TABLE["Energy Tank"].model, appearance["model_data"])
+
+    def test_zero_mission_missile_tank_matches_missile_expansion(self) -> None:
+        appearance = self._appearance_for(_other_game_item("Metroid: Zero Mission", "Missile Tank", 2))
+        self.assertEqual(ITEM_TABLE["Missile Expansion"].model, appearance["model_data"])
+
+    def test_fusion_power_bomb_tank_matches_power_bomb_expansion(self) -> None:
+        appearance = self._appearance_for(_other_game_item("Metroid Fusion", "Power Bomb Tank", 2))
+        self.assertEqual(ITEM_TABLE["Power Bomb Expansion"].model, appearance["model_data"])
+
+    def test_super_metroid_missile_matches_missile_expansion(self) -> None:
+        appearance = self._appearance_for(_other_game_item("Super Metroid", "Missile", 2))
+        self.assertEqual(ITEM_TABLE["Missile Expansion"].model, appearance["model_data"])
+
+    def test_super_metroid_grappling_beam_matches_grapple_beam(self) -> None:
+        appearance = self._appearance_for(_other_game_item("Super Metroid", "Grappling Beam", 2))
+        self.assertEqual(ITEM_TABLE["Grapple Beam"].model, appearance["model_data"])
+
+    def test_gravity_suit_matches_gravity_boost_not_a_suit_model(self) -> None:
+        # "Gravity Suit" (Metroid Prime/Zero Mission/Fusion/Super Metroid)
+        # maps to our "Gravity Boost" -- a plain ability pickup, not a
+        # suit-swap model like Varia/Dark/Light Suit.
+        for game in ("Metroid Prime", "Metroid: Zero Mission", "Metroid Fusion", "Super Metroid"):
+            with self.subTest(game=game):
+                appearance = self._appearance_for(_other_game_item(game, "Gravity Suit", 2))
+                self.assertEqual(ITEM_TABLE["Gravity Boost"].model, appearance["model_data"])
+
+    def test_metroid_prime_missile_expansion_uses_prime1_reskin_override(self) -> None:
+        # Experimental model override (patch_data._CROSS_GAME_MODEL_OVERRIDES)
+        # -- Metroid Prime's own Missile Expansion gets the Prime-1-styled
+        # model instead of our plain "MissileExpansion".
+        appearance = self._appearance_for(_other_game_item("Metroid Prime", "Missile Expansion", 2))
+        self.assertEqual("MissileExpansionPrime1", appearance["model_data"])
+
+    def test_every_verified_and_experimental_entry_resolves_correctly(self) -> None:
+        # Table-driven sweep: every (game, their name) -> our name mapping
+        # actually round-trips through _pickup_appearance to the expected
+        # model, including entries with a _CROSS_GAME_MODEL_OVERRIDES hit.
+        for (game, their_name), our_name in patch_data._CROSS_GAME_ITEM_NAMES.items():
+            with self.subTest(game=game, their_name=their_name):
+                appearance = self._appearance_for(_other_game_item(game, their_name, 2))
+                expected = patch_data._CROSS_GAME_MODEL_OVERRIDES.get((game, their_name), ITEM_TABLE[our_name].model)
+                self.assertEqual(expected, appearance["model_data"])
+
+    def test_unmatched_cross_game_item_falls_back(self) -> None:
+        # Metroid Prime's "Ice Beam" has no Echoes equivalent.
+        appearance = self._appearance_for(_other_game_item("Metroid Prime", "Ice Beam", 2))
+        self.assertEqual(patch_data._FALLBACK_MODEL, appearance["model_data"])
+
+    def test_unknown_game_falls_back(self) -> None:
+        appearance = self._appearance_for(_other_game_item("Some Other Game", "Energy Tank", 2))
+        self.assertEqual(patch_data._FALLBACK_MODEL, appearance["model_data"])
+
+    def test_display_nonlocal_items_none_disables_cross_game_matching_too(self) -> None:
+        self.world.options.display_nonlocal_items.value = DisplayNonLocalItems.option_none
+        appearance = self._appearance_for(_other_game_item("Metroid Prime", "Energy Tank", 2))
+        self.assertEqual(patch_data._FALLBACK_MODEL, appearance["model_data"])
+
+    def test_varia_suit_never_matched_despite_identical_name_everywhere(self) -> None:
+        # All four games happen to name this identically; our own
+        # "VariaSuit" model crashes if placed anywhere but its single
+        # vanilla location (see items.py), so this must never match.
+        for game in ("Metroid Prime", "Metroid: Zero Mission", "Metroid Fusion"):
+            with self.subTest(game=game):
+                appearance = self._appearance_for(_other_game_item(game, "Varia Suit", 2))
+                self.assertEqual(patch_data._FALLBACK_MODEL, appearance["model_data"])
+
+
+class TestBeamConfigurationDefaults(MP2TestBase):
+    def test_vanilla_costs_and_double_damage_actually_doubles(self) -> None:
+        config = patch_data.make_rando_configuration(self.world)
+        beams = config["beam_configuration"]
+        for beam_name in ("dark", "light", "annihilator"):
+            beam = beams[beam_name]
+            self.assertEqual(1, beam["uncharged_cost"])
+            self.assertEqual(5, beam["charged_cost"])
+            self.assertEqual(5, beam["combo_missile_cost"])
+            self.assertEqual(30, beam["combo_ammo_cost"])
+        self.assertEqual(45, beams["dark"]["ammo_a"])
+        self.assertIsNone(beams["dark"]["ammo_b"])
+        self.assertEqual(46, beams["light"]["ammo_a"])
+        self.assertIsNone(beams["light"]["ammo_b"])
+        self.assertEqual(45, beams["annihilator"]["ammo_a"])
+        self.assertEqual(46, beams["annihilator"]["ammo_b"])
+
+        # Default (200%) must actually double, unlike open-prime-rando's
+        # own internal default of 1.0/100% (a no-op) for this field.
+        custom_items = config["custom_items"]
+        self.assertEqual(2.0, custom_items["massive_damage_config"]["damage_increase_multiplier"])
+        self.assertEqual(1, custom_items["massive_damage_config"]["max_count"])
+        self.assertEqual(0.0, custom_items["defense_up_config"]["damage_reduction_multiplier"])
+        self.assertEqual(1, custom_items["defense_up_config"]["max_count"])
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_validates_against_installed_rando_configuration(self) -> None:
+        from open_prime_rando.echoes.rando_configuration import RandoConfiguration
+
+        config = patch_data.make_rando_configuration(self.world)
+        RandoConfiguration.model_validate(config, extra="forbid")
+
+
+class TestBeamConfigurationNonDefault(MP2TestBase):
+    options = {
+        "beam_ammo_costs": "free",
+        "annihilator_ammo_source": "dark_only",
+        "double_damage_multiplier": 300,
+        "defense_up_damage_reduction": 25,
+    }
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_free_beam_ammo_costs(self) -> None:
+        beams = self.config["beam_configuration"]
+        for beam_name in ("dark", "light", "annihilator"):
+            beam = beams[beam_name]
+            self.assertEqual(0, beam["uncharged_cost"])
+            self.assertEqual(0, beam["charged_cost"])
+            self.assertEqual(0, beam["combo_ammo_cost"])
+            # Never 0 -- open-prime-rando requires combo_missile_cost >= 1.
+            self.assertEqual(5, beam["combo_missile_cost"])
+
+    def test_annihilator_dark_only_ammo_source(self) -> None:
+        annihilator = self.config["beam_configuration"]["annihilator"]
+        self.assertEqual(45, annihilator["ammo_a"])
+        self.assertIsNone(annihilator["ammo_b"])
+        # Dark/Light Beam's own ammo source is unaffected by this option.
+        self.assertEqual(45, self.config["beam_configuration"]["dark"]["ammo_a"])
+        self.assertEqual(46, self.config["beam_configuration"]["light"]["ammo_a"])
+
+    def test_custom_item_multipliers(self) -> None:
+        custom_items = self.config["custom_items"]
+        self.assertEqual(3.0, custom_items["massive_damage_config"]["damage_increase_multiplier"])
+        self.assertEqual(0.25, custom_items["defense_up_config"]["damage_reduction_multiplier"])
+        # max_count is never exposed as an option -- both stay locked at 1
+        # regardless (see _custom_items's docstring).
+        self.assertEqual(1, custom_items["massive_damage_config"]["max_count"])
+        self.assertEqual(1, custom_items["defense_up_config"]["max_count"])
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_validates_against_installed_rando_configuration(self) -> None:
+        from open_prime_rando.echoes.rando_configuration import RandoConfiguration
+
+        RandoConfiguration.model_validate(self.config, extra="forbid")
 
 
 class TestMakeRandoConfigurationWithEntranceRando(MP2TestBase):
