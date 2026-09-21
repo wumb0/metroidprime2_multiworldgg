@@ -217,16 +217,17 @@ def plan_grants(
 
     Capacities only ever grow: a negative delta means the game's current
     capacity is somehow ahead of what we think it should be (should not
-    happen in normal play) and is logged rather than acted on. The two
-    realistic causes are a manual ``/grant_item`` from before the
-    manual-grant fix (which used to write raw gains straight to game memory,
-    permanently outrunning what this function would ever compute) or a save
-    file that is otherwise ahead of ``ctx.items_received`` (e.g. loaded on a
-    different/newer session than the one that granted it). The warning is
-    logged only once per distinct (item_id, current_capacity,
-    desired_capacity) triple -- this function is called every ~0.5s tick,
-    and without that the same diagnosis would repeat forever for a
-    situation that, once true, normally stays true.
+    happen in normal play) and is logged rather than acted on. The
+    realistic cause is a save file that is otherwise ahead of
+    ``ctx.items_received`` (e.g. loaded on a different/newer session than
+    the one that granted it) -- or, for a save from before the client's
+    now-removed ``/grant_item``/``/getitem`` command was retired (PLAN.md
+    section N/O), a manual grant that used to write raw gains straight to
+    game memory, permanently outrunning what this function would ever
+    compute. The warning is logged only once per distinct (item_id,
+    current_capacity, desired_capacity) triple -- this function is called
+    every ~0.5s tick, and without that the same diagnosis would repeat
+    forever for a situation that, once true, normally stays true.
     """
     grants: list[tuple[int, int]] = []
     for item_id in sorted(desired):
@@ -242,7 +243,7 @@ def plan_grants(
                 logger.warning(
                     f"Item {item_id}: current capacity {current_capacity} is already above the "
                     f"desired {desired_capacity}; capacities only grow, not touching it. Likely "
-                    "cause: a manual /grant_item from before the manual-grant fix, or a save file "
-                    "ahead of the current received-items list."
+                    "cause: a save file ahead of the current received-items list, or (for an old "
+                    "save) a manual grant from before the client's /grant_item command was removed."
                 )
     return grants
