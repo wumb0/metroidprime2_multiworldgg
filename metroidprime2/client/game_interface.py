@@ -296,6 +296,15 @@ class EchoesInterface:
             return None
         return self._read_u32(game_state + 4)
 
+    def current_area_id(self) -> int | None:
+        """TAreaId of the area the player is currently in (u32 at
+        ``cstate_manager_global + AREA_ID_OFFSET``), or None if Dolphin isn't
+        connected. This is an *index* into the current MLVL's area list, not
+        an MREA asset id -- see ``constants.GAME_END_AREA_INDICES``."""
+        if self.version is None:
+            return None
+        return self._read_u32(self.version.cstate_manager_global + versions.AREA_ID_OFFSET)
+
     def is_in_game(self) -> bool:
         """*(cstate + CPLAYER_OFFSET) != 0 and its vtable == cplayer_vtable,
         and the current MLVL is a known *world* (not the menu/frontend)."""

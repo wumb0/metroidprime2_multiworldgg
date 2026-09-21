@@ -233,6 +233,21 @@ class TestInGameState(unittest.TestCase):
 
         self.assertFalse(interface.is_in_game())
 
+    def test_current_area_id_reads_cstate_offset(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.AREA_ID_OFFSET, 53)
+        self.assertEqual(53, interface.current_area_id())
+
+    def test_current_area_id_none_when_version_unset(self) -> None:
+        interface, _fake = _make_interface()
+        self.assertIsNone(interface.current_area_id())
+
+    def test_current_area_id_none_when_unreadable(self) -> None:
+        interface, _fake = _make_interface()
+        interface.version = versions.NTSC
+        self.assertIsNone(interface.current_area_id())
+
     def test_has_pending_op(self) -> None:
         interface, fake = _make_interface()
         interface.version = versions.NTSC

@@ -95,6 +95,14 @@ PLAYER_STATE_OFFSET = 0x150C
 """Offset from cstate_manager_global of the (possibly null) pointer to the
 current CPlayerState, whose inventory lives at +INVENTORY_OFFSET."""
 
+AREA_ID_OFFSET = 0x16A0
+"""Offset from cstate_manager_global of the current area's TAreaId
+(CStateManager::m_nextAreaId), an *index* into the current MLVL's area list
+rather than the MREA asset id. Set by CStateManager::SetCurrentAreaId, whose
+shipped NTSC DOL body (0x80041728) moves the previous value to +0x16A4 and
+stores the new id at +0x16A0. Used for goal detection
+(constants.GAME_END_AREA_INDICES)."""
+
 INVENTORY_OFFSET = 0x5C
 """Offset from a CPlayerState pointer of its 109-entry inventory array
 (0x58 rstl::vector header + 0x4 vector data pointer offset, per

@@ -719,32 +719,8 @@ class TestPatcherRunnerDryImport(unittest.TestCase):
         from ..client import patcher_runner
 
         self.assertTrue(hasattr(patcher_runner, "patch_iso_with_ap"))
-        self.assertTrue(hasattr(patcher_runner, "goal_trigger_installed"))
         self.assertTrue(hasattr(patcher_runner, "detect_iso_version"))
         del client
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_goal_trigger_installed_wraps_and_restores_register_world_changes(self) -> None:
-        from open_prime_rando.echoes import patcher as opr_patcher
-
-        from ..client.patcher_runner import goal_trigger_installed
-
-        original = opr_patcher.register_world_changes
-        with goal_trigger_installed():
-            self.assertIsNot(opr_patcher.register_world_changes, original)
-        self.assertIs(opr_patcher.register_world_changes, original)
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_goal_trigger_installed_restores_even_on_exception(self) -> None:
-        from open_prime_rando.echoes import patcher as opr_patcher
-
-        from ..client.patcher_runner import goal_trigger_installed
-
-        original = opr_patcher.register_world_changes
-        with self.assertRaises(RuntimeError):
-            with goal_trigger_installed():
-                raise RuntimeError("boom")
-        self.assertIs(opr_patcher.register_world_changes, original)
 
 
 class TestItemMapIconsAlwaysVisible(unittest.TestCase):

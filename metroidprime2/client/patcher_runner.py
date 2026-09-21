@@ -1,17 +1,15 @@
 """Client-side ISO patching for Metroid Prime 2: Echoes.
 
 Reproduces open-prime-rando's ``echoes.patcher.patch_iso`` step by step
-(rather than calling it directly) for two reasons (PLAN.md section I):
-
-1. Two DOL writes must land *before* ``_apply_patches`` runs, so that its
-   trailing ``editor.save_modifications(output, ...)`` picks them up along
-   with every other DOL patch it makes: persisting the multiworld "magic"
-   counter item (item 74) across saves, and giving it a large enough
-   ``powerup_max`` that its amount can climb past 119 without wrapping.
-2. A goal-detection sentinel needs to be injected into the Credits area,
-   which requires wrapping ``open_prime_rando.echoes.patcher.
-   register_world_changes`` for the duration of the patch (see
-   ``goal_trigger_installed`` below).
+(rather than calling it directly) because two DOL writes per counter must
+land *before* ``_apply_patches`` runs, so that its trailing
+``editor.save_modifications(output, ...)`` picks them up along with every
+other DOL patch it makes: persisting each of the four pickup bitmask
+counters (``constants.PICKUP_COUNTER_ITEMS``, PLAN.md section P) across
+saves, and giving each a large enough ``powerup_max`` that its amount can
+never wrap. (Goal detection does not patch the ISO at all; it is a
+client-side memory read of the current area -- see
+``constants.GAME_END_AREA_INDICES``.)
 
 Every ``open_prime_rando``/``retro_data_structures`` import in this module
 is deliberately deferred into function bodies: importing this module (e.g.
@@ -37,8 +35,6 @@ from ..utils import get_output_path
 if TYPE_CHECKING:
     from open_prime_rando.area_patcher import AreaPatcher
     from open_prime_rando.echoes.rando_configuration import RandoConfiguration
-    from open_prime_rando.patcher_editor import PatcherEditor
-    from retro_data_structures.formats.mrea import Area
 
 ProgressCallback = Callable[[str, float], None]
 
@@ -93,106 +89,14 @@ def detect_iso_version(iso_path: str | os.PathLike[str]) -> str:
     raise ValueError(f"Not a supported Metroid Prime 2: Echoes ISO (game id {game_id!r}).")
 
 
-# --------------------------------------------------------------------------
-# Goal-trigger sentinel (PLAN.md section J, mechanism 1)
-# --------------------------------------------------------------------------
-
-# amount - 1 >= 119 is the client's goal condition (PLAN.md section J);
-# 120 is comfortably clear of the 119 real pickup indices (max amount 119)
-# without depending on the exact pickup count.
-_GOAL_SENTINEL_AMOUNT = 120
-
-
-def _add_goal_trigger(editor: PatcherEditor, mlvl: Any, area: Area) -> None:
-    """Raw ``AreaPatcher`` function (PLAN.md section J): adds a one-shot
-    Timer wired to a ``SetInventoryAmount`` SpecialFunction that sets item
-    74 (``PersistentCounter8``, the multiworld magic counter) to
-    ``_GOAL_SENTINEL_AMOUNT`` a second after the Credits area loads. The
-    client treats any magic-item amount past the real pickup range as the
-    goal signal, so this needs no memory offsets (mechanism 1 of two in
-    PLAN.md section J -- mechanism 2, a direct current-area memory read, is
-    an optional PLAN.md M4 addition).
-
-    Modeled directly on
-    ``open_prime_rando.echoes.pickups.pickup_editing._add_modify_inventory_sf``
-    (the same ``SpecialFunction(function=Function.SetInventoryAmount, ...)``
-    shape used to grant pickup resources) and the looping-Timer pattern in
-    ``pickup_editing.patch_complex_pickup``.
-    """
-    from retro_data_structures.enums.echoes import Message, PlayerItemEnum, State
-    from retro_data_structures.properties.echoes.archetypes.EditorProperties import EditorProperties
-    from retro_data_structures.properties.echoes.objects import SpecialFunction, Timer
-    from retro_data_structures.properties.echoes.objects.SpecialFunction import Function
-
-    layer = area.add_layer("AP Goal Trigger")
-
-    timer = layer.add_instance_with(
-        Timer(
-            editor_properties=EditorProperties(name="AP Goal Timer"),
-            time=1.0,
-            auto_reset=False,
-            auto_start=True,
-        )
-    )
-    special_function = layer.add_instance_with(
-        SpecialFunction(
-            editor_properties=EditorProperties(name="AP Goal Trigger"),
-            function=Function.SetInventoryAmount,
-            int_parm2=_GOAL_SENTINEL_AMOUNT,
-            inventory_item_parm=PlayerItemEnum.PersistentCounter8,
-            sound1=-1,
-            sound2=-1,
-            sound3=-1,
-        )
-    )
-    timer.add_connection(State.Zero, Message.Action, special_function)
-
-
-@contextlib.contextmanager
-def goal_trigger_installed():
-    """Context manager: for its duration, every call to
-    ``open_prime_rando.echoes.patcher.register_world_changes`` also
-    registers ``_add_goal_trigger`` on the Credits area, then restores the
-    original function on exit (including on exception) -- so this can
-    safely wrap a single ``_apply_patches`` call without leaving the
-    module patched afterwards.
-
-    ``register_world_changes`` is called by name (an unqualified global
-    lookup) from inside ``open_prime_rando.echoes.patcher._apply_patches``,
-    which is resolved against the module's namespace at call time -- so
-    replacing the attribute on the module object here is picked up by that
-    call without needing to touch ``_apply_patches`` itself.
-    """
-    from open_prime_rando.echoes import patcher as opr_patcher
-
-    original_register_world_changes = opr_patcher.register_world_changes
-
-    def _register_world_changes_with_goal_trigger(
-        area_patcher: AreaPatcher, world_changes: list[Any]
-    ) -> None:
-        original_register_world_changes(area_patcher, world_changes)
-        area_patcher.add_raw_function(
-            constants.TEMPLE_GROUNDS_MLVL,
-            constants.CREDITS_MREA,
-            _add_goal_trigger,
-        )
-
-    opr_patcher.register_world_changes = _register_world_changes_with_goal_trigger
-    try:
-        yield
-    finally:
-        opr_patcher.register_world_changes = original_register_world_changes
-
-
 @contextlib.contextmanager
 def warp_to_start_installed(dol_version: Any, starting_area: Any):
     """Context manager installing both halves of warp-to-start (see
     ``client/warp_patch.py``) for the duration of one ``_apply_patches``
     call.
 
-    Wraps ``register_world_changes`` the same way (and for the same reason)
-    as ``goal_trigger_installed``; the two nest safely, each restoring the
-    function it replaced. That hook is also where the DOL half goes: it runs
+    Wraps ``register_world_changes`` the same way the removed goal-trigger
+    hook did; the hook is where the DOL half goes: it runs
     inside ``_apply_patches``, so the code-cave request it makes is still
     pending when ``_apply_patches`` calls
     ``editor.code_cave.fulfill_requests()``.
@@ -253,7 +157,7 @@ def item_map_icons_always_visible():
     ``_add_map_icon`` is called from exactly one place,
     ``patch_simple_pickup`` (an unqualified global lookup resolved against
     the module's namespace at call time, the same mechanism
-    ``goal_trigger_installed`` above relies on for
+    ``warp_to_start_installed`` above relies on for
     ``register_world_changes``); ``patch_complex_pickup`` delegates to
     ``patch_simple_pickup``, so replacing the module attribute here covers
     every pickup regardless of stage count. The wrapper calls the original
@@ -363,7 +267,7 @@ def patch_iso_with_ap(
 
     Synchronous and potentially slow (this is exactly
     ``open_prime_rando.echoes.patcher.patch_iso``'s body, inlined so the
-    two DOL writes and ``goal_trigger_installed`` can be spliced in before
+    two DOL writes can be spliced in before
     ``_apply_patches``); callers on an asyncio event loop (``client.py``,
     PLAN.md milestone M3) should run it via ``asyncio.to_thread``.
 
@@ -426,7 +330,6 @@ def patch_iso_with_ap(
 
     try:
         with contextlib.ExitStack() as patches:
-            patches.enter_context(goal_trigger_installed())
             if warp_to_start:
                 patches.enter_context(
                     warp_to_start_installed(dol_version, configuration.starting_area)

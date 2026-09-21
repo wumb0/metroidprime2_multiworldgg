@@ -281,21 +281,27 @@ class TestPlanGrants(unittest.TestCase):
 
 
 class TestManualGrantAppendedLikeRealItem(unittest.TestCase):
-    """Regression test for the ``/grant_item`` bug (PLAN.md's manual-grant
-    fix): the command used to look the item up in ITEM_TABLE and push its
-    raw ``gains`` straight to game memory, bypassing this module entirely.
-    For a cross-computed item that permanently stranded the player: a
-    Missile Launcher granted this way after 8 Missile Expansions had already
-    been received applied raw gains of 5 missile capacity, but
-    ``compute_desired_capacities`` still saw "8 expansions, no launcher" in
-    ``ctx.items_received`` on every following tick (desired[44] == 0), and
-    ``plan_grants`` never lowers a capacity it thinks is already too high --
-    so the player was capped at 5 missiles instead of 45, forever.
+    """Regression test for the historical ``/grant_item`` bug (the command
+    itself was later removed entirely in favor of the server's own
+    host.yaml-gated ``!getitem`` cheat): a manually granted item used to be
+    looked up in ITEM_TABLE and have its raw ``gains`` pushed straight to
+    game memory, bypassing this module entirely. For a cross-computed item
+    that permanently stranded the player: a Missile Launcher granted this
+    way after 8 Missile Expansions had already been received applied raw
+    gains of 5 missile capacity, but ``compute_desired_capacities`` still
+    saw "8 expansions, no launcher" in ``ctx.items_received`` on every
+    following tick (desired[44] == 0), and ``plan_grants`` never lowers a
+    capacity it thinks is already too high -- so the player was capped at 5
+    missiles instead of 45, forever.
 
-    ``_handle_grant_items`` now appends manually granted item names to the
-    received list (attributed to ``ctx.slot``) instead, exactly like a real
-    AP item -- these tests build the ``received`` list the same way and
-    assert the *fixed* totals."""
+    The fix was to append any extra grant to the received list (attributed
+    to ``ctx.slot``) instead, exactly like a real AP item, so its capacity
+    is computed against the *entire* history rather than in isolation --
+    these tests build the ``received`` list the same way (an item appended
+    after others, regardless of source) and assert the *fixed* totals.
+    Kept as coverage for ``compute_desired_capacities`` itself even though
+    the command that originally motivated it is gone: the same "late
+    arrival in received order" shape still applies to any real AP item."""
 
     def test_missile_launcher_manually_granted_after_expansions(self) -> None:
         received = [*_received(*(["Missile Expansion"] * 8)), ("Missile Launcher", 1)]

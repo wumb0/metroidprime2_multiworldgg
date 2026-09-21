@@ -92,6 +92,27 @@ COUNTER_MAX_CAPACITY = 0x7FFFFFFF
 # encoding as a bitmask, corrupting every location check.
 PICKUP_ENCODING_VERSION = "bitmask-v1"
 
+# --- goal detection ----------------------------------------------------------
+# The goal rides on no counter at all: it is detected by reading the
+# *current area* out of game memory and checking for the ending, the same
+# shape as ``worlds/metroidprime``'s "current level == End_of_Game" check.
+# An earlier in-ISO Credits-area trigger writing a sentinel onto a
+# persistent counter never fired in practice and was removed, which is also
+# why nothing here can ever alias the pickup bitmask.
+#
+# Unlike Prime 1, Echoes has no separate end-of-game MLVL: the Credits area
+# is ``!!game_end_part3`` (randovania's Temple Grounds/Credits
+# ``extra.asset_id`` == CREDITS_MREA below) inside the Temple Grounds MLVL.
+# ``CStateManager::m_nextAreaId`` (read by
+# ``game_interface.EchoesInterface.current_area_id``) holds a TAreaId -- an
+# *index* into the active MLVL's area list, not an MREA asset id -- so the
+# ending areas are named here by that index. All five ``!!game_end_part*``
+# areas exist only after the final boss (Dark Samus 3 and 4) and the
+# Cinema_Dock from Sky Temple Gateway leads to part3, so any one of them
+# means the game was beaten; accepting all five keeps the check from
+# depending on catching one particular ending segment in a 0.5s poll window.
+GAME_END_AREA_INDICES = frozenset({47, 50, 53, 56, 58})
+
 # --- asset ids ---------------------------------------------------------------
 # Temple Grounds region MLVL and its Landing Site / Credits area MREAs.
 TEMPLE_GROUNDS_MLVL = 1006255871
