@@ -106,10 +106,18 @@ class SuitSettings(Group):
 
 
 class MetroidPrime2Settings(Group):
+    class Debug(Bool):
+        """Enable debug-only client commands (e.g. /test_deathlink,
+        /mp2_debug_inventory). Leave this off unless you're developing or
+        troubleshooting the client -- these commands can manipulate
+        in-game state (deaths) or exist solely to poke at internals not
+        meant for normal play."""
+
     rom_file: RomFile = RomFile(RomFile.copy_to)
     emulator_settings: EmulatorSettings = EmulatorSettings()
     hud_settings: HUDSettings = HUDSettings()
     suit_settings: SuitSettings = SuitSettings()
+    debug: Debug = False  # type: ignore[assignment]
 
     def __init__(self) -> None:
         should_save = any(attr not in self for attr in self)

@@ -115,7 +115,11 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
 
     def _cmd_mp2_debug_inventory(self, *_args: list[Any]) -> None:
         """Print the raw inventory (amount/capacity per item id) read from
-        game memory, skipping empty slots."""
+        game memory, skipping empty slots. Requires debug: true under
+        metroidprime2_options in host.yaml."""
+        if not self.ctx.debug_enabled:
+            logger.error("This command requires debug: true under metroidprime2_options in host.yaml.")
+            return
         inventory = self.ctx.game_interface.read_inventory()
         if inventory is None:
             logger.info("Not connected to a running game.")
@@ -142,7 +146,11 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         health, to verify the send path. 'incoming' simulates a DeathLink
         arriving from another player, which does kill you in-game, to
         verify the receive path. Requires DeathLink to be enabled (see
-        /deathlink) and a connection to the server."""
+        /deathlink), a connection to the server, and debug: true under
+        metroidprime2_options in host.yaml."""
+        if not self.ctx.debug_enabled:
+            logger.error("This command requires debug: true under metroidprime2_options in host.yaml.")
+            return
         if not self.ctx.death_link_enabled:
             logger.error("DeathLink is disabled; enable it with /deathlink first.")
             return
@@ -187,6 +195,7 @@ class MetroidPrime2Context(CommonContext):
     mp2_iso: str | None = None
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
+    debug_enabled: bool = False
 
     def __init__(
         self,
@@ -593,6 +602,7 @@ def main(*args: str) -> None:
         logger.info("main")
 
         ctx = MetroidPrime2Context(connect, password, apmp2_file, iso)
+        ctx.debug_enabled = bool(get_settings()["metroidprime2_options"]["debug"])
 
         if apmp2_file:
             options = get_options_from_apmp2(apmp2_file)
