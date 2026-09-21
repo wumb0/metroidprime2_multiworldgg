@@ -421,5 +421,66 @@ class TestGrantBatching(unittest.TestCase):
         self.assertEqual(b"\x01", fake.memory[pending_op_address])
 
 
+@unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+class TestConsumeCounters(unittest.TestCase):
+    """PLAN.md section P's constraint-1 escape hatch: a pickup bitmask
+    counter can hold up to 2**30 - 1 (BITS_PER_COUNTER), which doesn't fit
+    ``adjust_item_amount_patch``'s signed 16-bit ``li`` -- ``consume_counters``
+    routes every counter through ``_wide_decrement_patch`` instead. Exercised
+    against real DOL addresses (``versions.NTSC``), like ``TestGrantBatching``
+    above, specifically because a too-narrow instruction choice fails at
+    *assembly* time (``Instruction.compose``'s range asserts), not at some
+    higher-level check this module could fake around.
+    """
+
+    def _prepared_interface(self) -> tuple[EchoesInterface, FakeDolphinClient]:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        return interface, fake
+
+    def test_wide_decrement_patch_assembles_for_a_full_30_bit_counter_value(self) -> None:
+        from ppc_asm import assembler
+
+        from ..client.game_interface import _wide_decrement_patch
+
+        interface, _fake = self._prepared_interface()
+        full_value = (1 << 30) - 1  # constants.BITS_PER_COUNTER
+        instructions = _wide_decrement_patch(interface._powerup_functions_addresses(), 67, full_value)
+        # The point of the test: this must not raise (Instruction.compose's
+        # range asserts are exactly what li(r5, abs(delta)) would trip for
+        # a value this large).
+        assembled = bytes(assembler.assemble_instructions(versions.NTSC.cstate_manager_global, instructions))
+        self.assertGreater(len(assembled), 0)
+
+    def test_wide_decrement_patch_rejects_negative_amount(self) -> None:
+        from ..client.game_interface import _wide_decrement_patch
+
+        interface, _fake = self._prepared_interface()
+        with self.assertRaises(AssertionError):
+            _wide_decrement_patch(interface._powerup_functions_addresses(), 67, -1)
+
+    def test_consume_counters_handles_several_full_counters_in_one_body(self) -> None:
+        from .. import constants
+
+        interface, fake = self._prepared_interface()
+        full_value = (1 << constants.BITS_PER_COUNTER) - 1
+
+        leftovers = interface.consume_counters(
+            [(item_id, -full_value) for item_id in constants.PICKUP_COUNTER_ITEMS]
+        )
+
+        self.assertEqual([], leftovers)
+        pending_op_address = versions.NTSC.cstate_manager_global + versions.PENDING_OP_OFFSET
+        self.assertEqual(b"\x01", fake.memory.get(pending_op_address))
+
+    def test_consume_counters_leaves_no_leftovers_for_a_normal_tick(self) -> None:
+        from .. import constants
+
+        interface, _fake = self._prepared_interface()
+        deltas = [(item_id, -1) for item_id in constants.PICKUP_COUNTER_ITEMS]
+        leftovers = interface.consume_counters(deltas)
+        self.assertEqual([], leftovers)
+
+
 if __name__ == "__main__":
     unittest.main()

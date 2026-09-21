@@ -21,7 +21,7 @@ from settings import get_settings
 
 from .. import constants
 from ..items import ITEM_TABLE
-from ..locations import LOCATION_TABLE
+from ..pickup_encoding import decode
 from ..utils import get_apworld_version, get_output_path, setup_libs
 from .death_link import death_link_check
 from .dolphin_client import DolphinException
@@ -49,11 +49,6 @@ except ImportError:
 
 if TYPE_CHECKING:
     pass
-
-# PLAN.md section J: "amount - 1 >= 119" is the goal sentinel (the
-# in-ISO trigger sets the magic item's amount to 120 -- see
-# client/patcher_runner.py's _GOAL_SENTINEL_AMOUNT).
-_GOAL_INDEX_THRESHOLD = len(LOCATION_TABLE)
 
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
 
@@ -225,7 +220,6 @@ class MetroidPrime2Context(CommonContext):
     connection_state: ConnectionState = ConnectionState.DISCONNECTED
     slot_data: dict[str, Any] = {}  # noqa: RUF012 -- matches CommonContext.slot_data's own unannotated convention
     expected_uuid: str | None = None
-    magic_capacity_ensured: bool = False
     last_sent_mlvl: int | None = None
     last_error_message: str | None = None
     apmp2_file: str | None = None
@@ -282,7 +276,6 @@ class MetroidPrime2Context(CommonContext):
             self.slot_data = args["slot_data"]
             self.expected_uuid = self.slot_data.get("world_uuid")
             self.game_interface.expected_uuid = self.expected_uuid
-            self.magic_capacity_ensured = False
 
             if "death_link" in self.slot_data:
                 self.death_link_enabled = bool(self.slot_data["death_link"])
@@ -310,8 +303,6 @@ def update_connection_status(ctx: MetroidPrime2Context, status: ConnectionState)
         return
     logger.info(_STATUS_MESSAGES[status])
     ctx.connection_state = status
-    if status != ConnectionState.IN_GAME:
-        ctx.magic_capacity_ensured = False
 
 
 async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
@@ -374,22 +365,19 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
             delay = 0.1
             return
 
-        # 2. Inventory read + one-time magic item capacity top-up per connection.
+        # 2. Inventory read.
         inventory = ctx.game_interface.read_inventory()
         if inventory is None:
             return
 
-        magic_amount, magic_capacity = inventory[constants.MAGIC_ITEM]
-
-        if not ctx.magic_capacity_ensured:
-            ctx.game_interface.ensure_magic_capacity(magic_capacity)
-            ctx.magic_capacity_ensured = True
-            return
-
-        # 3./4. Magic item protocol: a collected pickup (amount > 0) takes
-        # priority over granting received items, exactly one body per tick.
-        if magic_amount > 0:
-            await _handle_magic_item_amount(ctx, magic_amount)
+        # 3./4. Pickup-counter protocol: any of the four pickup bitmask
+        # counters being nonzero takes priority over granting received
+        # items, exactly one body per tick.
+        pickup_counters_pending = any(
+            inventory[item_id][0] > 0 for item_id in constants.PICKUP_COUNTER_ITEMS
+        )
+        if pickup_counters_pending:
+            await _handle_pickup_counters(ctx, inventory)
         else:
             await _handle_grant_items(ctx, inventory)
 
@@ -412,20 +400,55 @@ async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
         await ctx.send_death(f"{ctx.player_names[ctx.slot]} ran out of energy.")
 
 
-async def _handle_magic_item_amount(ctx: MetroidPrime2Context, amount: int) -> None:
-    index = amount - 1
-    if 0 <= index < _GOAL_INDEX_THRESHOLD:
-        await ctx.send_msgs([{"cmd": "LocationChecks", "locations": [constants.LOCATION_ID_BASE + index]}])
-    elif index >= _GOAL_INDEX_THRESHOLD:
-        if not ctx.finished_game:
-            await ctx.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
-            ctx.finished_game = True
-    else:
+async def _handle_pickup_counters(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]]) -> None:
+    """Reads every persistent counter this world's pickups can set, and
+    reports what happened since the last successful consume (PLAN.md
+    section P, replacing the single-shared-counter
+    ``_handle_magic_item_amount`` approach entirely).
+
+    ``pickup_encoding.decode`` turns every nonzero pickup counter into the
+    0-based indices whose bit was set -- distinct powers of two sum
+    losslessly, so any number of pickups collected across any length of
+    disconnect decode back to exactly the indices that produced them, with
+    no search and no guessing. Every decoded index is reported in one
+    ``LocationChecks`` message before any counter is consumed, keeping this
+    function's previous send-before-consume ordering.
+
+    A decoded index that isn't in ``ctx.missing_locations`` is warned
+    about rather than silently accepted: it is the tell for this design's
+    one residual failure mode (collecting the same pickup twice across a
+    save reload while detached carries into a neighbouring bit -- PLAN.md
+    section P, "Residual failure modes"). ``stray`` bits (decoded past the
+    last real pickup index, or above a counter's declared bit range) are
+    warned about the same way without dropping the indices that DID decode
+    cleanly -- every counter with a nonzero amount is still consumed by
+    its exact read value regardless, so a stray bit is cleared rather than
+    left to corrupt a future decode.
+    """
+    decoded = decode(inventory)
+
+    if decoded.stray:
         logger.warning(
-            f"Magic item amount {amount} doesn't correspond to a pickup index or the goal "
-            "sentinel; consuming it without acting on it."
+            f"Pickup counter(s) decoded {len(decoded.stray)} stray bit(s) that don't correspond to "
+            f"any real pickup index: {decoded.stray}; consuming them along with the rest."
         )
-    ctx.game_interface.consume_magic_item(amount)
+
+    for index in decoded.indices:
+        location_id = constants.LOCATION_ID_BASE + index
+        if location_id not in ctx.missing_locations:
+            logger.warning(
+                f"Decoded pickup index {index} was already checked server-side; reporting it again "
+                "anyway (likely the same pickup collected twice across a save reload while "
+                "disconnected -- see PLAN.md section P's residual failure modes)."
+            )
+
+    if decoded.indices:
+        await ctx.send_msgs(
+            [{"cmd": "LocationChecks", "locations": [constants.LOCATION_ID_BASE + idx for idx in decoded.indices]}]
+        )
+
+    if decoded.deltas:
+        ctx.game_interface.consume_counters(decoded.deltas)
 
 
 async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tuple]) -> None:

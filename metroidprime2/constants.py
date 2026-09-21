@@ -24,11 +24,73 @@ NAMESPACE_UUID = uuid.uuid5(uuid.NAMESPACE_DNS, "metroidprime2.multiworldgg")
 ITEM_ID_BASE = 5033000
 LOCATION_ID_BASE = 5033200
 
-# The multiworld "magic" counter item (randovania short_name "Multiworld",
-# item_id 74 == PersistentCounter8). Every in-ISO pickup grants only this
-# item, with amount == pickup_index + 1; the client is the sole source of
-# truth for what a player actually owns.
-MAGIC_ITEM = 74
+# --- pickup identity encoding (PLAN.md section P) --------------------------
+# Every in-ISO pickup used to grant a single shared "magic" counter item
+# (PersistentCounter8, id 74) with amount == pickup_index + 1 -- an additive
+# scheme that loses pickup identity the moment two pickups are collected in
+# the same disconnect window, since the counter can only ever hold their
+# sum. This replaces that with one bit per pickup, spread across several
+# persistent counters: distinct powers of two sum losslessly (bit-set, not
+# lossy addition), so any number of pickups collected over any length of
+# disconnect decode back to exactly the indices that produced them.
+#
+# Reserved ids: `data/logic_database/header.json`'s
+# `resource_database.items[*].extra.item_id` is randovania's own allocation
+# table, and in the id range this layout draws from it reserves 71
+# (Temporary1, "Temporary Missile"), 72 (Temporary2, "Temporary Power
+# Bomb"), and 73 (MissileLauncher) -- `data/pickup_database.json` confirms
+# 71/72 are live, wired to Missile/Power Bomb Expansion's `"temporary"`
+# field and driven by OPR's conversion machinery, and `items.py`'s Missile
+# Launcher entry + `client/receive_items.py`'s `_MISSILE_LAUNCHER_FLAG`
+# confirm 73 is this world's own "missiles unlocked" flag. Routing pickup
+# bits into any of the three would corrupt real gameplay state, not just
+# multiworld bookkeeping. 74 (Multiworld) is randovania's own multiworld
+# allocation and is left alone as well -- this world used it as the single
+# shared magic counter, and an existing save may still carry a stale amount
+# on it. Only 67-70 (PersistentCounter1..4) are actually free.
+# `test_pickup_encoding.py`'s disjointness test derives this same reserved
+# set (header.json's item ids, unioned with every id appearing in
+# `ITEM_TABLE`'s gains) and asserts PICKUP_COUNTER_ITEMS never overlaps it
+# again, so this can't silently regress.
+#
+# `ppc_asm.assembler.ppc.li` (`addi rD, r0, SIMM16`) asserts
+# `-32768 <= literal < 32768`, and
+# `open_prime_rando.dol_patching.all_prime_dol_patches.adjust_item_amount_patch`
+# emits `li(r5, abs(delta))` -- a SIGNED 16-bit immediate -- for the amount
+# it consumes. With only 4 ids free, 4 counters of 15 usable bits each
+# (the naive reading of that constraint) address just 60 of the 119
+# pickups -- too few. This named, and declined, an escape hatch for
+# exactly this: a local `lis`/`ori` variant of the consume patch that
+# composes a full unsigned 32-bit amount instead of `li`'s signed 16-bit
+# one (both `addis`'s and `ori`'s literal fields are unsigned 16-bit per
+# `Instruction.compose`, so masking the high/low halves to `0xFFFF` can
+# never fail its range assert, regardless of the amount). That hatch is
+# taken here (`client/game_interface.py`'s `_wide_decrement_patch`), which
+# raises the real cap to `Pickup.amount`/`capacity_increase`'s signed
+# 32-bit backing field, comfortably enough for 30 usable bits per counter.
+# 119 pickups / 30 bits = 4 counters, exactly the ids available.
+PICKUP_COUNTER_ITEMS: tuple[int, ...] = (67, 68, 69, 70)  # PersistentCounter1..4
+
+# Usable bits per pickup counter -- see the constraint discussion above.
+BITS_PER_COUNTER = 30
+
+# u32-per-item `powerup_max` ceiling (written in client/patcher_runner.py).
+# The four pickup counters need to hold up to 2**30 - 1 (BITS_PER_COUNTER),
+# far below this. The value is 2**31 - 1 because that is what a retail NTSC
+# DOL *already* has in `powerup_max` for items 67-70 (measured): these
+# writes exist to guarantee the ceiling on any DOL version, and writing a
+# smaller number than vanilla's would only ever lower it for no benefit.
+COUNTER_MAX_CAPACITY = 0x7FFFFFFF
+
+# Written into options.json at generation time (__init__.py generate_output)
+# and checked by client/patcher_runner.py before patching an ISO: the
+# per-pickup resource mapping is baked into config.json at generation time
+# while the DOL writes happen client-side at patch time, so a client that
+# understands this bitmask encoding must refuse to patch a .apmp2 that
+# doesn't declare it (PLAN.md section P's compatibility gate) -- otherwise
+# it would silently misread a pickup generated under the old summed
+# encoding as a bitmask, corrupting every location check.
+PICKUP_ENCODING_VERSION = "bitmask-v1"
 
 # --- asset ids ---------------------------------------------------------------
 # Temple Grounds region MLVL and its Landing Site / Credits area MREAs.

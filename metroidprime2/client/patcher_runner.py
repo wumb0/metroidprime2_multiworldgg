@@ -296,6 +296,26 @@ def _read_apmp2_json(apmp2_file: str | os.PathLike[str], member: str) -> dict[st
             return json.loads(f.read().decode("utf-8"))
 
 
+def _check_pickup_encoding_compatibility(apmp2_options: dict[str, Any]) -> None:
+    """PLAN.md section P's compatibility gate: the per-pickup resource
+    mapping (which item/bit each pickup grants) is baked into config.json
+    at *generation* time, while the DOL writes that make this client
+    understand that mapping as a bitmask happen client-side at *patch*
+    time. A new (bitmask-aware) client fed an old ``.apmp2`` would
+    therefore patch an ISO whose pickups still use the old summed encoding
+    and then misread every pickup as a bitmask -- silent divergence that
+    costs location checks, so this is a hard error, not a warning.
+    """
+    pickup_encoding = apmp2_options.get("pickup_encoding")
+    if pickup_encoding != constants.PICKUP_ENCODING_VERSION:
+        raise ValueError(
+            "This .apmp2 file's pickup encoding "
+            f"({pickup_encoding!r}) doesn't match what this client understands "
+            f"({constants.PICKUP_ENCODING_VERSION!r}). Regenerate the seed with a matching "
+            "version of the metroidprime2 apworld before patching."
+        )
+
+
 def _load_configuration(
     apmp2_file: str | os.PathLike[str], settings: dict[str, Any]
 ) -> RandoConfiguration:
@@ -376,6 +396,7 @@ def patch_iso_with_ap(
     # .apmp2's options.json instead. Both .get defaults keep .apmp2 files
     # produced before the respective option existed working.
     apmp2_options = _read_apmp2_json(apmp2_file, "options.json")
+    _check_pickup_encoding_compatibility(apmp2_options)
     warp_to_start = bool(apmp2_options.get("warp_to_start", False))
     show_item_locations = bool(apmp2_options.get("show_item_locations", False))
 
@@ -386,16 +407,22 @@ def patch_iso_with_ap(
 
     dol_version = find_version_for_dol(editor.dol, dol_versions.ALL_VERSIONS)
 
-    # Persist the multiworld magic counter (item 74) across saves, and give
-    # it enough capacity that its amount can exceed the 119 real pickup
-    # indices (used as the goal sentinel, PLAN.md section J) without
-    # overflowing. Both tables are byte-per-item/u32-per-item, indexed by
-    # PlayerItemEnum value (PLAN.md Context facts).
-    editor.dol.write(dol_version.powerup_should_persist + constants.MAGIC_ITEM, b"\x01")
-    editor.dol.write(
-        dol_version.powerup_max + constants.MAGIC_ITEM * 4,
-        struct.pack(">I", 65536),
-    )
+    # Persist every pickup bitmask counter (constants.PICKUP_COUNTER_ITEMS
+    # -- PLAN.md section P) across saves, and give each enough capacity
+    # that its amount can never overflow. Both tables are
+    # byte-per-item/u32-per-item, indexed by PlayerItemEnum value (PLAN.md
+    # Context facts). A retail NTSC DOL already has
+    # constants.COUNTER_MAX_CAPACITY in `powerup_max` for every one of
+    # these items and 0 in `powerup_should_persist` (measured -- see
+    # PLAN.md section P): the persist byte is the write that actually
+    # matters, and the ceiling is rewritten only so it is guaranteed on
+    # every DOL version rather than assumed from one.
+    for counter_item in constants.PICKUP_COUNTER_ITEMS:
+        editor.dol.write(dol_version.powerup_should_persist + counter_item, b"\x01")
+        editor.dol.write(
+            dol_version.powerup_max + counter_item * 4,
+            struct.pack(">I", constants.COUNTER_MAX_CAPACITY),
+        )
 
     try:
         with contextlib.ExitStack() as patches:
