@@ -35,13 +35,22 @@ if TYPE_CHECKING:
 _GC_GAME_ID_ADDRESS = 0x80000000
 _MESSAGE_OVERHEAD = 6
 
-# Right after Dolphin launches (or right after a savestate/game boot), the
+# Version detection reads the 6-byte disc id at 0x80000000 and matches it
+# against each known version's ``game_id`` (the "NR"-suffixed patched id --
+# see ``versions.NTSC``'s comment).
+#
+# Right after Dolphin launches (or right after a savestate/game boot) the
 # memory hook can attach and read the game id before the disc has actually
 # finished booting -- e.g. leftover memory from a previous run, or a
 # partial DMA of the disc header -- which reads as something other than a
 # real, known game id. Rather than treat that first read as a definitive
 # "wrong game"/failure, connect_to_game() retries the hook+read a few times
-# with backoff before settling on whatever it last saw.
+# with backoff before settling on whatever it last saw. dolphin-memory-engine
+# caches the emulated MEM1 region address the moment hook() runs (and keeps
+# its cached instance alive even across a failed hook()), so a hook taken too
+# early can keep returning a stale region forever -- every attempt therefore
+# calls un_hook()+hook() unconditionally (DolphinClient.connect) to force a
+# full region rescan. Only the last attempt's result (or error) is kept.
 _GAME_ID_CONNECT_ATTEMPTS = 5
 _GAME_ID_RETRY_BASE_DELAY = 0.2  # seconds
 _GAME_ID_RETRY_MAX_DELAY = 2.0  # seconds
@@ -175,7 +184,9 @@ class EchoesInterface:
         as the read game id isn't recognized -- either a known version or
         the all-zero "nothing loaded yet" sentinel -- since an unrecognized
         id can just mean Dolphin was hooked before the disc finished
-        booting. Only the last attempt's result (or error) is kept."""
+        booting. Every retry un-hooks first (DolphinClient.connect) so a
+        stale hook can't keep returning a dead region forever. Only the
+        last attempt's result (or error) is kept."""
         last_error: DolphinException | None = None
         game_id: bytes | None = None
         delay = base_delay
@@ -183,8 +194,11 @@ class EchoesInterface:
 
         for attempt in range(attempts):
             try:
-                if not self.dolphin_client.is_connected():
-                    self.dolphin_client.connect()
+                # Unconditionally un_hook()+hook() every attempt (see
+                # DolphinClient.connect): a hook taken before the game booted
+                # can stay stuck on a wrong region until the engine's cached
+                # instance is destroyed and rebuilt.
+                self.dolphin_client.connect()
                 game_id = self.dolphin_client.read_address(_GC_GAME_ID_ADDRESS, 6)
                 last_error = None
             except DolphinException as e:
@@ -194,7 +208,14 @@ class EchoesInterface:
             recognized = game_id is not None and (
                 game_id == _EMPTY_GAME_ID or any(v.game_id == game_id for v in versions.VERSIONS)
             )
-            if recognized or attempt == attempts - 1:
+            if recognized:
+                break
+
+            # No match; leave the hook dropped so the next outer sync-loop
+            # tick (or retry below) rebuilds it from scratch again.
+            self.dolphin_client.disconnect()
+
+            if game_id == _EMPTY_GAME_ID or attempt == attempts - 1:
                 break
             time.sleep(delay)
             delay = min(delay * 2, max_delay)
@@ -207,16 +228,16 @@ class EchoesInterface:
         matched = next((v for v in versions.VERSIONS if v.game_id == game_id), None)
         if matched is None:
             self.version = None
-            if game_id == b"\x00\x00\x00\x00\x00\x00":
+            if game_id is None or game_id == _EMPTY_GAME_ID:
                 self.last_connect_error = "Hooked into Dolphin, but no game is loaded yet."
             else:
                 self.last_connect_error = (
                     f"Connected to the wrong game ({game_id!r}); please load an NTSC-U or "
                     "PAL Metroid Prime 2: Echoes ISO."
                 )
-            if game_id != b"\x00\x00\x00\x00\x00\x00" and game_id != self._logged_wrong_game_id:
-                self.logger.info(self.last_connect_error)
-                self._logged_wrong_game_id = game_id
+                if game_id != self._logged_wrong_game_id:
+                    self.logger.info(self.last_connect_error)
+                    self._logged_wrong_game_id = game_id
             return
 
         self._logged_wrong_game_id = None

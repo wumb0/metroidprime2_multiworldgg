@@ -45,16 +45,26 @@ class DolphinClient:
             return False
 
     def connect(self) -> None:
-        if not self.dolphin.is_hooked():
-            self.dolphin.hook()
+        # Always un_hook() first, even when the engine reports it isn't
+        # hooked: dolphin-memory-engine keeps its platform instance alive
+        # across a failed hook() (status noEmu), and hook() reuses that
+        # instance without resetting the cached emulated-MEM1 address. A hook
+        # taken during boot can therefore stay stuck on a wrong region until
+        # the instance is destroyed. un_hook()+hook() unconditionally is the
+        # only reliable way to force a fresh region scan (and is exactly the
+        # manual sequence that recovers a live game).
+        self.dolphin.un_hook()
+        self.dolphin.hook()
         if not self.dolphin.is_hooked():
             raise DolphinException(
                 "Could not connect to Dolphin, verify that you have a game running in the emulator"
             )
 
     def disconnect(self) -> None:
-        if self.dolphin.is_hooked():
-            self.dolphin.un_hook()
+        # Unconditional: un_hook() is safe when never hooked, and skipping it
+        # when the engine reports "not hooked" (but still holds a failed
+        # instance) is what leaves stale state behind for the next hook().
+        self.dolphin.un_hook()
 
     def __assert_connected(self) -> None:
         """Custom assert function that returns a DolphinException instead of a

@@ -14,7 +14,7 @@ import struct
 import unittest
 
 from ..client import versions
-from ..client.dolphin_client import DolphinException
+from ..client.dolphin_client import DolphinClient, DolphinException
 from ..client.game_interface import ConnectionState, EchoesInterface, encode_hud_message
 
 _OPR_AVAILABLE = importlib.util.find_spec("open_prime_rando") is not None
@@ -31,12 +31,19 @@ class FakeDolphinClient:
         self.memory: dict[int, bytes] = {}
         self.writes: list[tuple[int, bytes]] = []
         self.connected = True
+        self.connect_calls = 0
+        self.disconnect_calls = 0
 
     def is_connected(self) -> bool:
         return self.connected
 
     def connect(self) -> None:
+        self.connect_calls += 1
         self.connected = True
+
+    def disconnect(self) -> None:
+        self.disconnect_calls += 1
+        self.connected = False
 
     def read_address(self, address: int, bytes_to_read: int):
         data = self.memory.get(address)
@@ -79,32 +86,48 @@ class TestVersionDetection(unittest.TestCase):
 
 class TestConnectRetry(unittest.TestCase):
     """PLAN.md's Dolphin backoff/retry: connect_to_game() shouldn't settle
-    on a garbage/unrecognized game id read (or a transient hook failure)
-    from the brief window right after Dolphin launches, before it's
-    retried the hook+read a few times."""
+    on an unrecognized read (or a transient hook failure) from the brief
+    window right after Dolphin launches, before it's retried the hook+read a
+    few times."""
 
     def test_retries_past_transient_garbage_game_id(self) -> None:
         interface, fake = _make_interface()
-        # First read is garbage (neither a known id nor the empty/"not
-        # loaded yet" sentinel); by the second attempt the disc has
-        # finished booting and the real id is in place.
+        # Garbage game id on the first attempt (disc still booting); the
+        # real id is in place by the second attempt.
         fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
+        real_connect = fake.connect
 
-        real_read_address = fake.read_address
-        calls = {"count": 0}
-
-        def flaky_read_address(address: int, bytes_to_read: int):
-            calls["count"] += 1
-            if calls["count"] == 2:
+        def flaky_connect() -> None:
+            real_connect()
+            if fake.connect_calls == 2:
                 fake.memory[0x80000000] = versions.NTSC.game_id
-            return real_read_address(address, bytes_to_read)
 
-        fake.read_address = flaky_read_address  # type: ignore[method-assign]
+        fake.connect = flaky_connect  # type: ignore[method-assign]
 
         interface.connect_to_game(attempts=5, base_delay=0)
 
         self.assertIs(interface.version, versions.NTSC)
-        self.assertEqual(calls["count"], 2)
+        # The failed attempt must drop the (possibly stale) hook so the retry
+        # rebuilds it from scratch instead of polling the same dead region.
+        self.assertEqual(1, fake.disconnect_calls)
+        self.assertEqual(2, fake.connect_calls)
+
+    def test_wrong_game_id_drops_hook_so_next_call_rehooks(self) -> None:
+        interface, fake = _make_interface()
+        fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
+
+        interface.connect_to_game(attempts=1, base_delay=0)
+
+        self.assertIsNone(interface.version)
+        # Hook is left dropped, so the sync loop's next connect_to_game()
+        # (which only runs for DISCONNECTED) gets a fresh hook.
+        self.assertFalse(fake.is_connected())
+        self.assertEqual(1, fake.disconnect_calls)
+
+        fake.memory[0x80000000] = versions.NTSC.game_id
+        interface.connect_to_game()
+
+        self.assertIs(interface.version, versions.NTSC)
 
     def test_retries_past_transient_hook_failure(self) -> None:
         interface, fake = _make_interface()
@@ -143,7 +166,9 @@ class TestConnectRetry(unittest.TestCase):
         interface.connect_to_game(attempts=3, base_delay=0)
 
         self.assertIsNone(interface.version)
-        self.assertEqual(calls["count"], 3)
+        # One probe sequence per attempt, each dropping the hook first.
+        self.assertEqual(3, fake.disconnect_calls)
+        self.assertGreater(calls["count"], 0)
 
 
 class TestBuildStringAndUuid(unittest.TestCase):
@@ -495,6 +520,54 @@ class TestConsumeCounters(unittest.TestCase):
         deltas = [(item_id, -1) for item_id in constants.PICKUP_COUNTER_ITEMS]
         leftovers = interface.consume_counters(deltas)
         self.assertEqual([], leftovers)
+
+
+class _FakeDmeModule:
+    """Minimal stand-in for the ``dolphin_memory_engine`` module, recording
+    the hook/unhook call order."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.hooked = False
+
+    def is_hooked(self) -> bool:
+        return self.hooked
+
+    def un_hook(self) -> None:
+        self.calls.append("un_hook")
+        self.hooked = False
+
+    def hook(self) -> None:
+        self.calls.append("hook")
+        self.hooked = True
+
+
+class TestDolphinClientHookSequence(unittest.TestCase):
+    """Regression for the stale-hook recovery: a fresh region scan requires
+    un_hook() (which destroys the engine's cached instance) before hook(),
+    even when the engine reports it isn't hooked."""
+
+    def _client_with_fake_dme(self, hooked: bool) -> tuple[DolphinClient, _FakeDmeModule]:
+        client = DolphinClient(_NULL_LOGGER)
+        fake_dme = _FakeDmeModule()
+        fake_dme.hooked = hooked
+        client.dolphin = fake_dme  # type: ignore[assignment]
+        return client, fake_dme
+
+    def test_connect_unhooks_then_hooks(self) -> None:
+        client, fake_dme = self._client_with_fake_dme(hooked=False)
+        client.connect()
+        self.assertEqual(["un_hook", "hook"], fake_dme.calls)
+
+    def test_connect_unhooks_even_when_already_hooked(self) -> None:
+        client, fake_dme = self._client_with_fake_dme(hooked=True)
+        client.connect()
+        self.assertEqual(["un_hook", "hook"], fake_dme.calls)
+
+    def test_disconnect_unhooks_unconditionally(self) -> None:
+        client, fake_dme = self._client_with_fake_dme(hooked=False)
+        client.disconnect()
+        self.assertEqual(["un_hook"], fake_dme.calls)
 
 
 if __name__ == "__main__":

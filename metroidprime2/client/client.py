@@ -23,7 +23,11 @@ from .. import constants
 from ..pickup_encoding import decode
 from ..utils import get_apworld_version, get_output_path, setup_libs
 from .death_link import death_link_check
-from .dolphin_client import DolphinException
+from .dolphin_client import (
+    DolphinException,
+    assert_no_running_dolphin,
+    get_num_dolphin_instances,
+)
 from .game_interface import ConnectionState, EchoesInterface
 from .notification_manager import NotificationManager
 from .receive_items import compute_desired_capacities, plan_grants
@@ -250,6 +254,16 @@ def update_connection_status(ctx: MetroidPrime2Context, status: ConnectionState)
     if ctx.connection_state == status:
         return
     logger.info(_STATUS_MESSAGES[status])
+    if get_num_dolphin_instances() > 1:
+        # Windows only (get_num_dolphin_instances() returns 0 elsewhere).
+        # dolphin-memory-engine's findPID() hooks the first Dolphin.exe it
+        # sees, so with several running the client can attach to the wrong
+        # one and read garbage/another game -- notify so the user can close
+        # the extras. Mirrors worlds/metroidprime's MULTIPLE_DOLPHIN_INSTANCES.
+        logger.warning(
+            "Multiple Dolphin instances detected; the client may be attached to the wrong "
+            "one. Close all but the Dolphin running Metroid Prime 2: Echoes."
+        )
     ctx.connection_state = status
 
 
@@ -289,6 +303,17 @@ async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
 
 async def _handle_game_not_ready(ctx: MetroidPrime2Context) -> None:
     if ctx.connection_state == ConnectionState.DISCONNECTED:
+        ctx.game_interface.connect_to_game()
+    elif ctx.connection_state == ConnectionState.WRONG_GAME:
+        # The game id matched a known version but the build string didn't
+        # (get_connection_state's check), which can mean the hook is reading
+        # a stale/partially-loaded region rather than a genuinely different
+        # disc (dolphin-memory-engine caches the emulated MEM1 region at
+        # hook() time). Drop the hook and re-hook so this can recover instead
+        # of sitting in WRONG_GAME forever -- the sync loop only ever re-runs
+        # connect_to_game() from DISCONNECTED, so without this a stale read
+        # here never recovers.
+        ctx.game_interface.disconnect_from_game()
         ctx.game_interface.connect_to_game()
     await asyncio.sleep(1)
 
@@ -379,16 +404,24 @@ async def _handle_check_goal(ctx: MetroidPrime2Context) -> None:
 async def _handle_pickup_counters(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]]) -> None:
     """Reads every persistent counter this world's pickups can set, and
     reports what happened since the last successful consume (PLAN.md
-    section P, replacing the single-shared-counter
-    ``_handle_magic_item_amount`` approach entirely).
+    section P, replacing section O's single-shared-counter
+    ``_handle_magic_item_amount``/``location_reconciliation`` approach
+    entirely -- see PLAN.md section P for the measured collision rates that
+    made that approach unworkable).
+
+    Nothing here has anything to do with the goal: that is a plain memory
+    read of the current area (``_handle_check_goal``), so no counter amount
+    can ever declare victory.
 
     ``pickup_encoding.decode`` turns every nonzero pickup counter into the
     0-based indices whose bit was set -- distinct powers of two sum
     losslessly, so any number of pickups collected across any length of
     disconnect decode back to exactly the indices that produced them, with
-    no search and no guessing. Every decoded index is reported in one
-    ``LocationChecks`` message before any counter is consumed, keeping this
-    function's previous send-before-consume ordering.
+    no search and no guessing (unlike section O's
+    ``location_reconciliation``, removed by this section). Every decoded
+    index is reported in one ``LocationChecks`` message before any counter
+    is consumed, keeping this function's previous send-before-consume
+    ordering.
 
     A decoded index that isn't in ``ctx.missing_locations`` is warned
     about rather than silently accepted: it is the tell for this design's
@@ -495,13 +528,23 @@ async def run_game(romfile: str, mp2_settings: Any) -> None:
     emulator_path = mp2_settings["emulator_settings"]["executable_path"]
     emulator_arguments = mp2_settings["emulator_settings"]["arguments"]
 
-    if auto_start:
-        subprocess.Popen(
-            [str(emulator_path), romfile, *emulator_arguments],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+    if not auto_start:
+        return
+
+    if not assert_no_running_dolphin():
+        # Windows only: a Dolphin is already running, so launching another
+        # one would leave the client's hook free to attach to either instance
+        # (findPID() takes the first Dolphin.exe it sees). Use the one
+        # that's already up instead -- the sync loop will hook it.
+        logger.info("Dolphin is already running; not launching a second instance.")
+        return
+
+    subprocess.Popen(
+        [str(emulator_path), romfile, *emulator_arguments],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> None:
