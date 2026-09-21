@@ -48,6 +48,10 @@ ignore = [
 # tools/sync_randovania_data.py is a standalone dev CLI script; its
 # print()s are the report it exists to produce, not debug leftovers.
 "metroidprime2/tools/*" = ["T201"]
+# The manual tests are standalone CLI scripts whose whole job is to print
+# the human-facing test book / build status; their print()s are the output,
+# not debug leftovers (mirrors the tools/* exemption above).
+"metroidprime2/test/manual/*" = ["T201"]
 # WorldTestBase's own `options` attribute (MultiWorldGG/test/bases.py) is
 # itself a plain `options: typing.Dict[str, typing.Any] = {}` with no
 # ClassVar -- every world's test suite in the ecosystem overrides it the
@@ -78,6 +82,7 @@ module = [
     "CommonClient",
     "Fill",
     "Generate",
+    "Main",
     "ModuleUpdate",
     "NetUtils",
     "Options",
