@@ -607,3 +607,168 @@ same triple, so the diagnosis is still logged (immediately, and again if
 the numbers change) without spamming every tick forever. The message now
 also names the two realistic causes: a manual `/grant_item` from before
 this fix, or a save file ahead of the current received-items list.
+
+## O. Premature goal completion (bug fix)
+
+Reported from real play (M4 in-game validation): the multiworld was marked
+complete after collecting only 6 of 9 Sky Temple Keys, without reaching the
+Credits area. Root cause was in `client.py`'s `_handle_magic_item_amount`,
+not in the Sky Temple Key/gate logic (which is untouched by
+`sky_temple_keys` -- that option only controls pool-vs-precollected
+distribution, per its own docstring; the physical gate always needs all 9,
+matching vanilla).
+
+The goal check was `index >= _GOAL_INDEX_THRESHOLD` (i.e. `amount >= 120`)
+rather than an exact match against the sentinel the in-ISO Credits trigger
+actually writes (`constants.GOAL_SENTINEL_AMOUNT`, 120). Section J's own
+risk 3 already documented the mechanism that can produce a bogus amount:
+"two pickups between polls sum into an ambiguous amount" -- `amount` is a
+single memory cell set (not incremented) by whichever pickup's script last
+ran, consumed via a relative `adjust_item_amount_patch(74, -amount)` a
+poll tick later, and `has_pending_op()` only guards the client's *own*
+in-flight writes, not a second in-game pickup script firing between this
+tick's read and its consume. Two Sky Temple Keys (or any two pickups)
+collected inside the same 0.5s poll window can therefore leave item 74 at
+some garbage value derived from both pickups' assigned amounts. Under the
+old `>=` check, any such value landing above 119 was read as the goal
+sentinel instead of falling into the "implausible value... warn and
+consume" branch the code already had (visible in the pre-fix `else` branch
+being dead code: `index = amount - 1` can never be negative here, since
+the caller only calls this function when `amount > 0`, so every amount from
+120 to infinity fell into the goal branch, not the warning one). PLAN.md's
+own prose for this mechanism had the identical bug baked into the original
+spec (`"index >= 119 -> goal sentinel"` alongside `"> 120 -- implausible"`,
+which is unreachable once phrased as two `>=`/`>` comparisons against the
+same boundary) -- it was never caught because M4's in-game validation
+hadn't happened yet.
+
+**Fix.** `GOAL_SENTINEL_AMOUNT = 120` moved to `constants.py` as the single
+source of truth (`patcher_runner._add_goal_trigger` now reads it from
+there instead of a private module constant), and `client.py`'s goal branch
+is now `elif amount == constants.GOAL_SENTINEL_AMOUNT` -- anything past the
+sentinel now correctly falls into the existing implausible-value warning
+branch instead of declaring victory. `client.py` also asserts at import
+time that the sentinel is exactly one past `_GOAL_INDEX_THRESHOLD`, so the
+two constants can't silently drift apart again. This does not fix the
+underlying poll race (still section J risk 3, still unresolved -- a
+same-window double pickup can still cost a missed/misattributed location
+check); it only ensures that race can no longer be misread as game
+completion. `test_goal_detection.py` covers the exact-match boundary
+(pass-through at the last real index, exact sentinel, sentinel+1, and a
+clearly-garbage large amount) and that every amount is still consumed
+regardless of which branch handled it.
+
+**Confirmed trigger, and a correction to the mechanism above.** The
+player confirmed what actually happened: they reconnected to the server
+after a stretch playing with Dolphin running but the client not attached,
+and got a burst of items delivered at once on reconnect. The magic item is
+not a `SetInventoryAmount`-style absolute write for real pickups the way
+the Credits trigger is -- `pickup_editing.py`'s per-pickup stage sets
+`pickup.amount = first.amount; pickup.capacity_increase = first.amount`,
+which is `CScriptPickup`'s ordinary additive pickup behavior (the same
+mechanism a real Missile Expansion uses: amount and capacity both increase
+by a fixed delta on pickup, they aren't set outright). So every real
+pickup ADDS `pickup_index + 1` to whatever item 74 already holds;
+`consume_magic_item` zeroes it back out with a matching negative delta
+once the client has read and reported it. This means risk 3's window
+isn't a tight ~0.5s poll race -- it's "however long the client isn't
+attached and consuming while the player keeps collecting pickups". Two or
+more real pickups (their indices summed, e.g. 45+1 + 87+1 = 134) collected
+during any disconnect trivially clears 119 and, under the old `>=` check,
+read as game completion on the very first poll after reconnecting.
+
+The exact-match fix above still fully closes the false-victory outcome
+for this case -- any accumulated sum other than exactly 120 now warns
+instead of declaring goal, regardless of how large or how it arose. It
+does **not** recover the location checks that contributed to a dropped
+sum: a summed value can't be decomposed back into which pickup indices
+produced it, so those checks are silently lost rather than reported (the
+player's own in-game inventory for whatever was collected is not itself
+in question -- that's granted for real by the same pickup -- only the
+server-side location-check credit for it). Recovering that would need a
+different signal than this single accumulator (e.g. reading the game's
+actual per-item inventory as ground truth and reconciling against
+already-checked locations on reconnect); not implemented, flagged here
+rather than attempted blind.
+
+**Follow-up: `client/location_reconciliation.py`.** The per-item-inventory
+idea above doesn't actually work for this design -- physical pickups in
+this world never grant a distinguishable real item at all (only the
+shared magic counter, see `constants.MAGIC_ITEM`'s docstring), so the
+native inventory can't tell you which *locations* were collected, only
+which *items* the AP server has already sent you (a fully separate,
+downstream signal). The actual usable second source of truth is simpler
+and was already sitting in `ctx.missing_locations`: the server's live set
+of this player's still-unchecked locations. Only those pickups are still
+physically collectible in-game (a checked one's object is already gone),
+so they're the only candidates that could have contributed to a fresh,
+unexplained sum.
+
+`location_reconciliation.find_unique_missed_locations(amount,
+candidate_indices, max_missed=8)` is a bounded 0/1-knapsack subset-sum
+search (counting DP over size x sum, reconstructed backward) that looks
+for a combination of 1..8 candidate pickups whose `index + 1` values sum
+to `amount`. It returns the combination only if it's the *unique* one --
+if two or more different combinations could explain the same number
+(easily possible once several plausible values are in play), or none can,
+it returns `None` and the caller falls back to the original warn-and-drop
+behavior unchanged. This is a correctness-critical function (a wrong
+answer credits a location, and sends its item to whoever the fill placed
+it for, that was never actually collected), so `max_missed` doubles as a
+sanity bound: a real disconnect losing 9+ checks at once isn't a case
+worth searching for even if a unique combination happened to exist.
+`test_location_reconciliation.py` cross-checks the DP against a brute-force
+`itertools.combinations` search over 200 randomized small instances (not
+just the targeted unique/ambiguous/impossible cases) precisely because of
+that stakes asymmetry.
+
+`client.py`'s `_handle_magic_item_amount` calls this from the existing
+"implausible value" branch: it builds `candidate_indices` by translating
+`ctx.missing_locations` (AP location ids) back to 0-based pickup indices
+(filtering to this world's own id range, defensively, since a combined
+tracker view could in principle carry other games' location ids in the
+same set), and on a unique match sends one `LocationChecks` message
+covering every recovered index instead of the warning. Nothing changes
+about goal detection itself -- reconciliation only ever runs in the
+"amount is neither a single valid index nor exactly the sentinel" bucket,
+since any amount in 1..119 already matches a single real index in the
+first branch regardless of `missing_locations`, and exactly 120 is
+handled as the goal before reconciliation is ever attempted.
+
+**Follow-up: `/grant_item`/`/getitem` removed entirely -- it duplicated a
+setting AP already has.** The client was first renamed `/grant_item` ->
+`/getitem` and gated behind `ctx.finished_game`, matching the convention
+other worlds' clients use for a post-goal item-request command. But
+`MultiServer.py` already has its own `!getitem` (a chat-style command sent
+to the server, not the local client), gated by host.yaml's
+`disable_item_cheat`: it synthesizes a `NetworkItem` server-side
+(`_cmd_getitem`, sender slot -1) and sends it exactly like an item from
+another player. Because our client's item-receiving pipeline
+(`compute_desired_capacities`/`plan_grants`, section J/M) treats every
+received item identically regardless of sender, that server command
+already worked for this world with zero code of our own -- our local
+`/getitem` was a strictly worse duplicate (no host.yaml gating reachable
+from the client at all, since `item_cheat` isn't broadcast to clients the
+way `release`/`remaining`/`collect` permissions are -- there is no
+`ctx.missing_locations`-style signal for it).
+
+Removed: `MetroidPrime2CommandProcessor._cmd_getitem`, the
+`ctx.manual_grants: list[str]` attribute and its `__init__` default, and
+its fold-in inside `_handle_grant_items` (which now just builds `received`
+from `ctx.items_received` directly, and returns early on `not
+ctx.items_received` rather than also checking `manual_grants`). Checked
+every other `_cmd_*` in `MetroidPrime2CommandProcessor` against
+`MultiServer.py`'s server-side commands and `CommonClient.py`'s base
+`ClientCommandProcessor` for the same kind of duplication: `_cmd_status`/
+`_cmd_reconnect`/`_cmd_test_hud`/`_cmd_mp2_debug_inventory`/
+`_cmd_export_iso` are all Dolphin/local-hardware concepts the server has
+no equivalent for (`_cmd_reconnect` reconnects to *Dolphin*, distinct from
+`CommonClient`'s own `_cmd_connect`/`_cmd_disconnect` which target the AP
+server); `_cmd_deathlink`/`_cmd_test_deathlink` follow the standard
+per-world DeathLink pattern used across dozens of other worlds' clients
+(no shared base-class or server implementation exists to defer to). None
+of those are duplicates. `test_client_receive.py`'s
+`TestManualGrantAppendedLikeRealItem` is kept as coverage for
+`compute_desired_capacities` itself (the "late arrival in received order"
+shape it tests still applies to any real AP item), with its docstring
+reframed away from the now-removed command.

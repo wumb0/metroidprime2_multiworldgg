@@ -97,17 +97,11 @@ def detect_iso_version(iso_path: str | os.PathLike[str]) -> str:
 # Goal-trigger sentinel (PLAN.md section J, mechanism 1)
 # --------------------------------------------------------------------------
 
-# amount - 1 >= 119 is the client's goal condition (PLAN.md section J);
-# 120 is comfortably clear of the 119 real pickup indices (max amount 119)
-# without depending on the exact pickup count.
-_GOAL_SENTINEL_AMOUNT = 120
-
-
 def _add_goal_trigger(editor: PatcherEditor, mlvl: Any, area: Area) -> None:
     """Raw ``AreaPatcher`` function (PLAN.md section J): adds a one-shot
     Timer wired to a ``SetInventoryAmount`` SpecialFunction that sets item
     74 (``PersistentCounter8``, the multiworld magic counter) to
-    ``_GOAL_SENTINEL_AMOUNT`` a second after the Credits area loads. The
+    ``constants.GOAL_SENTINEL_AMOUNT`` a second after the Credits area loads. The
     client treats any magic-item amount past the real pickup range as the
     goal signal, so this needs no memory offsets (mechanism 1 of two in
     PLAN.md section J -- mechanism 2, a direct current-area memory read, is
@@ -138,7 +132,7 @@ def _add_goal_trigger(editor: PatcherEditor, mlvl: Any, area: Area) -> None:
         SpecialFunction(
             editor_properties=EditorProperties(name="AP Goal Trigger"),
             function=Function.SetInventoryAmount,
-            int_parm2=_GOAL_SENTINEL_AMOUNT,
+            int_parm2=constants.GOAL_SENTINEL_AMOUNT,
             inventory_item_parm=PlayerItemEnum.PersistentCounter8,
             sound1=-1,
             sound2=-1,

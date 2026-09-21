@@ -30,6 +30,19 @@ LOCATION_ID_BASE = 5033200
 # truth for what a player actually owns.
 MAGIC_ITEM = 74
 
+# The exact amount the in-ISO Credits-area trigger sets MAGIC_ITEM to (see
+# client/patcher_runner.py's _add_goal_trigger) to signal victory. This is
+# 119 real pickup indices (amounts 1..119) plus 1, so it's unambiguous with
+# every real pickup -- but only if the client treats it as an EXACT match:
+# client.py used to treat any amount >= this as the goal (an `>=` that
+# silently swallowed the "implausible value" case PLAN.md section J always
+# intended to warn on instead -- see risk 3, "two pickups between polls sum
+# into an ambiguous amount"). A stray/garbage amount produced by that known
+# race (e.g. two Sky Temple Keys picked up in the same 0.5s poll window)
+# could land above 119 and, under the old `>=` check, get misread as the
+# player having finished the game.
+GOAL_SENTINEL_AMOUNT = 120
+
 # --- asset ids ---------------------------------------------------------------
 # Temple Grounds region MLVL and its Landing Site / Credits area MREAs.
 TEMPLE_GROUNDS_MLVL = 1006255871

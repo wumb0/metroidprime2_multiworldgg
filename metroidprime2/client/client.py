@@ -25,6 +25,7 @@ from ..utils import get_apworld_version, get_output_path, setup_libs
 from .death_link import death_link_check
 from .dolphin_client import DolphinException
 from .game_interface import ConnectionState, EchoesInterface
+from .location_reconciliation import find_unique_missed_locations
 from .notification_manager import NotificationManager
 from .receive_items import compute_desired_capacities, plan_grants
 
@@ -49,10 +50,15 @@ except ImportError:
 if TYPE_CHECKING:
     pass
 
-# PLAN.md section J: "amount - 1 >= 119" is the goal sentinel (the
-# in-ISO trigger sets the magic item's amount to 120 -- see
-# client/patcher_runner.py's _GOAL_SENTINEL_AMOUNT).
+# PLAN.md section J: "amount - 1 >= 119" was the original (buggy) goal
+# condition -- see _handle_magic_item_amount's docstring for why this must
+# be an exact match against constants.GOAL_SENTINEL_AMOUNT, not a `>=`.
 _GOAL_INDEX_THRESHOLD = len(LOCATION_TABLE)
+assert constants.GOAL_SENTINEL_AMOUNT - 1 == _GOAL_INDEX_THRESHOLD, (
+    "constants.GOAL_SENTINEL_AMOUNT must be exactly one past the last real "
+    "pickup index for the exact-match goal check in _handle_magic_item_amount "
+    "to ever fire"
+)
 
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
 
@@ -361,18 +367,60 @@ async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
 
 
 async def _handle_magic_item_amount(ctx: MetroidPrime2Context, amount: int) -> None:
+    """``amount`` is only ever legitimately 1..119 (a real pickup index,
+    see ``constants.MAGIC_ITEM``'s docstring) or exactly
+    ``constants.GOAL_SENTINEL_AMOUNT`` (120, the in-ISO Credits-area
+    trigger -- see ``patcher_runner._add_goal_trigger``). Anything else is
+    implausible and must NOT be treated as the goal: real pickups ADD their
+    index+1 to whatever the counter already holds rather than setting it
+    outright (PLAN.md section J risk 3 / section O), so if the client isn't
+    attached and consuming for a while -- most realistically, a disconnect
+    -- and the player collects more than one pickup in that window, the
+    counter ends up holding their *sum* instead of a single valid index.
+    Before this fix, the goal check was `>=` the sentinel instead of `==`,
+    so any such sum landing above 119 (e.g. two Sky Temple Keys collected
+    while disconnected) got misread as having finished the game, ending
+    the multiworld early with no actual credits reached.
+
+    An implausible amount is not necessarily unrecoverable, though: the
+    server already knows which of this player's locations are still
+    unchecked (``ctx.missing_locations``) -- the only pickups that could
+    still be physically collectible, so the only ones that could have
+    contributed to a fresh sum. ``location_reconciliation`` tries to
+    explain the amount as a combination of those; if exactly one
+    combination fits, every location in it really was collected, so all of
+    them are reported. If more than one combination fits (or none does),
+    there's no way to tell which pickups happened, and the amount is
+    dropped with a warning exactly as before -- never guessed at.
+    """
     index = amount - 1
     if 0 <= index < _GOAL_INDEX_THRESHOLD:
         await ctx.send_msgs([{"cmd": "LocationChecks", "locations": [constants.LOCATION_ID_BASE + index]}])
-    elif index >= _GOAL_INDEX_THRESHOLD:
+    elif amount == constants.GOAL_SENTINEL_AMOUNT:
         if not ctx.finished_game:
             await ctx.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
             ctx.finished_game = True
     else:
-        logger.warning(
-            f"Magic item amount {amount} doesn't correspond to a pickup index or the goal "
-            "sentinel; consuming it without acting on it."
-        )
+        candidate_indices = [
+            location_id - constants.LOCATION_ID_BASE
+            for location_id in ctx.missing_locations
+            if 0 <= location_id - constants.LOCATION_ID_BASE < _GOAL_INDEX_THRESHOLD
+        ]
+        recovered = find_unique_missed_locations(amount, candidate_indices)
+        if recovered is not None:
+            logger.info(
+                f"Magic item amount {amount} didn't match a single pickup, but uniquely matches "
+                f"{len(recovered)} locations collected while disconnected; reporting all of them."
+            )
+            await ctx.send_msgs(
+                [{"cmd": "LocationChecks", "locations": [constants.LOCATION_ID_BASE + idx for idx in recovered]}]
+            )
+        else:
+            logger.warning(
+                f"Magic item amount {amount} doesn't correspond to a pickup index or the goal "
+                "sentinel, and no unique combination of still-missing locations explains it; "
+                "consuming it without acting on it."
+            )
     ctx.game_interface.consume_magic_item(amount)
 
 
