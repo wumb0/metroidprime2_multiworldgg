@@ -24,24 +24,99 @@ NAMESPACE_UUID = uuid.uuid5(uuid.NAMESPACE_DNS, "metroidprime2.multiworldgg")
 ITEM_ID_BASE = 5033000
 LOCATION_ID_BASE = 5033200
 
-# The multiworld "magic" counter item (randovania short_name "Multiworld",
-# item_id 74 == PersistentCounter8). Every in-ISO pickup grants only this
-# item, with amount == pickup_index + 1; the client is the sole source of
-# truth for what a player actually owns.
-MAGIC_ITEM = 74
+# --- pickup identity encoding (PLAN.md section P) --------------------------
+# Every in-ISO pickup used to grant a single shared "magic" counter item
+# (PersistentCounter8, id 74) with amount == pickup_index + 1 -- an additive
+# scheme (section O) that loses pickup identity the moment two pickups are
+# collected in the same disconnect window, since the counter can only ever
+# hold their sum. Section P replaces that with one bit per pickup, spread
+# across several persistent counters: distinct powers of two sum losslessly
+# (bit-set, not lossy addition), so any number of pickups collected over any
+# length of disconnect decode back to exactly the indices that produced them.
+#
+# Reserved ids: `data/logic_database/header.json`'s
+# `resource_database.items[*].extra.item_id` is randovania's own allocation
+# table, and in the id range this layout draws from it reserves 71
+# (Temporary1, "Temporary Missile"), 72 (Temporary2, "Temporary Power
+# Bomb"), and 73 (MissileLauncher) -- `data/pickup_database.json` confirms
+# 71/72 are live, wired to Missile/Power Bomb Expansion's `"temporary"`
+# field and driven by OPR's conversion machinery, and `items.py`'s Missile
+# Launcher entry + `client/receive_items.py`'s `_MISSILE_LAUNCHER_FLAG`
+# confirm 73 is this world's own "missiles unlocked" flag. Routing pickup
+# bits into any of the three would corrupt real gameplay state, not just
+# multiworld bookkeeping. 74 (Multiworld) is reserved too, but
+# deliberately -- see GOAL_COUNTER_ITEM below. Only 67-70
+# (PersistentCounter1..4) are actually free.
+# `test_pickup_encoding.py`'s disjointness test derives this same reserved
+# set (header.json's item ids, unioned with every id appearing in
+# `ITEM_TABLE`'s gains) and asserts PICKUP_COUNTER_ITEMS never overlaps it
+# again, so this can't silently regress.
+#
+# `ppc_asm.assembler.ppc.li` (`addi rD, r0, SIMM16`) asserts
+# `-32768 <= literal < 32768`, and
+# `open_prime_rando.dol_patching.all_prime_dol_patches.adjust_item_amount_patch`
+# emits `li(r5, abs(delta))` -- a SIGNED 16-bit immediate -- for the amount
+# it consumes. With only 4 ids free, 4 counters of 15 usable bits each
+# (the naive reading of that constraint) address just 60 of the 119
+# pickups -- too few. Section P named, and declined, an escape hatch for
+# exactly this: a local `lis`/`ori` variant of the consume patch that
+# composes a full unsigned 32-bit amount instead of `li`'s signed 16-bit
+# one (both `addis`'s and `ori`'s literal fields are unsigned 16-bit per
+# `Instruction.compose`, so masking the high/low halves to `0xFFFF` can
+# never fail its range assert, regardless of the amount). That hatch is
+# taken here (`client/game_interface.py`'s `_wide_decrement_patch`), which
+# raises the real cap to `Pickup.amount`/`capacity_increase`'s signed
+# 32-bit backing field (constraint 2) -- comfortably enough for 30 usable
+# bits per counter. 119 pickups / 30 bits = 4 counters, exactly the ids
+# available.
+PICKUP_COUNTER_ITEMS: tuple[int, ...] = (67, 68, 69, 70)  # PersistentCounter1..4
 
-# The exact amount the in-ISO Credits-area trigger sets MAGIC_ITEM to (see
-# client/patcher_runner.py's _add_goal_trigger) to signal victory. This is
-# 119 real pickup indices (amounts 1..119) plus 1, so it's unambiguous with
-# every real pickup -- but only if the client treats it as an EXACT match:
-# client.py used to treat any amount >= this as the goal (an `>=` that
-# silently swallowed the "implausible value" case PLAN.md section J always
-# intended to warn on instead -- see risk 3, "two pickups between polls sum
-# into an ambiguous amount"). A stray/garbage amount produced by that known
-# race (e.g. two Sky Temple Keys picked up in the same 0.5s poll window)
-# could land above 119 and, under the old `>=` check, get misread as the
-# player having finished the game.
-GOAL_SENTINEL_AMOUNT = 120
+# Usable bits per pickup counter -- see the constraint discussion above.
+BITS_PER_COUNTER = 30
+
+# The goal signal lives on its own item, never one of the pickup counters
+# above, specifically so it can never alias with pickup data: "amount
+# nonzero" is the entire check, which is correct whether the in-ISO
+# `SetInventoryAmount` SpecialFunction that writes it (see
+# client/patcher_runner.py's _add_goal_trigger) sets or adds (PLAN.md
+# section P constraint 5 -- the set-vs-add semantics of that SpecialFunction
+# are unverified, and the design must not depend on the answer either way).
+#
+# Item 74 (PersistentCounter8, randovania's own "Multiworld" allocation --
+# see the reserved-ids note above) is used here rather than an
+# unallocated-but-unverified id (MiscCounter4, UnknownItem60..63): it's
+# the one id in this whole range whose in-game behavior this project has
+# actually exercised (it was section O's single shared counter), it's
+# already persisted, and randovania's own table confirms nothing else
+# claims it. Moving pickups off it (they now live on 67-70 instead) frees
+# it for exactly this isolated, single-purpose signal.
+GOAL_COUNTER_ITEM = 74  # PersistentCounter8 / randovania "Multiworld"
+GOAL_SIGNAL_AMOUNT = 1
+
+# u32-per-item `powerup_max` ceiling (written in client/patcher_runner.py).
+# The four pickup counters need to hold up to 2**30 - 1 (BITS_PER_COUNTER),
+# and the goal counter only ever holds GOAL_SIGNAL_AMOUNT (1), so both are
+# far below this. The value is 2**31 - 1 because that is what a retail NTSC
+# DOL *already* has in `powerup_max` for items 67-74 (measured, PLAN.md
+# section P's "Verified against a retail ISO"): these writes exist to
+# guarantee the ceiling on any DOL version, and writing a smaller number
+# than vanilla's would only ever lower it for no benefit.
+COUNTER_MAX_CAPACITY = 0x7FFFFFFF
+
+# Every counter id above, in one place, for callers (client/receive_items.py,
+# client/patcher_runner.py) that need to treat "is this id one of our
+# counters" as a single membership test rather than re-deriving it.
+ALL_COUNTER_ITEMS: tuple[int, ...] = (*PICKUP_COUNTER_ITEMS, GOAL_COUNTER_ITEM)
+
+# Written into options.json at generation time (__init__.py generate_output)
+# and checked by client/patcher_runner.py before patching an ISO: the
+# per-pickup resource mapping is baked into config.json at generation time
+# while the DOL writes happen client-side at patch time, so a client that
+# understands this bitmask encoding must refuse to patch a .apmp2 that
+# doesn't declare it (PLAN.md section P's compatibility gate) -- otherwise
+# it would silently misread a pickup generated under the old summed
+# encoding as a bitmask, corrupting every location check.
+PICKUP_ENCODING_VERSION = "bitmask-v1"
 
 # --- asset ids ---------------------------------------------------------------
 # Temple Grounds region MLVL and its Landing Site / Credits area MREAs.

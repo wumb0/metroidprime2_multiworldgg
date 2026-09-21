@@ -772,3 +772,311 @@ of those are duplicates. `test_client_receive.py`'s
 `compute_desired_capacities` itself (the "late arrival in received order"
 shape it tests still applies to any real AP item), with its docstring
 reframed away from the now-removed command.
+
+## P. Pickup identity encoding (bitmask counters)
+
+Section O fixed the *false victory* outcome of the shared additive
+counter, but deliberately left the underlying channel unchanged: every
+pickup still ADDs `pickup_index + 1` to one counter (item 74), so any
+window where the client isn't attached and consuming merges several
+pickups into a single number that no longer identifies them.
+`location_reconciliation.py` tried to invert that sum against the
+server's still-missing locations. Measured against the real 119-pickup
+layout (300 randomised trials per cell, `k` pickups collected during one
+disconnect), that approach does not hold up:
+
+    missing=119 k=2: dropped 144, misattributed 155, false-goal 1
+    missing= 60 k=2: dropped 145, misattributed 153, false-goal 2
+    missing= 30 k=2: dropped 163, misattributed 134, false-goal 3
+    missing= 10 k=2: dropped  83, misattributed 166, recovered 49
+    missing=  4 k=2: dropped   4, misattributed 160, recovered 135
+
+Three things that table shows. (1) Reconciliation is *unreachable* for
+roughly half of all collisions: `client.py`'s `0 <= amount - 1 < 119`
+branch runs first, so a sum landing back inside the real index range
+(indices 4+9 -> 15 -> index 14) is silently credited to a location the
+player never touched, and that location's item is sent to whoever the
+fill placed it for -- a worse outcome than the bug section O fixed.
+(2) `==` narrows but does not close the false goal: indices 50+68 sum to
+exactly 120. (3) Mid-game the unique-combination search resolves
+essentially never (0/300 with 30+ locations still missing, at any
+`max_missed`; `max_missed=8` is actively worse than 3, since larger
+subsets manufacture spurious explanations that break uniqueness).
+
+**Why no client-side decoder fixes this.** The obvious refinement --
+prefer the smallest-size unique explanation -- was measured too, and
+produces *wrong* credits at 10-27%, because preferring size 1 is exactly
+the misattribution in (1). The alternative, demanding a globally unique
+explanation, cannot be used either: in normal play every single real
+pickup's amount has dozens of subset explanations, so it would drop
+every ordinary location check. The client is structurally forced to
+guess, because summing distinct pickups into one accumulator destroys
+their identity. The fix has to be in the encoding, not the decoder.
+
+**Design: one bit per pickup.** Give each pickup index its own bit in
+one of several persistent counters, instead of an addend in one shared
+counter. Addition of distinct powers of two is bit-set: N pickups
+collected during any-length disconnect produce a value that decodes
+back to exactly those N indices, with no search, no uniqueness
+condition, no `max_missed` ceiling, and no guessing. The goal signal
+moves to a counter of its own, so it can never collide with pickup data.
+
+**Hard constraints (verified against the vendored libraries before
+choosing the layout).**
+
+1. `ppc_asm.assembler.ppc.li` is `addi rD, r0, SIMM16` and
+   `Instruction.compose` asserts `-32768 <= literal < 32768`.
+   `all_prime_dol_patches.adjust_item_amount_patch` emits
+   `li(r5, abs(delta))`, so *that particular instruction sequence*
+   cannot consume an amount above 32767. This was first read as a hard
+   15-usable-bit-per-counter cap, but the reserved-ids accounting below
+   only leaves 4 counters free -- 119 pickups need >= 30 usable bits per
+   counter to fit in 4, not 15. The escape hatch section P originally
+   named but declined is therefore taken: `game_interface.py`'s
+   `_wide_decrement_patch` composes the amount with `lis`/`ori` instead
+   of `li` (both operate on unsigned 16-bit fields, per
+   `Instruction.compose`, so masking a 32-bit amount's high/low halves to
+   `0xFFFF` can never fail that assert, unlike `li`'s signed 16-bit one),
+   hand-rolling assembly around OPR's private `_load_player_state`
+   (acceptable since `pyproject.toml` pins `open-prime-rando==0.20.1`
+   exactly). This raises the practical ceiling to constraint 2's signed
+   32-bit backing field -- comfortably enough for 30 bits. The goal
+   counter's tiny, always-small value still goes through OPR's unmodified
+   `adjust_item_amount_patch`; only the four pickup counters need the
+   wide variant.
+2. `retro_data_structures` `Pickup.amount` / `Pickup.capacity_increase`
+   are signed 32-bit (`BIG_l`), and `Pickup.absolute_value` defaults to
+   `False` -- confirming section O's finding that real pickups add, and
+   (per point 1 above) setting the real ceiling the wide consume patch
+   raises the practical limit to.
+3. `pickup_editing._patch_single_pickup_stage_basic_resources` maps the
+   *first* entry of a stage's `resources` onto the native `CScriptPickup`
+   (`item_to_give` / `amount` / `capacity_increase`) and only routes
+   *extra* resources through `SetInventoryAmount` SpecialFunctions. Each
+   pickup here grants exactly one resource, so every pickup keeps using
+   the native additive path.
+4. Because `capacity_increase == amount` on that path, pickup counters
+   raise their own capacity in lockstep and need no client-side top-up
+   -- but `powerup_max` (the u32-per-item ceiling table written in
+   `patcher_runner.py`) must be raised for each counter or the adds get
+   clamped. The goal counter is the exception: a SpecialFunction writes
+   its amount without touching capacity, which is the entire reason
+   `ensure_goal_counter_capacity` (formerly `ensure_magic_capacity`)
+   exists, so it still needs a one-time client top-up -- but only a small
+   one, since its value never grows the way a pickup counter's does.
+5. `SetInventoryAmount`'s set-vs-add semantics remain unverified (OPR
+   uses the same SF with `-1` deltas for conversions, which reads as
+   additive, while section O assumed the Credits trigger is an absolute
+   set). The design must not depend on the answer: giving the goal its
+   own counter makes "amount nonzero on that counter" correct either
+   way. This also removes section O's latent false-*negative* -- under
+   add semantics, finishing while detached yields `120 + leftovers`,
+   which the current `== 120` check would never recognise as victory.
+6. `game_interface.read_inventory` already reads all 109 items in one
+   pass, so reading 5 counters instead of 1 costs nothing.
+7. `game_interface`'s remote-execution batching (`grant`'s existing
+   mechanics, reused by shape for `consume_counters`) already packs
+   `(item_id, delta)` pairs into one ~420-byte remote-execution body and
+   returns leftovers; the wide pickup-counter patch is ~5 instructions
+   and the narrow goal-counter patch ~4, so all 5 counters fit in a
+   single body with room to spare.
+8. `powerup_should_persist` is a byte-per-item table, so *any* item id
+   can be made save-persistent -- the counter supply is not limited to
+   ids named `PersistentCounterN`. (In practice, per the reserved-ids
+   accounting below, only 67-70 and 74 end up used.)
+
+**Reserved ids (found during implementation, not by the ISO scan below --
+this section's first draft used all eight `PersistentCounterN` ids,
+67-74, and the conflict below was only caught during implementation,
+before anything was generated or played).** `data/logic_database/header.json`
+-- randovania's own resource
+database, already vendored in this world -- gives an authoritative
+`resource_database.items[*].extra.item_id` allocation table, and it
+reserves three ids in this range that are very much alive: 71
+(`Temporary1`, "Temporary Missile") and 72 (`Temporary2`, "Temporary
+Power Bomb") back Missile/Power Bomb Expansion's `"temporary"` field in
+`data/pickup_database.json`, driven by OPR's ammo-conversion machinery;
+73 (`MissileLauncher`) is this world's own "missiles unlocked" flag
+(`items.py`'s Missile Launcher entry, `client/receive_items.py`'s
+`_MISSILE_LAUNCHER_FLAG`). Routing pickup bits into any of the three
+would corrupt real gameplay state, not just multiworld bookkeeping.
+74 (`Multiworld`) is reserved too, but deliberately -- it's this design's
+goal counter now, see below. That leaves only 67-70 -- four ids, not
+eight -- which is the reason the slot allocation below needs 30 bits per
+counter instead of 15. `test_pickup_encoding.py`'s
+`TestReservedItemIdsDisjoint` derives this same reserved set (header.json
+plus every id appearing in `ITEM_TABLE`'s gains) programmatically and
+asserts `PICKUP_COUNTER_ITEMS` can never silently overlap it again.
+
+**Slot allocation.** 119 pickups / 30 bits = 4 counters (only 67-70 are
+actually free; see "Reserved ids" above).
+
+    pickup index i  ->  item  PICKUP_COUNTER_ITEMS[i // 30]
+                        amount 1 << (i % 30)
+
+    PICKUP_COUNTER_ITEMS = (67, 68, 69, 70)
+                            PersistentCounter1..4
+    index   0.. 29 -> 67 bits 0..29
+    index  30.. 59 -> 68 bits 0..29
+    index  60.. 89 -> 69 bits 0..29
+    index  90..118 -> 70 bits 0..28   (70 bit 29 stays unused)
+
+    goal signal -> PersistentCounter8 (74), amount 1, "nonzero means goal"
+
+Max value any single pickup counter can hold is `2**30 - 1`, comfortably
+inside constraint 2's signed 32-bit backing field. The goal counter moves
+onto item 74 -- section O's old single shared counter -- now that real
+pickups have moved off it onto 67-70: randovania's table confirms nothing
+else claims 74, and it is the one id in this whole range whose in-game
+behavior this project has actually exercised, so it needs no further
+verification.
+
+**Verified against a retail ISO.** The question header.json cannot answer
+-- whether the vanilla game itself touches 67-70 -- was settled by
+scanning a retail NTSC ISO directly. Only two Echoes script object types
+can name an inventory item (`Pickup.item_to_give` and
+`SpecialFunction.inventory_item_parm`; confirmed by walking every
+dataclass in `retro_data_structures.properties.echoes.objects` for a
+`PlayerItemEnum`-typed field), so the scan decoded every `PCKP` and
+`SPFN` instance in all 291 areas across all 12 MLVLs. Items 50, 51 and
+60-74 have **zero** references -- 67-70 and 74 are untouched by vanilla
+scripts, and there is headroom (50/51, 60-66) if more counters are ever
+needed. The DOL's own per-item tables agree: a retail NTSC DOL already
+carries `powerup_max = 0x7FFFFFFF` and `powerup_should_persist = 0` for
+items 67-74, i.e. these are generic unused counters, and the persist byte
+is the write that actually matters (`COUNTER_MAX_CAPACITY` matches
+vanilla's ceiling so the patcher can never lower it).
+
+One caveat, and one lesson. The caveat: this covers script layers and the
+two DOL tables, not a disassembly of compiled game code, so it cannot
+*prove* no routine touches those slots -- but `persist = 0` on all of
+them is strong evidence the retail game has no reason to. The lesson:
+item **73 also shows zero script references**, so an ISO scan alone would
+have cleared it, while it is emphatically not free at the randovania/AP
+layer. The two checks are complementary and neither substitutes for the
+other, which is why `TestReservedItemIdsDisjoint` stays.
+
+**New module: `metroidprime2/pickup_encoding.py`** (pure, no Dolphin, no
+AP imports beyond `constants`/`locations`), replacing
+`location_reconciliation.py` as the single source of truth for the
+layout, imported by both `patch_data.py` (generation time) and
+`client.py` (runtime):
+
+- `counter_and_amount(pickup_index) -> tuple[int, int]` -- the item id
+  and bit value for one index; the only place `// BITS_PER_COUNTER` and
+  `% BITS_PER_COUNTER` appear.
+- `decode(inventory) -> Decoded` -- over `PICKUP_COUNTER_ITEMS`, turns
+  nonzero amounts into `indices: list[int]`, `deltas: list[tuple[int,
+  int]]` (the exact negatives to consume), and `stray: list[tuple[int,
+  int]]` for bits that decode past the last real index or at/above
+  `BITS_PER_COUNTER`.
+- Module-level assert that `len(PICKUP_COUNTER_ITEMS) * BITS_PER_COUNTER
+  >= len(LOCATION_TABLE)`, so adding locations fails loudly at import
+  rather than silently aliasing two pickups onto one bit.
+
+**Changes, file by file.**
+
+- `constants.py`: `MAGIC_ITEM` / `GOAL_SENTINEL_AMOUNT` out;
+  `PICKUP_COUNTER_ITEMS = (67, 68, 69, 70)`, `BITS_PER_COUNTER = 30`,
+  `GOAL_COUNTER_ITEM = 74`, `GOAL_SIGNAL_AMOUNT = 1`,
+  `PICKUP_COUNTER_MAX_CAPACITY = 0x40000000`,
+  `GOAL_COUNTER_MAX_CAPACITY = 65535`, `ALL_COUNTER_ITEMS` (5 ids) in.
+- `patch_data.py` `_pickup_modification`: emit
+  `{"item": counter, "amount": bit}` from `counter_and_amount(
+  node.pickup_index)` instead of `{"item": 74, "amount": index + 1}`.
+- `patcher_runner.py`: loop the `powerup_should_persist` byte write and
+  the `powerup_max` u32 write over all five counters (currently a single
+  pair of writes for item 74), using `PICKUP_COUNTER_MAX_CAPACITY` for
+  the four pickup counters and `GOAL_COUNTER_MAX_CAPACITY` for the goal
+  counter; `_add_goal_trigger` targets `GOAL_COUNTER_ITEM`
+  (`PlayerItemEnum.PersistentCounter8`) with `int_parm2 =
+  GOAL_SIGNAL_AMOUNT`.
+- `game_interface.py`: `consume_magic_item(amount)` becomes
+  `consume_counters(deltas)`, dispatching per item id -- OPR's unmodified
+  `adjust_item_amount_patch` for the goal counter (always a tiny value),
+  a new `_wide_decrement_patch` (constraint 1's escape hatch: `lis`/`ori`
+  instead of `li`) for the four pickup counters -- batched the same way
+  `grant` batches its own patches, returning leftovers and respecting the
+  body budget, but built separately from `grant` since neither path
+  touches capacity the way `grant` does. `ensure_magic_capacity` becomes
+  `ensure_goal_counter_capacity`, a one-time top-up of item 74 only
+  (pickup counters self-manage, per constraint 4).
+- `client.py` `_handle_magic_item_amount` -> `_handle_pickup_counters`:
+  read the goal counter first (`nonzero` -> `CLIENT_GOAL`, then consume
+  it), otherwise `decode(inventory)`, send one `LocationChecks` with
+  every decoded index, then consume the deltas. Keep the existing
+  send-before-consume ordering. Delete `_GOAL_INDEX_THRESHOLD` and its
+  import-time assert. Warn (don't drop the good bits) when `stray` is
+  non-empty, and warn when a decoded index isn't in
+  `ctx.missing_locations` -- that is the signature of the one residual
+  failure mode below.
+- `receive_items.py:162`: the `item_id == constants.MAGIC_ITEM` skip in
+  `compute_desired_capacities` becomes a membership test against all
+  five counter ids, so no counter can ever be driven by the item model
+  (see section N for why that guard matters).
+- `__init__.py` `generate_output`: add `"pickup_encoding":
+  "bitmask-v1"` to the options.json metadata dict.
+
+**Compatibility gate.** The per-pickup resource mapping is baked into
+config.json at *generation* time while the DOL writes happen client-side
+at *patch* time, so a new client fed an old `.apmp2` would patch an ISO
+whose pickups still use the summed encoding and then misread every
+pickup as a bitmask. The client must read `pickup_encoding` from
+options.json and refuse to patch (clear message: regenerate with a
+matching apworld version) when it is absent or unrecognised. Silent
+divergence here costs location checks, so this is a hard error, not a
+warning. An existing save carrying a stale item-74 amount from section
+O's old encoding is inert once 74 is read only as the goal counter's
+"nonzero means goal" signal, never summed against anything else -- but
+the seed must be regenerated and the ISO re-patched regardless, which is
+acceptable pre-release (M4 is not yet signed off).
+
+**Residual failure modes, honestly stated.** Collecting the *same*
+pickup twice without the client consuming in between would carry
+(`2^k + 2^k == 2^(k+1)`) and decode as a neighbouring index. That needs
+collect -> reload an older save -> collect, entirely while detached, and
+the counters are save-persistent so an ordinary death/reload rolls the
+counter back in lockstep with the pickup's own collected state. It is
+strictly rarer and more detectable than today's equivalent (the same
+sequence currently adds `2 * (index + 1)` and mis-credits silently);
+the "decoded index was not in `missing_locations`" warning above is the
+tell. Beyond that, the channel is lossless for any number of pickups
+collected over any disconnect length.
+
+**Tests.** `test_pickup_encoding.py` (new): round-trip every index 0..118
+through `counter_and_amount` -> `decode`; assert all 119
+`(counter, bit)` pairs are distinct; assert a full counter's value
+(`2**30 - 1`) round-trips through `decode` cleanly (constraint 1's
+escape hatch, as an executable check); multi-bit and multi-counter
+decodes; stray-bit reporting; `TestReservedItemIdsDisjoint`, which
+derives the reserved-id set from `data/logic_database/header.json` plus
+every id in `ITEM_TABLE`'s gains and asserts `PICKUP_COUNTER_ITEMS` is
+disjoint from it (the regression test for this section's own near-miss
+with item 73) while asserting `GOAL_COUNTER_ITEM` (74) specifically IS
+that set's "Multiworld" entry, not exempted wholesale.
+`test_game_interface.py` gains `TestConsumeCounters`, asserting
+`_wide_decrement_patch` actually assembles (against real DOL addresses)
+for a full 30-bit counter value, and that `consume_counters` routes goal
+vs. pickup counters through the right patch in one batched body.
+`test_patch_data.py:80`'s `test_pickup_indices_cover_0_to_118_exactly_once`
+gets rewritten against the new `(item, amount)` pairs. `test_goal_detection.py`
+loses its sentinel-arithmetic cases and gains: goal counter nonzero ->
+goal, goal counter zero + pickup bits -> checks only, goal declared once,
+every nonzero counter consumed regardless of branch, and the
+multi-pickup disconnect case that motivated all of this (several bits
+across several counters -> every location reported, none invented).
+`test_location_reconciliation.py` is deleted with its module.
+
+**In-game validation (M4).** Add to `MANUAL_TEST_PLAN.md`: detach the
+client, collect three pickups in different counter groups, reattach, and
+confirm all three locations are credited and nothing else is; reach
+Credits with the client attached and with it detached, and confirm the
+goal fires in both cases (the latter is the case section O's `==` check
+would miss under add semantics, constraint 5).
+
+**Removed by this section.** `client/location_reconciliation.py`,
+`test/test_location_reconciliation.py`,
+`constants.GOAL_SENTINEL_AMOUNT`, `constants.MAGIC_ITEM`,
+`client._GOAL_INDEX_THRESHOLD` and its assert, and the
+implausible-amount warning branch -- there is no longer an amount the
+client cannot interpret.

@@ -3,11 +3,13 @@
 Reproduces open-prime-rando's ``echoes.patcher.patch_iso`` step by step
 (rather than calling it directly) for two reasons (PLAN.md section I):
 
-1. Two DOL writes must land *before* ``_apply_patches`` runs, so that its
-   trailing ``editor.save_modifications(output, ...)`` picks them up along
-   with every other DOL patch it makes: persisting the multiworld "magic"
-   counter item (item 74) across saves, and giving it a large enough
-   ``powerup_max`` that its amount can climb past 119 without wrapping.
+1. Two DOL writes per counter must land *before* ``_apply_patches`` runs,
+   so that its trailing ``editor.save_modifications(output, ...)`` picks
+   them up along with every other DOL patch it makes: persisting each of
+   the five pickup-identity counters (``constants.ALL_COUNTER_ITEMS`` --
+   the four bitmask counters plus the goal counter, PLAN.md section P)
+   across saves, and giving each a large enough ``powerup_max`` that its
+   amount can never wrap.
 2. A goal-detection sentinel needs to be injected into the Credits area,
    which requires wrapping ``open_prime_rando.echoes.patcher.
    register_world_changes`` for the duration of the patch (see
@@ -98,14 +100,27 @@ def detect_iso_version(iso_path: str | os.PathLike[str]) -> str:
 # --------------------------------------------------------------------------
 
 def _add_goal_trigger(editor: PatcherEditor, mlvl: Any, area: Area) -> None:
-    """Raw ``AreaPatcher`` function (PLAN.md section J): adds a one-shot
-    Timer wired to a ``SetInventoryAmount`` SpecialFunction that sets item
-    74 (``PersistentCounter8``, the multiworld magic counter) to
-    ``constants.GOAL_SENTINEL_AMOUNT`` a second after the Credits area loads. The
-    client treats any magic-item amount past the real pickup range as the
-    goal signal, so this needs no memory offsets (mechanism 1 of two in
-    PLAN.md section J -- mechanism 2, a direct current-area memory read, is
-    an optional PLAN.md M4 addition).
+    """Raw ``AreaPatcher`` function (PLAN.md section J, updated by section
+    P): adds a one-shot Timer wired to a ``SetInventoryAmount``
+    SpecialFunction that sets item 74 (``PersistentCounter8`` --
+    randovania's own "Multiworld" allocation, ``constants.GOAL_COUNTER_ITEM``)
+    to ``constants.GOAL_SIGNAL_AMOUNT`` (1) a second after the Credits area
+    loads. The client treats ANY nonzero amount on this counter as the goal
+    signal (never a comparison against a specific amount), which is correct
+    whether this SpecialFunction sets or adds -- see PLAN.md section P
+    constraint 5, and ``client.py``'s ``_handle_pickup_counters`` docstring.
+    This needs no memory offsets (mechanism 1 of two in PLAN.md section J --
+    mechanism 2, a direct current-area memory read, is an optional PLAN.md
+    M4 addition).
+
+    The goal counter is a dedicated item, never one of the four pickup
+    bitmask counters (``constants.PICKUP_COUNTER_ITEMS``), specifically so
+    it can never alias with pickup data. It reuses item 74 -- section O's
+    old single shared magic counter, before section P moved real pickups
+    off it onto 67-70 -- rather than an unallocated-but-unverified id,
+    since randovania's own resource table confirms 74 ("Multiworld") is
+    ours and nothing else's, and this project has already proven its
+    in-game behavior (see ``constants.GOAL_COUNTER_ITEM``'s docstring).
 
     Modeled directly on
     ``open_prime_rando.echoes.pickups.pickup_editing._add_modify_inventory_sf``
@@ -132,7 +147,7 @@ def _add_goal_trigger(editor: PatcherEditor, mlvl: Any, area: Area) -> None:
         SpecialFunction(
             editor_properties=EditorProperties(name="AP Goal Trigger"),
             function=Function.SetInventoryAmount,
-            int_parm2=constants.GOAL_SENTINEL_AMOUNT,
+            int_parm2=constants.GOAL_SIGNAL_AMOUNT,
             inventory_item_parm=PlayerItemEnum.PersistentCounter8,
             sound1=-1,
             sound2=-1,
@@ -290,6 +305,26 @@ def _read_apmp2_json(apmp2_file: str | os.PathLike[str], member: str) -> dict[st
             return json.loads(f.read().decode("utf-8"))
 
 
+def _check_pickup_encoding_compatibility(apmp2_options: dict[str, Any]) -> None:
+    """PLAN.md section P's compatibility gate: the per-pickup resource
+    mapping (which item/bit each pickup grants) is baked into config.json
+    at *generation* time, while the DOL writes that make this client
+    understand that mapping as a bitmask happen client-side at *patch*
+    time. A new (bitmask-aware) client fed an old ``.apmp2`` would
+    therefore patch an ISO whose pickups still use the old summed encoding
+    and then misread every pickup as a bitmask -- silent divergence that
+    costs location checks, so this is a hard error, not a warning.
+    """
+    pickup_encoding = apmp2_options.get("pickup_encoding")
+    if pickup_encoding != constants.PICKUP_ENCODING_VERSION:
+        raise ValueError(
+            "This .apmp2 file's pickup encoding "
+            f"({pickup_encoding!r}) doesn't match what this client understands "
+            f"({constants.PICKUP_ENCODING_VERSION!r}). Regenerate the seed with a matching "
+            "version of the metroidprime2 apworld before patching."
+        )
+
+
 def _load_configuration(
     apmp2_file: str | os.PathLike[str], settings: dict[str, Any]
 ) -> RandoConfiguration:
@@ -370,6 +405,7 @@ def patch_iso_with_ap(
     # .apmp2's options.json instead. Both .get defaults keep .apmp2 files
     # produced before the respective option existed working.
     apmp2_options = _read_apmp2_json(apmp2_file, "options.json")
+    _check_pickup_encoding_compatibility(apmp2_options)
     warp_to_start = bool(apmp2_options.get("warp_to_start", False))
     show_item_locations = bool(apmp2_options.get("show_item_locations", False))
 
@@ -380,16 +416,22 @@ def patch_iso_with_ap(
 
     dol_version = find_version_for_dol(editor.dol, dol_versions.ALL_VERSIONS)
 
-    # Persist the multiworld magic counter (item 74) across saves, and give
-    # it enough capacity that its amount can exceed the 119 real pickup
-    # indices (used as the goal sentinel, PLAN.md section J) without
-    # overflowing. Both tables are byte-per-item/u32-per-item, indexed by
-    # PlayerItemEnum value (PLAN.md Context facts).
-    editor.dol.write(dol_version.powerup_should_persist + constants.MAGIC_ITEM, b"\x01")
-    editor.dol.write(
-        dol_version.powerup_max + constants.MAGIC_ITEM * 4,
-        struct.pack(">I", 65536),
-    )
+    # Persist every pickup-identity counter (the four bitmask counters plus
+    # the goal counter, constants.ALL_COUNTER_ITEMS -- PLAN.md section P)
+    # across saves, and give each enough capacity that its amount can never
+    # overflow. Both tables are byte-per-item/u32-per-item, indexed by
+    # PlayerItemEnum value (PLAN.md Context facts). A retail NTSC DOL
+    # already has constants.COUNTER_MAX_CAPACITY in `powerup_max` for every
+    # one of these items and 0 in `powerup_should_persist` (measured -- see
+    # PLAN.md section P): the persist byte is the write that actually
+    # matters, and the ceiling is rewritten only so it is guaranteed on
+    # every DOL version rather than assumed from one.
+    for counter_item in constants.ALL_COUNTER_ITEMS:
+        editor.dol.write(dol_version.powerup_should_persist + counter_item, b"\x01")
+        editor.dol.write(
+            dol_version.powerup_max + counter_item * 4,
+            struct.pack(">I", constants.COUNTER_MAX_CAPACITY),
+        )
 
     try:
         with contextlib.ExitStack() as patches:

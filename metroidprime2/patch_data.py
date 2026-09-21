@@ -34,6 +34,7 @@ from .items import ITEM_TABLE, gains_for
 from .locations import LOCATION_TABLE
 from .logic.db_reader import GameDatabase, Node, NodeId, load_game_database
 from .options import AnnihilatorAmmoSource, BeamAmmoCosts, DisplayNonLocalItems, MapVisibility, dark_damage_per_second
+from .pickup_encoding import counter_and_amount
 
 if TYPE_CHECKING:
     from . import MetroidPrime2World
@@ -503,12 +504,20 @@ def _location_data_for(node: Node) -> dict[str, Any]:
 
 
 def _pickup_modification(world: MetroidPrime2World, node: Node) -> dict[str, Any]:
+    """PLAN.md section P: each pickup grants exactly one bit (as an amount)
+    of one of ``constants.PICKUP_COUNTER_ITEMS``, via
+    ``pickup_encoding.counter_and_amount`` -- the single source of truth
+    for the ``pickup_index -> (item, bit)`` layout, shared with
+    ``client.py``'s decoder so generation time and runtime can never drift
+    apart on it.
+    """
     assert node.pickup_index is not None
     location_name = LOCATION_TABLE[node.pickup_index].name
+    counter_item, bit_amount = counter_and_amount(node.pickup_index)
     return {
         "location": _location_data_for(node),
         "primary_stage": {
-            "resources": [{"item": constants.MAGIC_ITEM, "amount": node.pickup_index + 1}],
+            "resources": [{"item": counter_item, "amount": bit_amount}],
             "appearance": _pickup_appearance(world, location_name),
             "conversion": [],
         },

@@ -1,23 +1,21 @@
-"""Regression tests for ``client/client.py``'s magic-item goal detection.
+"""Regression tests for ``client/client.py``'s pickup-counter handling
+(PLAN.md section P), which replaced section O's single-shared-counter
+``_handle_magic_item_amount`` (exact-match sentinel arithmetic against
+``constants.GOAL_SENTINEL_AMOUNT``) and its ``location_reconciliation``
+subset-sum fallback entirely.
 
-The bug: ``_handle_magic_item_amount`` used to treat any amount *at or
-above* the Credits-area sentinel (``constants.GOAL_SENTINEL_AMOUNT``, 120)
-as "the player reached the credits". Real pickups ADD their index+1 to
-whatever the magic-item counter already holds rather than setting it
-outright, so if the client isn't attached and consuming for a while (most
-realistically, a disconnect) and the player collects more than one pickup
-in that window, the counter ends up holding their sum -- e.g. two Sky
-Temple Keys collected while disconnected. Under the old `>=` check, that
-summed value was misread as the goal instead of the "implausible value"
-case the surrounding code already had a warning branch for. Fixed by
-requiring an exact match against the sentinel; see PLAN.md section O.
-
-Most of these tests use an empty ``missing_locations`` on the fake
-context, so the location-reconciliation attempt (``location_reconciliation``,
-whose own DP is tested exhaustively in ``test_location_reconciliation.py``)
-always finds no candidates and falls straight through to the plain warning
-path. ``TestClientReconciliation`` below covers the case where it
-succeeds.
+The old design's fundamental problem (section O fixed only its *false
+victory* symptom, not the underlying loss of identity): every pickup ADDs
+``pickup_index + 1`` to one shared counter, so two pickups collected in the
+same disconnect window merge into an ambiguous sum with no way to recover
+which pickups produced it. Section P's fix is a new encoding (one bit per
+pickup, spread across several persistent counters, ``pickup_encoding.py``)
+rather than a smarter decoder, so these tests exercise the new counter
+protocol directly: the goal counter (checked first, independently, "amount
+nonzero" only) and the four pickup bitmask counters (decoded via
+``pickup_encoding.decode``), including the multi-pickup-disconnect case
+that motivated the redesign -- several bits set across several counters at
+once, all reported, none invented.
 """
 
 from __future__ import annotations
@@ -39,16 +37,17 @@ if "network_data_package" not in worlds.__dict__:
     worlds.network_data_package_single_game = {}
 
 from .. import constants
-from ..client import client as client_module
-from ..client.client import _handle_magic_item_amount
+from ..client.client import _handle_pickup_counters
+from ..pickup_encoding import counter_and_amount
 
 
 class _FakeGameInterface:
     def __init__(self) -> None:
-        self.consumed_amounts: list[int] = []
+        self.consumed_calls: list[list[tuple[int, int]]] = []
 
-    def consume_magic_item(self, amount: int) -> None:
-        self.consumed_amounts.append(amount)
+    def consume_counters(self, deltas: list[tuple[int, int]]) -> list[tuple[int, int]]:
+        self.consumed_calls.append(list(deltas))
+        return []
 
 
 class _FakeContext:
@@ -62,114 +61,150 @@ class _FakeContext:
         self.sent_msgs.append(msgs)
 
 
-def _run(ctx: _FakeContext, amount: int) -> None:
+def _inventory(**counter_amounts: int) -> dict[int, tuple[int, int]]:
+    """Builds a full ``{item_id: (amount, capacity)}`` inventory snapshot
+    (the shape ``EchoesInterface.read_inventory`` returns) with every
+    counter in ``constants.ALL_COUNTER_ITEMS`` defaulting to 0, overridden
+    by keyword args named ``item_<id>``."""
+    inventory: dict[int, tuple[int, int]] = dict.fromkeys(constants.ALL_COUNTER_ITEMS, (0, 0))
+    for key, amount in counter_amounts.items():
+        item_id = int(key.removeprefix("item_"))
+        inventory[item_id] = (amount, 0)
+    return inventory
+
+
+def _run(ctx: _FakeContext, inventory: dict[int, tuple[int, int]]) -> None:
     import asyncio
 
-    asyncio.run(_handle_magic_item_amount(ctx, amount))  # type: ignore[arg-type]
+    asyncio.run(_handle_pickup_counters(ctx, inventory))  # type: ignore[arg-type]
 
 
-class TestGoalSentinelIsAnExactMatch(unittest.TestCase):
-    def test_real_pickup_index_sends_location_check_not_goal(self) -> None:
+class TestGoalCounter(unittest.TestCase):
+    def test_goal_counter_nonzero_declares_goal(self) -> None:
         ctx = _FakeContext()
-        _run(ctx, 50)
-        self.assertEqual([[{"cmd": "LocationChecks", "locations": [constants.LOCATION_ID_BASE + 49]}]], ctx.sent_msgs)
-        self.assertFalse(ctx.finished_game)
-
-    def test_last_real_pickup_index_still_sends_location_check(self) -> None:
-        ctx = _FakeContext()
-        last_index = client_module._GOAL_INDEX_THRESHOLD - 1
-        _run(ctx, client_module._GOAL_INDEX_THRESHOLD)  # amount 119: index 118, the last real pickup
-        self.assertEqual(
-            [[{"cmd": "LocationChecks", "locations": [constants.LOCATION_ID_BASE + last_index]}]],
-            ctx.sent_msgs,
-        )
-        self.assertFalse(ctx.finished_game)
-
-    def test_exact_sentinel_declares_goal(self) -> None:
-        ctx = _FakeContext()
-        _run(ctx, constants.GOAL_SENTINEL_AMOUNT)
+        inventory = _inventory(**{f"item_{constants.GOAL_COUNTER_ITEM}": constants.GOAL_SIGNAL_AMOUNT})
+        _run(ctx, inventory)
         self.assertTrue(ctx.finished_game)
         self.assertEqual(1, len(ctx.sent_msgs))
         self.assertEqual("StatusUpdate", ctx.sent_msgs[0][0]["cmd"])
 
-    def test_goal_only_declared_once(self) -> None:
+    def test_goal_correct_under_add_semantics_too(self) -> None:
+        """Section P constraint 5: the goal check is "amount nonzero", not
+        an exact match against a specific value, so it's correct whether
+        the in-ISO SetInventoryAmount sets or adds -- an amount of, say, 3
+        (accumulated adds) must still declare the goal."""
         ctx = _FakeContext()
-        _run(ctx, constants.GOAL_SENTINEL_AMOUNT)
-        _run(ctx, constants.GOAL_SENTINEL_AMOUNT)
+        inventory = _inventory(**{f"item_{constants.GOAL_COUNTER_ITEM}": 3})
+        _run(ctx, inventory)
+        self.assertTrue(ctx.finished_game)
+
+    def test_goal_declared_once(self) -> None:
+        ctx = _FakeContext()
+        inventory = _inventory(**{f"item_{constants.GOAL_COUNTER_ITEM}": constants.GOAL_SIGNAL_AMOUNT})
+        _run(ctx, inventory)
+        _run(ctx, inventory)
         self.assertEqual(1, len(ctx.sent_msgs))
 
-    def test_amount_past_sentinel_is_implausible_not_goal(self) -> None:
-        """Regression: this is exactly the race PLAN.md section J's risk 3
-        describes -- two pickups summing into a garbage amount above the
-        sentinel must NOT be read as having finished the game."""
+    def test_goal_counter_consumed_on_every_call(self) -> None:
+        """Every nonzero counter is consumed regardless of branch -- the
+        goal branch consumes even after finished_game is already True, so
+        a leftover amount can never survive to be misread later."""
         ctx = _FakeContext()
-        _run(ctx, constants.GOAL_SENTINEL_AMOUNT + 1)
-        self.assertFalse(ctx.finished_game)
-        self.assertEqual([], ctx.sent_msgs)
-        self.assertEqual([constants.GOAL_SENTINEL_AMOUNT + 1], ctx.game_interface.consumed_amounts)
+        inventory = _inventory(**{f"item_{constants.GOAL_COUNTER_ITEM}": constants.GOAL_SIGNAL_AMOUNT})
+        _run(ctx, inventory)
+        _run(ctx, inventory)
+        self.assertEqual(
+            [[(constants.GOAL_COUNTER_ITEM, -constants.GOAL_SIGNAL_AMOUNT)]] * 2,
+            ctx.game_interface.consumed_calls,
+        )
 
-    def test_large_garbage_amount_is_implausible_not_goal(self) -> None:
+    def test_goal_counter_takes_priority_over_pickup_bits(self) -> None:
+        """The goal counter is checked first and independently: even if a
+        pickup counter also happens to be nonzero in the same read, the
+        goal fires and returns without touching pickup bits this tick (the
+        pickup bits are picked up cleanly on the next tick instead)."""
         ctx = _FakeContext()
-        _run(ctx, 5000)
+        pickup_item, pickup_bit = counter_and_amount(0)
+        inventory = _inventory(
+            **{
+                f"item_{constants.GOAL_COUNTER_ITEM}": constants.GOAL_SIGNAL_AMOUNT,
+                f"item_{pickup_item}": pickup_bit,
+            }
+        )
+        _run(ctx, inventory)
+        self.assertTrue(ctx.finished_game)
+        self.assertEqual(1, len(ctx.sent_msgs))
+        self.assertEqual("StatusUpdate", ctx.sent_msgs[0][0]["cmd"])
+        expected_consumed = [[(constants.GOAL_COUNTER_ITEM, -constants.GOAL_SIGNAL_AMOUNT)]]
+        self.assertEqual(expected_consumed, ctx.game_interface.consumed_calls)
+
+
+class TestPickupBitmaskCounters(unittest.TestCase):
+    def test_goal_zero_single_pickup_bit_sends_check_only(self) -> None:
+        ctx = _FakeContext()
+        item_id, bit = counter_and_amount(3)
+        inventory = _inventory(**{f"item_{item_id}": bit})
+        _run(ctx, inventory)
         self.assertFalse(ctx.finished_game)
-        self.assertEqual([], ctx.sent_msgs)
+        self.assertEqual(
+            [[{"cmd": "LocationChecks", "locations": [constants.LOCATION_ID_BASE + 3]}]],
+            ctx.sent_msgs,
+        )
+        self.assertEqual([[(item_id, -bit)]], ctx.game_interface.consumed_calls)
 
-    def test_every_amount_is_consumed_regardless_of_branch(self) -> None:
-        for amount in (50, constants.GOAL_SENTINEL_AMOUNT, constants.GOAL_SENTINEL_AMOUNT + 1):
-            ctx = _FakeContext()
-            _run(ctx, amount)
-            self.assertEqual([amount], ctx.game_interface.consumed_amounts)
+    def test_multiple_bits_on_one_counter_report_all_indices(self) -> None:
+        # Indices 0, 2, 5 all land on the same counter (all < BITS_PER_COUNTER).
+        item_id_0, bit_0 = counter_and_amount(0)
+        _, bit_2 = counter_and_amount(2)
+        _, bit_5 = counter_and_amount(5)
+        combined = bit_0 | bit_2 | bit_5
+        ctx = _FakeContext()
+        inventory = _inventory(**{f"item_{item_id_0}": combined})
+        _run(ctx, inventory)
+        self.assertEqual(1, len(ctx.sent_msgs))
+        sent = ctx.sent_msgs[0][0]
+        self.assertEqual("LocationChecks", sent["cmd"])
+        self.assertEqual(
+            sorted(constants.LOCATION_ID_BASE + idx for idx in (0, 2, 5)),
+            sorted(sent["locations"]),
+        )
+        self.assertEqual([[(item_id_0, -combined)]], ctx.game_interface.consumed_calls)
 
+    def test_multi_pickup_disconnect_across_several_counters_reports_all_none_invented(self) -> None:
+        """The case that motivated section P: several pickups collected
+        while disconnected, landing bits across several different
+        counters. Every one of them must be reported, and nothing else --
+        this is exactly what the old shared-additive-counter design (and
+        its location_reconciliation subset-sum fallback, removed by this
+        section) could not reliably do."""
+        indices = [0, 14, 20, 44, 60, 118]  # spread across all 8 counters
+        by_item: dict[int, int] = {}
+        for index in indices:
+            item_id, bit = counter_and_amount(index)
+            by_item[item_id] = by_item.get(item_id, 0) | bit
 
-class TestClientReconciliation(unittest.TestCase):
-    """Integration coverage for _handle_magic_item_amount's use of
-    location_reconciliation. Note that a plain amount in 1..119 always
-    matches "a single real pickup index" (the first branch) regardless of
-    whether that index happens to be in missing_locations, so exercising
-    reconciliation at all requires an amount past the goal sentinel (120)
-    -- it only ever runs in the "implausible" bucket.
+        ctx = _FakeContext()
+        inventory = _inventory(**{f"item_{item_id}": amount for item_id, amount in by_item.items()})
+        _run(ctx, inventory)
 
-    It must build candidate indices from ctx.missing_locations
-    (translating AP location ids back to 0-based pickup indices), report
-    every recovered index as a LocationCheck in one message when the sum
-    is uniquely explained, and fall back to the plain warning (no checks
-    sent) when it isn't."""
-
-    def test_unique_sum_of_two_missing_locations_reports_both(self) -> None:
-        # Indices 60 and 90 -> values 61 and 91 -> sum 152. idx 5 (value 6)
-        # is a distractor that doesn't create a second way to reach 152.
-        missing = {constants.LOCATION_ID_BASE + idx for idx in (5, 60, 90)}
-        ctx = _FakeContext(missing_locations=missing)
-        _run(ctx, 152)
         self.assertFalse(ctx.finished_game)
         self.assertEqual(1, len(ctx.sent_msgs))
         sent = ctx.sent_msgs[0][0]
         self.assertEqual("LocationChecks", sent["cmd"])
         self.assertEqual(
-            sorted([constants.LOCATION_ID_BASE + 60, constants.LOCATION_ID_BASE + 90]),
+            sorted(constants.LOCATION_ID_BASE + idx for idx in indices),
             sorted(sent["locations"]),
         )
-        self.assertEqual([152], ctx.game_interface.consumed_amounts)
+        # Every nonzero counter consumed regardless of branch, by its exact
+        # read amount (PLAN.md section P point 2).
+        [consumed] = ctx.game_interface.consumed_calls
+        self.assertEqual(sorted(by_item.items()), sorted((item_id, -amount) for item_id, amount in consumed))
 
-    def test_ambiguous_sum_reports_nothing(self) -> None:
-        # idx 58,59,60,61 -> values 59,60,61,62. Target 121 is reachable
-        # two different ways: {59,62} (idx 58+61) and {60,61} (idx 59+60)
-        # -- deliberately ambiguous, must not guess between them.
-        missing = {constants.LOCATION_ID_BASE + idx for idx in (58, 59, 60, 61)}
-        ctx = _FakeContext(missing_locations=missing)
-        _run(ctx, 121)
-        self.assertFalse(ctx.finished_game)
+    def test_no_counters_nonzero_sends_nothing(self) -> None:
+        ctx = _FakeContext()
+        _run(ctx, _inventory())
         self.assertEqual([], ctx.sent_msgs)
-        self.assertEqual([121], ctx.game_interface.consumed_amounts)
-
-    def test_missing_locations_outside_this_worlds_id_range_are_ignored(self) -> None:
-        # A location id far outside LOCATION_ID_BASE..+119 (e.g. another
-        # game's location in a combined view) must never be translated
-        # into a bogus negative/huge pickup index.
-        missing = {constants.LOCATION_ID_BASE + 10, 999_999_999}
-        ctx = _FakeContext(missing_locations=missing)
-        _run(ctx, 999)  # nowhere near reachable from index 10 alone (value 11)
-        self.assertEqual([], ctx.sent_msgs)
+        self.assertEqual([], ctx.game_interface.consumed_calls)
 
 
 if __name__ == "__main__":

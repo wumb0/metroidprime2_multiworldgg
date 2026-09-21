@@ -5,8 +5,8 @@ Every ``open_prime_rando``/``retro_data_structures`` import here is
 deferred into the methods that need it, so this module (and therefore
 ``client/dolphin_client.py`` / ``client/versions.py`` importers) can be
 imported without the patcher stack installed; only actually talking to a
-running Dolphin (``execute``/``grant``/``consume_magic_item``/
-``ensure_magic_capacity``/``send_hud_message``) requires it.
+running Dolphin (``execute``/``grant``/``consume_counters``/
+``ensure_goal_counter_capacity``/``send_hud_message``) requires it.
 
 Protocol reference: ``open_prime_rando.dol_patching.all_prime_dol_patches``
 and randovania's ``PrimeRemoteConnector``/``EchoesRemoteConnector`` (see
@@ -35,7 +35,15 @@ if TYPE_CHECKING:
 
 _GC_GAME_ID_ADDRESS = 0x80000000
 _MESSAGE_OVERHEAD = 6
-_MAGIC_ITEM_MIN_CAPACITY = 4096
+
+# The goal counter (constants.GOAL_COUNTER_ITEM) is written by a
+# SetInventoryAmount SpecialFunction that sets its amount without ever
+# touching capacity (unlike the four pickup bitmask counters, whose
+# capacity self-manages via the native additive pickup path -- PLAN.md
+# section P constraint 4), so it needs a one-time client-side top-up.
+# Only constants.GOAL_SIGNAL_AMOUNT (1) is ever written to it, so this is
+# generous headroom, not a tight bound.
+_GOAL_COUNTER_MIN_CAPACITY = 64
 
 # Right after Dolphin launches (or right after a savestate/game boot), the
 # memory hook can attach and read the game id before the disc has actually
@@ -85,6 +93,60 @@ def encode_hud_message(message: str, max_message_size: int, last_encoded_size: i
         encoded_message += b"\x00" * num_to_align
 
     return encoded_message, new_last_encoded_size
+
+
+def _wide_decrement_patch(
+    powerup_functions: PowerupFunctionsAddresses, item_id: int, amount: int
+) -> list[BaseInstruction]:
+    """Amount-only ``decr_pickup(item_id, amount)`` call for a counter
+    whose value can exceed the signed 16-bit range
+    ``open_prime_rando.dol_patching.all_prime_dol_patches.
+    adjust_item_amount_patch`` assumes (PLAN.md section P's constraint-1
+    escape hatch, taken once the reserved-id accounting forced the layout
+    down to 4 counters of 30 usable bits each -- see
+    ``constants.PICKUP_COUNTER_ITEMS``'s docstring for why).
+
+    ``adjust_item_amount_patch`` builds its amount operand with
+    ``li(r5, abs(delta))`` -- ``addi rD, r0, SIMM16``, a SIGNED 16-bit
+    immediate (``Instruction.compose`` asserts
+    ``-32768 <= literal < 32768``) -- so it cannot express an amount
+    bigger than 32767. This builds the exact same
+    ``_load_player_state`` -> ``li(r4, item_id)`` -> ``bl(decr_pickup)``
+    shape (mirroring ``adjust_item_amount_patch``'s own negative-delta
+    branch), just with a wider amount load: ``lis`` loads the high 16
+    bits into r5 and ``ori`` ORs in the low 16 bits. Both ``addis``'s and
+    ``ori``'s literal fields are UNSIGNED 16-bit per
+    ``Instruction.compose`` (``0 <= it < 65536``), and both halves below
+    are masked to ``0xFFFF`` before being passed in, so neither call can
+    ever fail that assert regardless of ``amount`` -- unlike ``li``, there
+    is no upper bound this trips over short of the 32-bit register itself.
+
+    ``amount`` must be >= 0: this only ever decrements (there is no
+    ``incr_pickup`` counterpart here, matching ``consume_counters``'s
+    contract that every delta it's given is already the exact negative
+    amount to remove).
+
+    ``_load_player_state`` is private to ``all_prime_dol_patches``, not
+    part of its public API -- importing it directly is acceptable here
+    because ``pyproject.toml`` pins ``open-prime-rando==0.20.1`` exactly.
+    On Echoes (the only game this world targets) it is a single
+    instruction, ``lwz(r3, 0x150C, r31)``; inline that literal ``lwz`` in
+    place of the import if a future OPR version ever removes or changes
+    it.
+    """
+    assert amount >= 0, f"_wide_decrement_patch amount must be non-negative, got {amount}"
+
+    from open_prime_rando.dol_patching.all_prime_dol_patches import _load_player_state
+    from ppc_asm.assembler.ppc import bl, li, lis, ori, r3, r4, r5, r31
+    from retro_data_structures.game_check import Game
+
+    return [
+        *_load_player_state(Game.ECHOES, r3, r31),
+        li(r4, item_id),
+        lis(r5, (amount >> 16) & 0xFFFF),
+        ori(r5, r5, amount & 0xFFFF),
+        bl(powerup_functions.decr_pickup),
+    ]
 
 
 class EchoesInterface:
@@ -462,23 +524,95 @@ class EchoesInterface:
 
         return leftovers
 
-    def consume_magic_item(self, amount: int) -> None:
-        """adjust_item_amount_patch(MAGIC_ITEM, -amount) -- amount only,
-        capacity is left untouched (PLAN.md section J)."""
+    def consume_counters(self, deltas: list[tuple[int, int]]) -> list[tuple[int, int]]:
+        """Clears the exact amount ``pickup_encoding.decode`` read off each
+        counter this tick (``deltas`` are already negative -- PLAN.md
+        section P point 2: consume the exact value read, never a blanket
+        zero, so a pickup landing between the read and this consume
+        survives to the next tick instead of being silently discarded).
+
+        Two different instruction shapes are used, chosen per item id,
+        mirroring ``grant``'s own batching/leftover mechanics (one
+        remote-execution body per tick, up to the ~420-byte budget --
+        PLAN.md section P constraint 7: all four pickup counters plus the
+        goal counter comfortably fit in one, with room to spare) but NOT
+        built on ``grant`` itself, since ``grant`` always adjusts capacity
+        alongside amount and neither counter kind wants that here:
+
+        - The goal counter (``constants.GOAL_COUNTER_ITEM``) is consumed
+          with OPR's unmodified ``adjust_item_amount_patch`` -- its value
+          is always tiny (``constants.GOAL_SIGNAL_AMOUNT``, 1, or a small
+          handful of repeats under add semantics), comfortably inside that
+          patch's signed 16-bit ``li``.
+        - Each of the four pickup bitmask counters
+          (``constants.PICKUP_COUNTER_ITEMS``) can hold up to
+          ``2**constants.BITS_PER_COUNTER - 1`` (30 bits), which doesn't
+          fit that ``li`` -- these go through ``_wide_decrement_patch``
+          instead (PLAN.md section P's constraint-1 escape hatch).
+
+        Neither path touches capacity: the pickup counters' capacity only
+        ever needs to grow (it self-manages via the native additive
+        pickup path, constraint 4, and ``COUNTER_MAX_CAPACITY`` is
+        large enough that it never wraps), and the goal counter's capacity
+        is handled once, up front, by ``ensure_goal_counter_capacity``.
+        """
         from open_prime_rando.dol_patching import all_prime_dol_patches
         from retro_data_structures.game_check import Game
 
-        instructions = all_prime_dol_patches.adjust_item_amount_patch(
-            self._powerup_functions_addresses(), Game.ECHOES, constants.MAGIC_ITEM, -amount
-        )
-        self.execute(instructions, None)
+        powerup_functions = self._powerup_functions_addresses()
+        batch_instructions: list[BaseInstruction] = []
+        batch_count = 0
+        leftovers: list[tuple[int, int]] = []
+        exhausted = False
 
-    def ensure_magic_capacity(self, capacity: int) -> None:
-        """Tops up the magic item's capacity to at least 4096 so its
-        amount can climb well past the 119 real pickup indices (and the
-        120 goal sentinel) without wrapping (PLAN.md Context fact 33/Risk
-        L5)."""
-        if capacity >= _MAGIC_ITEM_MIN_CAPACITY:
+        for item_id, delta in deltas:
+            if exhausted:
+                leftovers.append((item_id, delta))
+                continue
+
+            if item_id in constants.PICKUP_COUNTER_ITEMS:
+                item_instructions = _wide_decrement_patch(powerup_functions, item_id, -delta)
+            else:
+                item_instructions = all_prime_dol_patches.adjust_item_amount_patch(
+                    powerup_functions, Game.ECHOES, item_id, delta
+                )
+
+            candidate = [*batch_instructions, *item_instructions]
+            try:
+                self._try_body(candidate, None)
+            except ValueError:
+                if batch_count == 0:
+                    # A single counter's consume alone exceeds the budget -- shouldn't
+                    # happen given the ~420-byte budget, but don't get stuck retrying
+                    # it forever.
+                    self.logger.error(
+                        f"Consume for item {item_id} (delta {delta}) alone exceeds the "
+                        "remote-execution body budget; dropping it."
+                    )
+                    continue
+                leftovers.append((item_id, delta))
+                exhausted = True
+                continue
+
+            batch_instructions = candidate
+            batch_count += 1
+
+        if batch_count > 0:
+            self.execute(batch_instructions, None)
+
+        return leftovers
+
+    def ensure_goal_counter_capacity(self, capacity: int) -> None:
+        """One-time top-up of the goal counter's (``constants.
+        GOAL_COUNTER_ITEM``) capacity to at least ``_GOAL_COUNTER_MIN_CAPACITY``.
+
+        Unlike the four pickup bitmask counters (whose capacity
+        self-manages, PLAN.md section P constraint 4), the goal counter is
+        written by a ``SetInventoryAmount`` SpecialFunction that sets its
+        amount without ever touching capacity -- the entire reason this
+        top-up exists, mirroring the old (section J/O) ``ensure_magic_capacity``
+        for what was then the single shared magic-item counter."""
+        if capacity >= _GOAL_COUNTER_MIN_CAPACITY:
             return
         from open_prime_rando.dol_patching import all_prime_dol_patches
         from retro_data_structures.game_check import Game
@@ -486,8 +620,8 @@ class EchoesInterface:
         instructions = all_prime_dol_patches.increment_item_capacity_patch(
             self._powerup_functions_addresses(),
             Game.ECHOES,
-            constants.MAGIC_ITEM,
-            _MAGIC_ITEM_MIN_CAPACITY - capacity,
+            constants.GOAL_COUNTER_ITEM,
+            _GOAL_COUNTER_MIN_CAPACITY - capacity,
         )
         self.execute(instructions, None)
 

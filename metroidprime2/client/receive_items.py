@@ -64,6 +64,15 @@ _COUNTED_AMMO_IDS = frozenset(
 
 _ENERGY_TANK_CAP = 14
 
+# The five pickup-identity counters (PLAN.md section P: four bitmask
+# counters plus the goal counter) must never be driven by the item model --
+# they're written directly by in-ISO pickup scripts / the Credits trigger
+# and consumed by client.py's own counter-decoding path, not by anything
+# ITEM_TABLE's gains would compute (see section N for why that guard
+# matters: gains here are keyed by OPR inventory slot, and these ids
+# otherwise look like any other slot to the generic accumulation below).
+_ALL_COUNTER_ITEM_IDS = frozenset(constants.ALL_COUNTER_ITEMS)
+
 _SEEKER_LAUNCHER = "Seeker Launcher"
 _MISSILE_LAUNCHER = "Missile Launcher"
 _MISSILE_EXPANSION = "Missile Expansion"
@@ -159,7 +168,7 @@ def compute_desired_capacities(
             gains = data.gains
 
         for item_id, amount in gains:
-            if item_id in _COUNTED_AMMO_IDS or item_id == constants.MAGIC_ITEM:
+            if item_id in _COUNTED_AMMO_IDS or item_id in _ALL_COUNTER_ITEM_IDS:
                 continue
             # Idempotent "at least" rather than a running sum: a boolean
             # item's gains amount is always the same regardless of how

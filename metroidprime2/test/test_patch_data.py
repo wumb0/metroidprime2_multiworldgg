@@ -19,11 +19,12 @@ from BaseClasses import Item, ItemClassification
 from Options import Visibility
 
 from .. import patch_data
-from ..constants import LANDING_SITE_MREA, OPR_MODEL_NAMES, TEMPLE_GROUNDS_MLVL
+from ..constants import LANDING_SITE_MREA, OPR_MODEL_NAMES, PICKUP_COUNTER_ITEMS, TEMPLE_GROUNDS_MLVL
 from ..items import ITEM_TABLE
 from ..locations import LOCATION_TABLE
 from ..logic.db_reader import load_game_database
 from ..options import DisplayNonLocalItems, MetroidPrime2Options, RevealMapRemoved
+from ..pickup_encoding import counter_and_amount
 from .bases import MP2TestBase
 
 
@@ -79,14 +80,21 @@ class TestMakeRandoConfiguration(MP2TestBase):
         self.assertEqual(5, len(self.config["world_changes"]))
 
     def test_pickup_indices_cover_0_to_118_exactly_once(self) -> None:
-        amounts = sorted(
-            pickup["primary_stage"]["resources"][0]["amount"] for pickup in _all_pickups(self.config)
+        # PLAN.md section P: each pickup grants one bit of one of
+        # constants.PICKUP_COUNTER_ITEMS (pickup_encoding.counter_and_amount),
+        # not an addend into a single shared counter -- so the generated
+        # (item, amount) pairs must exactly match, as a set, what
+        # counter_and_amount produces for every real pickup index.
+        actual_pairs = sorted(
+            (pickup["primary_stage"]["resources"][0]["item"], pickup["primary_stage"]["resources"][0]["amount"])
+            for pickup in _all_pickups(self.config)
         )
-        self.assertEqual(list(range(1, 120)), amounts)
+        expected_pairs = sorted(counter_and_amount(index) for index in range(len(LOCATION_TABLE)))
+        self.assertEqual(expected_pairs, actual_pairs)
         for pickup in _all_pickups(self.config):
             resources = pickup["primary_stage"]["resources"]
             self.assertEqual(1, len(resources))
-            self.assertEqual(74, resources[0]["item"])
+            self.assertIn(resources[0]["item"], PICKUP_COUNTER_ITEMS)
             self.assertEqual([], pickup["progressive_stages"])
 
     def test_17_translator_gates(self) -> None:
