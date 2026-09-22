@@ -37,15 +37,15 @@ TEST = ManualTest(
     priority="P0",
     proves="L+R decline warps; plain decline is vanilla; the prompt shows the hint; the target is the starting room",
     seed=1_000_004,
-    config_sha256="5db0bfca2fdf49f5f996727b060488672164d2a9e64bcf3155cc3543424e9316",
+    config_sha256="be88dcf9b4e45bd828cee2ed7a401972fc2075759bc3afb6f28391d587749207",
     starting_room="Temple Grounds/Hive Save Station/Save Station",
-    options=presets.merge(presets.NO_RANDO_OPTIONS, presets.FAST_RETRY_OPTIONS),
+    options=presets.merge(presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS, presets.FAST_RETRY_OPTIONS),
     start_inventory=dict(presets.ALL_ITEMS_START),
     steps=_BASE_STEPS,
     variants={
         "off": Variant(
             options={"warp_to_start": False},
-            config_sha256="c45504052fe0052aaf4d0f009e32fae347d1f651cf7d369a61b41ffd1276e582",
+            config_sha256="54daad7b126efe254e17089c16a42b04e3f1bf8e9f746496fd681cf6ff0976fb",
             steps=[
                 Step(
                     "Spawn in Hive Save Station, activate it, and choose No with L + R held.",

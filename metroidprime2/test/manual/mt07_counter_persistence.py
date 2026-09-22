@@ -23,8 +23,8 @@ TEST = ManualTest(
         "doubled checks"
     ),
     seed=1_000_007,
-    config_sha256="aa7156584ff4cf6264caff3390a08f0d76889f9f392cd54ae7812fe3f14cb20f",
-    options=presets.NO_RANDO_OPTIONS,
+    config_sha256="cd8c9f77f91b3d322888cbab79d701a3bd4fb27be75a7c4e04576768998fd07b",
+    options=presets.merge(presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS),
     start_inventory=dict(presets.ALL_ITEMS_START),
     plando=[
         {"item": item, "location": LOCATION_TABLE[index].name, "from_pool": True}

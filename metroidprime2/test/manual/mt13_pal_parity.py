@@ -17,9 +17,9 @@ TEST = ManualTest(
     priority="P1",
     proves="MT01/MT03/MT04/MT07 pass identically on a PAL ISO (different DOL addresses)",
     seed=1_000_013,
-    config_sha256="df56e050f34fffe9b8d2bfc66029d977ccc9ad28ab58a06c0bc082167404fac7",
+    config_sha256="e9102a153c00c17a2e515ddb8935507914ef34b26f30899565484f061a980419",
     build_flags="--pal",
-    options=presets.NO_RANDO_OPTIONS,
+    options=presets.merge(presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS),
     notes=[
         (
             "This is not a separate build: it is a checklist to re-run the per-build-address "

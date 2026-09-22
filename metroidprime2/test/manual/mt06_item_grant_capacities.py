@@ -119,7 +119,7 @@ def _steps(ammo_item: str) -> list[Step]:
 
 
 def _variant(
-    split_beam_ammo: bool, unlock_launcher: bool, unlock_power_bombs: bool, config_sha256: str
+    split_beam_ammo: bool, unlock_launcher: bool, unlock_power_bombs: bool, config_sha256: str | None
 ) -> Variant:
     return Variant(
         options={
@@ -141,11 +141,14 @@ TEST = ManualTest(
     priority="P0",
     proves="cross-computed capacities (ammo, launcher, progressives) land correctly in the live inventory",
     seed=1_000_006,
-    options={
-        "progressive_suit": True,
-        "progressive_grapple": True,
-        "energy_per_tank": 250,
-    },
+    options=presets.merge(
+        presets.MAP_OPTIONS,
+        {
+            "progressive_suit": True,
+            "progressive_grapple": True,
+            "energy_per_tank": 250,
+        },
+    ),
     notes=[
         (
             "Non-tested items are granted via `start_inventory` so the plando bench can't make "
@@ -164,13 +167,13 @@ TEST = ManualTest(
             split_beam_ammo=True,
             unlock_launcher=False,
             unlock_power_bombs=False,
-            config_sha256="aaf3f1672610b083ac1e4e941ebcf2af73e00495edcac7a9f6c5048bc5c5f8a7",
+            config_sha256="491bdb345701d22f36a93959832ab3563f816d2bd3fbe198a55b9bf168311c9e",
         ),
         "b": _variant(
             split_beam_ammo=False,
             unlock_launcher=True,
             unlock_power_bombs=True,
-            config_sha256="899657cf8ae7b8bd00ea62dd2be2b5f1d8d6dc966ed5361c1b39be7758864242",
+            config_sha256="8793936801c97613ad1bc65c0a2a461b0f4202deb9681f92b82bb0acc868bce7",
         ),
     },
     pass_criteria=[

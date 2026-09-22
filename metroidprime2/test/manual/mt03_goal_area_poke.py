@@ -35,8 +35,8 @@ TEST = ManualTest(
     priority="P0",
     proves="the goal *detector* fires off a real memory read on this build, without the final boss",
     seed=1_000_003,
-    config_sha256="d6efa6412bf164d4b404d578de951ec215251d1c2d1f953a4112261ed3d03b01",
-    options=presets.NO_RANDO_OPTIONS,
+    config_sha256="5b04b0c531835f9c1bb16cc57caf4712f52c28edd522d471ccf9185d8e88c620",
+    options=presets.merge(presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS),
     notes=[_pointer_chain(versions.NTSC), _pointer_chain(versions.PAL)],
     steps=[
         Step(

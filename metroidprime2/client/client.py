@@ -492,7 +492,14 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
         return
 
     last_item_name, last_sender = received[-1]
-    if last_sender != ctx.slot:
+    if len(received) <= first_non_starting:
+        # Everything outstanding is still start-inventory catch-up (grant()'s
+        # per-tick remote-execution body budget can take several ticks to
+        # apply a large start_inventory block) -- there's no real "receive"
+        # to announce yet, so re-showing this message every tick would spam
+        # the HUD until catch-up finishes.
+        message = None
+    elif last_sender != ctx.slot:
         sender_name = ctx.player_names.get(last_sender, "another world")
         message = f"Received {last_item_name} from {sender_name}"
     else:

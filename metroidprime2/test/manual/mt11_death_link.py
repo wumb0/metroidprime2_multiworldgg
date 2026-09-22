@@ -11,14 +11,14 @@ TEST = ManualTest(
     priority="P1",
     proves="Death Link works in both directions in a live game without a death loop",
     seed=1_000_011,
-    config_sha256="a799e9101032bbc086e47baa06cb54b38c96bd553c4259b8c07e39777c25be9a",
-    options=presets.merge(presets.NO_RANDO_OPTIONS, {"death_link": True}),
+    config_sha256="59cc043d588aa82c18025377ad2f55de7f2d03b4bfa4f83e124edc23c4877692",
+    options=presets.merge(presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS, {"death_link": True}),
     start_inventory=dict(presets.ALL_ITEMS_START),
     companions=[
         SlotSpec(
             name="DeathLinkPartner",
             game="Metroid Prime 2: Echoes",
-            options={"death_link": True},
+            options=presets.merge(presets.MAP_OPTIONS, {"death_link": True}),
         )
     ],
     steps=[

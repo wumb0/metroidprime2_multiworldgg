@@ -47,10 +47,10 @@ TEST = ManualTest(
         "their own locations, with nothing dropped and nothing invented"
     ),
     seed=1_000_008,
-    # Re-pin with --repin after the first build: section P changed this
-    # test's plando set, so the previous pin no longer applies.
-    config_sha256=None,
-    options=presets.merge(presets.NO_RANDO_OPTIONS, presets.FAST_RETRY_OPTIONS, presets.GOD_MODE_OPTIONS),
+    config_sha256="babe2c15d2ac243387fde22a8fdb1f92f8734fa4b8d0600f86734d1b79e19b6e",
+    options=presets.merge(
+        presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS, presets.FAST_RETRY_OPTIONS, presets.GOD_MODE_OPTIONS
+    ),
     start_inventory=presets.merge_inventory(presets.ALL_ITEMS_START, presets.GOD_MODE_START_INVENTORY),
     plando=_plando(),
     notes=[
