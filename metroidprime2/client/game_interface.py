@@ -56,6 +56,35 @@ _GAME_ID_RETRY_BASE_DELAY = 0.2  # seconds
 _GAME_ID_RETRY_MAX_DELAY = 2.0  # seconds
 _EMPTY_GAME_ID = b"\x00\x00\x00\x00\x00\x00"
 
+# dolphin-memory-engine's Windows hook() finds the MEM1 buffer purely by
+# scanning the Dolphin process for a *same-sized* memory region -- it does
+# not inspect the region's contents at all (upstream's own comment in
+# WindowsDolphinProcess.cpp: "it can happen that multiple pages with these
+# criteria exist[] and have nothing to do with the emulated memory"). So a
+# "hooked" status doesn't guarantee we're actually looking at real GC RAM;
+# a decoy region can read back as 6 bytes of unrelated process memory that
+# happen not to be empty and don't match a known game id, which otherwise
+# looks identical to "genuinely the wrong disc". Every real GameCube disc
+# header carries a fixed magic word here once it's actually been read into
+# RAM (see YAGCD / Dolphin's DiscIO::Volume -- offset 0x1c of the disc
+# header), so requiring it too filters out decoy regions/pre-boot reads
+# from a real, if unrecognized, disc header -- at the cost of not being
+# able to tell "decoy region" apart from "real disc, but somehow corrupt
+# header", which is an acceptable tradeoff since the latter shouldn't
+# happen with a real GC disc/ISO.
+_GC_DISC_MAGIC_WORD_OFFSET = 0x1C
+_GC_DISC_MAGIC_WORD = b"\xc2\x33\x9f\x3d"
+
+# Rehooking (un_hook()+hook()) forces a full region rescan, but that rescan
+# runs against the same still-running Dolphin process -- if hook() latched
+# onto a wrong-but-plausible MEM1 candidate region, that match tends to be
+# stable for the process's lifetime, so rehooking keeps re-finding the same
+# wrong region instead of clearing it. Once connect_to_game() has seen the
+# exact same unrecognized game id this many times in a row (across separate
+# calls from the sync loop, each of which already retries internally), warn
+# that a full Dolphin restart -- not just reloading the game -- may be needed.
+_STUCK_HOOK_WARNING_THRESHOLD = 5
+
 
 class ConnectionState(Enum):
     DISCONNECTED = 0
@@ -164,6 +193,8 @@ class EchoesInterface:
         self.expected_uuid = None
         self.last_connect_error: str | None = None
         self._logged_wrong_game_id: bytes | None = None
+        self._wrong_game_id_repeat_count = 0
+        self._warned_stuck_hook = False
         self._last_message_size = 0
 
     # ----------------------------------------------------------------
@@ -177,7 +208,12 @@ class EchoesInterface:
         max_delay: float = _GAME_ID_RETRY_MAX_DELAY,
     ) -> None:
         """Hooks into Dolphin if needed, then reads the 6-byte game id at
-        0x80000000 to pick NTSC/PAL (or neither).
+        0x80000000 to pick NTSC/PAL (or neither). A non-empty id is also
+        required to carry the real GC disc magic word at offset 0x1c before
+        it's trusted (see the ``_GC_DISC_MAGIC_WORD`` comment) -- otherwise
+        it's most likely a decoy memory region dolphin-memory-engine's
+        size-only hook heuristic latched onto, not a real (if unexpected)
+        disc.
 
         Hooking and reading is retried up to ``attempts`` times (with
         exponential backoff between tries, capped at ``max_delay``) as long
@@ -200,6 +236,17 @@ class EchoesInterface:
                 # instance is destroyed and rebuilt.
                 self.dolphin_client.connect()
                 game_id = self.dolphin_client.read_address(_GC_GAME_ID_ADDRESS, 6)
+                if game_id != _EMPTY_GAME_ID:
+                    magic = self.dolphin_client.read_address(
+                        _GC_GAME_ID_ADDRESS + _GC_DISC_MAGIC_WORD_OFFSET, 4
+                    )
+                    if magic != _GC_DISC_MAGIC_WORD:
+                        # Doesn't look like a real disc header at all -- most
+                        # likely a decoy region or a read taken before boot
+                        # copied the header in. Treat like any other
+                        # unrecognized read rather than a confirmed "wrong
+                        # disc", so it retries instead of settling on it.
+                        game_id = None
                 last_error = None
             except DolphinException as e:
                 game_id = None
@@ -238,9 +285,28 @@ class EchoesInterface:
                 if game_id != self._logged_wrong_game_id:
                     self.logger.info(self.last_connect_error)
                     self._logged_wrong_game_id = game_id
+                    self._wrong_game_id_repeat_count = 1
+                    self._warned_stuck_hook = False
+                else:
+                    self._wrong_game_id_repeat_count += 1
+
+                if (
+                    self._wrong_game_id_repeat_count >= _STUCK_HOOK_WARNING_THRESHOLD
+                    and not self._warned_stuck_hook
+                ):
+                    self._warned_stuck_hook = True
+                    self.logger.warning(
+                        "Still reading the same unexpected game id after several reconnect "
+                        "attempts. If Metroid Prime 2: Echoes is definitely loaded, "
+                        "dolphin-memory-engine may have hooked a stale/wrong memory region "
+                        "that re-hooking can't clear on its own -- fully close and reopen "
+                        "Dolphin (not just reloading the game) to fix this."
+                    )
             return
 
         self._logged_wrong_game_id = None
+        self._wrong_game_id_repeat_count = 0
+        self._warned_stuck_hook = False
         self.last_connect_error = None
         self.version = matched
 
@@ -248,6 +314,8 @@ class EchoesInterface:
         self.dolphin_client.disconnect()
         self.version = None
         self._logged_wrong_game_id = None
+        self._wrong_game_id_repeat_count = 0
+        self._warned_stuck_hook = False
 
     def read_build_string(self) -> tuple[bool, uuid.UUID | None]:
         """Returns (matches, embedded_uuid). ``matches`` is True if the

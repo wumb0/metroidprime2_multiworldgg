@@ -15,7 +15,12 @@ import unittest
 
 from ..client import versions
 from ..client.dolphin_client import DolphinClient, DolphinException
-from ..client.game_interface import ConnectionState, EchoesInterface, encode_hud_message
+from ..client.game_interface import (
+    _STUCK_HOOK_WARNING_THRESHOLD,
+    ConnectionState,
+    EchoesInterface,
+    encode_hud_message,
+)
 
 _OPR_AVAILABLE = importlib.util.find_spec("open_prime_rando") is not None
 _NULL_LOGGER = logging.getLogger("metroidprime2.test.test_game_interface")
@@ -64,22 +69,31 @@ def _make_interface() -> tuple[EchoesInterface, FakeDolphinClient]:
     return interface, fake
 
 
+def _set_disc_header(fake: FakeDolphinClient, game_id: bytes) -> None:
+    """Populates both the 6-byte game id and the fixed GC disc magic word at
+    offset 0x1c that connect_to_game() requires before trusting a non-empty
+    game id read (see game_interface._GC_DISC_MAGIC_WORD) -- i.e. simulates a
+    real, booted disc header rather than a decoy memory region/pre-boot read."""
+    fake.memory[0x80000000] = game_id
+    fake.memory[0x8000001C] = b"\xc2\x33\x9f\x3d"
+
+
 class TestVersionDetection(unittest.TestCase):
     def test_connect_to_game_detects_ntsc(self) -> None:
         interface, fake = _make_interface()
-        fake.memory[0x80000000] = versions.NTSC.game_id
+        _set_disc_header(fake, versions.NTSC.game_id)
         interface.connect_to_game()
         self.assertIs(interface.version, versions.NTSC)
 
     def test_connect_to_game_detects_pal(self) -> None:
         interface, fake = _make_interface()
-        fake.memory[0x80000000] = versions.PAL.game_id
+        _set_disc_header(fake, versions.PAL.game_id)
         interface.connect_to_game()
         self.assertIs(interface.version, versions.PAL)
 
     def test_connect_to_game_wrong_game_leaves_version_none(self) -> None:
         interface, fake = _make_interface()
-        fake.memory[0x80000000] = b"GM8E01"  # Metroid Prime 1, not Echoes.
+        _set_disc_header(fake, b"GM8E01")  # Metroid Prime 1, not Echoes.
         interface.connect_to_game(attempts=1, base_delay=0)
         self.assertIsNone(interface.version)
 
@@ -92,15 +106,15 @@ class TestConnectRetry(unittest.TestCase):
 
     def test_retries_past_transient_garbage_game_id(self) -> None:
         interface, fake = _make_interface()
-        # Garbage game id on the first attempt (disc still booting); the
-        # real id is in place by the second attempt.
+        # Garbage game id on the first attempt (disc still booting -- no
+        # magic word yet either); the real id is in place by the second.
         fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
         real_connect = fake.connect
 
         def flaky_connect() -> None:
             real_connect()
             if fake.connect_calls == 2:
-                fake.memory[0x80000000] = versions.NTSC.game_id
+                _set_disc_header(fake, versions.NTSC.game_id)
 
         fake.connect = flaky_connect  # type: ignore[method-assign]
 
@@ -124,14 +138,14 @@ class TestConnectRetry(unittest.TestCase):
         self.assertFalse(fake.is_connected())
         self.assertEqual(1, fake.disconnect_calls)
 
-        fake.memory[0x80000000] = versions.NTSC.game_id
+        _set_disc_header(fake, versions.NTSC.game_id)
         interface.connect_to_game()
 
         self.assertIs(interface.version, versions.NTSC)
 
     def test_retries_past_transient_hook_failure(self) -> None:
         interface, fake = _make_interface()
-        fake.memory[0x80000000] = versions.NTSC.game_id
+        _set_disc_header(fake, versions.NTSC.game_id)
         fake.connected = False
 
         real_connect = fake.connect
@@ -169,6 +183,49 @@ class TestConnectRetry(unittest.TestCase):
         # One probe sequence per attempt, each dropping the hook first.
         self.assertEqual(3, fake.disconnect_calls)
         self.assertGreater(calls["count"], 0)
+
+    def test_decoy_region_without_disc_magic_word_is_not_treated_as_wrong_game(self) -> None:
+        """dolphin-memory-engine's Windows hook() finds MEM1 purely by
+        scanning for a same-sized memory region -- it can (upstream's own
+        admission) land on a region that has nothing to do with the emulated
+        RAM, reporting a successful hook anyway. That decoy region's bytes at
+        0x80000000 are unrelated process memory, not a disc header, so
+        without the real GC disc magic word at 0x1c also present, the read
+        must not be settled on as a confirmed "wrong game"."""
+        interface, fake = _make_interface()
+        fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
+        fake.memory[0x8000001C] = b"\x00\x00\x00\x00"  # not the real GC disc magic word
+
+        with self.assertNoLogs(_NULL_LOGGER):
+            interface.connect_to_game(attempts=1, base_delay=0)
+
+        self.assertIsNone(interface.version)
+        self.assertEqual("Hooked into Dolphin, but no game is loaded yet.", interface.last_connect_error)
+
+    def test_warns_once_after_repeated_identical_wrong_game_id(self) -> None:
+        """A stuck hook (dolphin-memory-engine latched onto a wrong-but-
+        persistently-matching region) keeps reading the same garbage id no
+        matter how many times connect_to_game() re-hooks. After enough
+        consecutive identical reads, that's worth a distinct warning telling
+        the user a full Dolphin restart -- not just re-hooking -- may be
+        needed, logged once rather than every cycle."""
+        interface, fake = _make_interface()
+        _set_disc_header(fake, b"GM8E01")  # a real, if unrecognized, disc.
+
+        with self.assertLogs(_NULL_LOGGER, level="WARNING") as cm:
+            for _ in range(_STUCK_HOOK_WARNING_THRESHOLD):
+                interface.connect_to_game(attempts=1, base_delay=0)
+
+        self.assertEqual(1, len(cm.output))
+        self.assertIn("fully close and reopen Dolphin", cm.output[0])
+
+        # A genuinely different disc resets the repeat count and re-arms the warning.
+        _set_disc_header(fake, b"GM8J01")
+        for _ in range(_STUCK_HOOK_WARNING_THRESHOLD - 1):
+            interface.connect_to_game(attempts=1, base_delay=0)
+        with self.assertLogs(_NULL_LOGGER, level="INFO") as cm:
+            interface.connect_to_game(attempts=1, base_delay=0)
+        self.assertTrue(any("fully close and reopen Dolphin" in line for line in cm.output))
 
 
 class TestBuildStringAndUuid(unittest.TestCase):
