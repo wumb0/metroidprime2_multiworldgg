@@ -413,6 +413,48 @@ class TestHealth(unittest.TestCase):
         self.assertEqual([], fake.writes)
 
 
+class TestAlive(unittest.TestCase):
+    def test_set_alive_false_clears_bit_without_touching_other_bits(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+
+        player_state_addr = 0x80700000
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, player_state_addr)
+        # Bit 0x80 (alive) set, plus an unrelated bit (firingComboBeam) also
+        # set -- must survive the read-modify-write untouched.
+        fake.memory[player_state_addr + versions.ALIVE_OFFSET] = bytes([0x80 | 0x40])
+
+        interface.set_alive(False)
+
+        self.assertEqual(
+            bytes([0x40]),
+            fake.memory[player_state_addr + versions.ALIVE_OFFSET],
+        )
+
+    def test_set_alive_true_sets_bit_without_touching_other_bits(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+
+        player_state_addr = 0x80700000
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, player_state_addr)
+        fake.memory[player_state_addr + versions.ALIVE_OFFSET] = bytes([0x40])
+
+        interface.set_alive(True)
+
+        self.assertEqual(
+            bytes([0x80 | 0x40]),
+            fake.memory[player_state_addr + versions.ALIVE_OFFSET],
+        )
+
+    def test_set_alive_null_player_state_pointer_is_a_noop(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, 0)
+
+        interface.set_alive(False)  # Must not raise.
+        self.assertEqual([], fake.writes)
+
+
 class TestHudEncoding(unittest.TestCase):
     def test_null_terminated_and_four_byte_aligned(self) -> None:
         encoded, _last_size = encode_hud_message("Hi", max_message_size=200, last_encoded_size=0)

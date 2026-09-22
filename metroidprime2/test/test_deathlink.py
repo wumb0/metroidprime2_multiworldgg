@@ -64,14 +64,18 @@ class TestDeathLinkCheck(unittest.TestCase):
 
 
 class _FakeGameInterface:
-    """Stands in for ``EchoesInterface``: records the health write
+    """Stands in for ``EchoesInterface``: records the health/alive writes
     ``on_deathlink`` performs without touching Dolphin."""
 
     def __init__(self) -> None:
         self.last_health_written: float | None = None
+        self.last_alive_written: bool | None = None
 
     def set_current_health(self, new_health_amount: float) -> None:
         self.last_health_written = new_health_amount
+
+    def set_alive(self, alive: bool) -> None:
+        self.last_alive_written = alive
 
 
 def _bare_context() -> MetroidPrime2Context:
@@ -100,6 +104,7 @@ class TestOnDeathlink(unittest.TestCase):
         ctx.on_deathlink(data)
 
         self.assertEqual(-1.0, ctx.game_interface.last_health_written)  # type: ignore[attr-defined]
+        self.assertEqual(False, ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
         self.assertTrue(ctx.is_pending_death_link_reset)
 
         # The follow-up poll tick sees health <= 0 with the flag already

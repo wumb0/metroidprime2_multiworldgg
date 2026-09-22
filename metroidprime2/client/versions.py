@@ -127,6 +127,27 @@ Context; see also PrimeDecomp/echoes's CPlayerState.hpp/CHealthInfo.hpp,
 which place ``healthInfo`` at CPlayerState+0x10 and ``healthB`` at
 HealthInfo+0x4, the same 0x14 total)."""
 
+ALIVE_OFFSET = 0x4
+"""Offset from a CPlayerState pointer of the byte holding the
+``bool alive : 1`` bitfield (``CPlayerState::IsPlayerAlive()``) -- a flag
+distinct from ``HEALTH_OFFSET``'s health float. Per PrimeDecomp/echoes's
+CPlayerState.hpp, ``alive`` and the adjacent ``bool firingComboBeam : 1``
+are the only members between ``int playerIndex`` (0x0-0x4) and
+``uint enabledItems`` (verified at CPlayerState+0x8, since ``EBeamId
+currentBeam`` at +0xC and ``CHealthInfo healthInfo`` at +0x10 must hold for
+``HEALTH_OFFSET`` (healthInfo+0x4) to land on 0x14), so they're packed into
+a single byte at +0x4. ``ALIVE_BIT_MASK`` assumes CodeWarrior packs the
+first-declared bitfield into the storage unit's high bit (matching
+``worlds/metroidprime``'s Prime 1 alive-bit convention, bit 31 of its
+4-byte storage unit) -- NOT confirmed against a live game, since no
+decompiled function in PrimeDecomp/echoes yet sets this field to false to
+check against. If DeathLink still doesn't trigger a real death after this
+change, this bit position is the first thing to re-derive empirically."""
+
+ALIVE_BIT_MASK = 0x80
+"""High bit of the ``ALIVE_OFFSET`` byte; see ``ALIVE_OFFSET`` docstring
+for the (unconfirmed) reasoning."""
+
 
 NTSC = EchoesVersionInfo(
     name="NTSC",

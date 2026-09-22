@@ -221,6 +221,13 @@ class MetroidPrime2Context(CommonContext):
     def on_deathlink(self, data: dict[str, Any]) -> None:
         super().on_deathlink(data)
         self.game_interface.set_current_health(-1.0)
+        # set_current_health alone doesn't kill the player -- it bypasses the
+        # game's damage/death pipeline entirely, leaving the camera and gun
+        # model stuck in whatever state they were in. set_alive(False) is
+        # what actually triggers the game's own death handling (mirrors
+        # worlds/metroidprime's set_alive(False)); the health write above is
+        # kept so the health <= 0 debounce below still arms.
+        self.game_interface.set_alive(False)
         # Mark this death as already reported so the next _handle_check_deathlink
         # poll tick (which sees health <= 0) does not re-send it as if it were an
         # organic in-game death -- that would re-broadcast the incoming DeathLink
