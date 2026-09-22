@@ -727,9 +727,11 @@ class TestItemMapIconsAlwaysVisible(unittest.TestCase):
     """``item_map_icons_always_visible`` (client/patcher_runner.py):
     implements ``map_visibility``'s ``full_map_and_items`` value -- carried
     to the client as ``options.json``'s ``show_item_locations`` flag -- by
-    forcing every pickup map icon open-prime-rando adds to
-    ``ObjectVisibility.Always`` instead of its hardcoded
-    ``AreaVisitOrMapStation`` (PLAN.md section M)."""
+    explicitly setting every pickup map icon open-prime-rando adds to
+    ``ObjectVisibility.AreaVisitOrMapStation``, matching open-prime-rando's
+    own hardcoded default (PLAN.md section M; ``ObjectVisibility.Always``
+    was tried first but is never used by any real upstream code path for
+    any object type, so it was dropped as untested territory)."""
 
     @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
     def test_wraps_and_restores_add_map_icon(self) -> None:
@@ -763,7 +765,10 @@ class TestItemMapIconsAlwaysVisible(unittest.TestCase):
         # MappableObject-shaped stand-in to area.mapa.mappable_objects --
         # and this asserts the *real* item_map_icons_always_visible code
         # (before/after length diffing, then setting visibility_mode) is
-        # what turns that into ObjectVisibility.Always, not a test double.
+        # what turns that into ObjectVisibility.AreaVisitOrMapStation, not
+        # a test double. The stub starts at ``Never`` so the assertion
+        # proves the wrapper actively sets the value rather than leaving a
+        # coincidentally-matching default untouched.
         from open_prime_rando.echoes.pickups import pickup_editing
         from retro_data_structures.formats.mapa import ObjectVisibility
 
@@ -771,7 +776,7 @@ class TestItemMapIconsAlwaysVisible(unittest.TestCase):
 
         class _FakeMappable:
             def __init__(self) -> None:
-                self.visibility_mode = ObjectVisibility.AreaVisitOrMapStation
+                self.visibility_mode = ObjectVisibility.Never
 
         class _FakeMapa:
             def __init__(self) -> None:
@@ -798,7 +803,7 @@ class TestItemMapIconsAlwaysVisible(unittest.TestCase):
 
         self.assertEqual(1, len(stub_calls))
         self.assertEqual(1, len(area.mapa.mappable_objects))
-        self.assertEqual(ObjectVisibility.Always, area.mapa.mappable_objects[0].visibility_mode)
+        self.assertEqual(ObjectVisibility.AreaVisitOrMapStation, area.mapa.mappable_objects[0].visibility_mode)
 
 
 class _MapVisibilityOptionTest(MP2TestBase):

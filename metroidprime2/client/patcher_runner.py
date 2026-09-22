@@ -138,21 +138,31 @@ def warp_to_start_installed(dol_version: Any, starting_area: Any):
 @contextlib.contextmanager
 def item_map_icons_always_visible():
     """Context manager: for its duration, every pickup's map icon is
-    forced to ``ObjectVisibility.Always`` instead of open-prime-rando's
-    hardcoded ``AreaVisitOrMapStation``, implementing the player-facing
-    ``map_visibility`` option's ``full_map_and_items`` value -- delivered
-    here as ``options.json``'s ``show_item_locations`` flag, the internal
-    patch-time setting derived from it (PLAN.md section M).
+    explicitly set to ``ObjectVisibility.AreaVisitOrMapStation``, matching
+    open-prime-rando's own hardcoded default for pickup icons and
+    implementing the player-facing ``map_visibility`` option's
+    ``full_map_and_items`` value -- delivered here as ``options.json``'s
+    ``show_item_locations`` flag, the internal patch-time setting derived
+    from it (PLAN.md section M).
 
-    open-prime-rando already adds a map icon for every pickup it patches
+    ``ObjectVisibility.Always`` was tried first, but grepping the pinned
+    open-prime-rando release shows no code path -- upstream or in
+    Randovania -- ever assigns it to any mappable object, for any object
+    type, in any game; every real usage only ever sets
+    ``AreaVisitOrMapStation``/``AreaVisitOrMapStation2``. That makes
+    ``Always`` untested territory the reverse-engineered enum names may
+    not accurately describe, and matches the reported symptom (map icons
+    setting enabled, no dots ever rendered). ``AreaVisitOrMapStation`` is
+    open-prime-rando's own proven default for pickup icons
     (``open_prime_rando.echoes.pickups.pickup_editing._add_map_icon``, a
-    ``MappableObject`` of custom ``object_type=0x12``), but hardcodes
-    ``visibility_mode=ObjectVisibility.AreaVisitOrMapStation`` -- the dot
-    only shows once the room has been visited or a map station used.
-    OPR's own ``map_visibility.unvisited_map_icons`` setting does not cover
-    these: ``general_changes.py``'s ``objects_to_reveal`` set (the object
-    types that setting forces visible) lists only Elevator/SaveStation/
-    Portal/LightTeleporter/TranslatorGate/Up-DownArrow, not pickups.
+    ``MappableObject`` of custom ``object_type=0x12``) -- the dot shows
+    once the room has been visited or a map station used, same as every
+    real Randovania-generated Echoes game. OPR's own
+    ``map_visibility.unvisited_map_icons`` setting does not cover these
+    regardless: ``general_changes.py``'s ``objects_to_reveal`` set (the
+    object types that setting forces visible) lists only Elevator/
+    SaveStation/Portal/LightTeleporter/TranslatorGate/Up-DownArrow, not
+    pickups.
 
     ``_add_map_icon`` is called from exactly one place,
     ``patch_simple_pickup`` (an unqualified global lookup resolved against
@@ -180,7 +190,7 @@ def item_map_icons_always_visible():
         before = len(area.mapa.mappable_objects)
         original_add_map_icon(editor, mlvl, area, instances)
         for mappable in area.mapa.mappable_objects[before:]:
-            mappable.visibility_mode = ObjectVisibility.Always
+            mappable.visibility_mode = ObjectVisibility.AreaVisitOrMapStation
 
     pickup_editing._add_map_icon = _add_map_icon_always_visible
     try:
