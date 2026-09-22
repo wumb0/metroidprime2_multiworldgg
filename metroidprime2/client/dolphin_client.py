@@ -45,26 +45,28 @@ class DolphinClient:
             return False
 
     def connect(self) -> None:
-        # Always un_hook() first, even when the engine reports it isn't
-        # hooked: dolphin-memory-engine keeps its platform instance alive
-        # across a failed hook() (status noEmu), and hook() reuses that
-        # instance without resetting the cached emulated-MEM1 address. A hook
-        # taken during boot can therefore stay stuck on a wrong region until
-        # the instance is destroyed. un_hook()+hook() unconditionally is the
-        # only reliable way to force a fresh region scan (and is exactly the
-        # manual sequence that recovers a live game).
-        self.dolphin.un_hook()
-        self.dolphin.hook()
+        # Matches worlds/metroidprime's DolphinClient.connect(): only hook
+        # when not already hooked. An earlier version of this method
+        # unconditionally un_hook()+hook()'d on every call on the theory that
+        # dolphin-memory-engine caches a stale region across calls -- that
+        # was never verified against a live Dolphin instance, and in
+        # practice made the misidentification issue it was meant to fix
+        # worse, not better (see PLAN.md/memory): connect_to_game()'s old
+        # retry loop called this several times in rapid succession right
+        # after Dolphin launches, hammering un_hook()/hook() while Dolphin's
+        # own memory layout is still settling, which is exactly the metroidprime
+        # (Prime 1) client -- proven not to hit this issue with the same
+        # auto-launch path -- does not do.
+        if not self.dolphin.is_hooked():
+            self.dolphin.hook()
         if not self.dolphin.is_hooked():
             raise DolphinException(
                 "Could not connect to Dolphin, verify that you have a game running in the emulator"
             )
 
     def disconnect(self) -> None:
-        # Unconditional: un_hook() is safe when never hooked, and skipping it
-        # when the engine reports "not hooked" (but still holds a failed
-        # instance) is what leaves stale state behind for the next hook().
-        self.dolphin.un_hook()
+        if self.dolphin.is_hooked():
+            self.dolphin.un_hook()
 
     def __assert_connected(self) -> None:
         """Custom assert function that returns a DolphinException instead of a

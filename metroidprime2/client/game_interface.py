@@ -16,7 +16,6 @@ PLAN.md Context facts and section J).
 from __future__ import annotations
 
 import struct
-import time
 import uuid
 from enum import Enum
 from logging import Logger
@@ -43,27 +42,24 @@ _MESSAGE_OVERHEAD = 6
 # memory hook can attach and read the game id before the disc has actually
 # finished booting -- e.g. leftover memory from a previous run, or a
 # partial DMA of the disc header -- which reads as something other than a
-# real, known game id. Rather than treat that first read as a definitive
-# "wrong game"/failure, connect_to_game() retries the hook+read a few times
-# with backoff before settling on whatever it last saw. dolphin-memory-engine
-# caches the emulated MEM1 region address the moment hook() runs (and keeps
-# its cached instance alive even across a failed hook()), so a hook taken too
-# early can keep returning a stale region forever -- every attempt therefore
-# calls un_hook()+hook() unconditionally (DolphinClient.connect) to force a
-# full region rescan. Only the last attempt's result (or error) is kept.
-_GAME_ID_CONNECT_ATTEMPTS = 5
-_GAME_ID_RETRY_BASE_DELAY = 0.2  # seconds
-_GAME_ID_RETRY_MAX_DELAY = 2.0  # seconds
+# real, known game id. connect_to_game() doesn't treat that as a definitive
+# "wrong game"/failure: it drops the hook so the *next* call (driven by the
+# sync loop's own ~1s cadence, see client.py's DISCONNECTED handling) hooks
+# fresh, matching worlds/metroidprime's MetroidPrimeInterface.connect_to_game()
+# -- one hook+read attempt per call, no internal retry burst. An earlier
+# version of this function did its own 5-attempt rapid-rehook-with-backoff
+# loop instead; that turned out to make misidentification worse rather than
+# better (see PLAN.md/memory), plausibly by hammering dolphin-memory-engine's
+# hook()/un_hook() while Dolphin's own memory layout is still settling right
+# after launch -- something the proven-reliable Prime 1 client never does.
 _EMPTY_GAME_ID = b"\x00\x00\x00\x00\x00\x00"
 
-# Rehooking (un_hook()+hook()) forces a full region rescan, but that rescan
-# runs against the same still-running Dolphin process -- if hook() latched
-# onto a wrong-but-plausible MEM1 candidate region, that match tends to be
-# stable for the process's lifetime, so rehooking keeps re-finding the same
-# wrong region instead of clearing it. Once connect_to_game() has seen the
-# exact same unrecognized game id this many times in a row (across separate
-# calls from the sync loop, each of which already retries internally), warn
-# that a full Dolphin restart -- not just reloading the game -- may be needed.
+# A stuck hook can keep reading the same wrong game id call after call
+# (dolphin-memory-engine latched onto a wrong-but-persistently-matching
+# region). Once connect_to_game() has seen the exact same unrecognized game
+# id this many times in a row (each call is one real sync-loop tick apart,
+# see above), warn that a full Dolphin restart -- not just reloading the
+# game -- may be needed.
 _STUCK_HOOK_WARNING_THRESHOLD = 5
 
 
@@ -182,67 +178,31 @@ class EchoesInterface:
     # Connection / version detection
     # ----------------------------------------------------------------
 
-    def connect_to_game(
-        self,
-        attempts: int = _GAME_ID_CONNECT_ATTEMPTS,
-        base_delay: float = _GAME_ID_RETRY_BASE_DELAY,
-        max_delay: float = _GAME_ID_RETRY_MAX_DELAY,
-    ) -> None:
-        """Hooks into Dolphin if needed, then reads the 6-byte game id at
-        0x80000000 to pick NTSC/PAL (or neither).
-
-        Hooking and reading is retried up to ``attempts`` times (with
-        exponential backoff between tries, capped at ``max_delay``) as long
-        as the read game id isn't recognized -- either a known version or
-        the all-zero "nothing loaded yet" sentinel -- since an unrecognized
-        id can just mean Dolphin was hooked before the disc finished
-        booting. Every retry un-hooks first (DolphinClient.connect) so a
-        stale hook can't keep returning a dead region forever. Only the
-        last attempt's result (or error) is kept."""
-        last_error: DolphinException | None = None
-        game_id: bytes | None = None
-        delay = base_delay
-        attempts = max(1, attempts)
-
-        for attempt in range(attempts):
-            try:
-                # Unconditionally un_hook()+hook() every attempt (see
-                # DolphinClient.connect): a hook taken before the game booted
-                # can stay stuck on a wrong region until the engine's cached
-                # instance is destroyed and rebuilt.
+    def connect_to_game(self) -> None:
+        """Hooks into Dolphin if needed (idempotently -- see
+        ``DolphinClient.connect``), then reads the 6-byte game id at
+        0x80000000 to pick NTSC/PAL (or neither). One hook+read attempt per
+        call; see the module comment above for why this doesn't retry
+        internally."""
+        try:
+            if not self.dolphin_client.is_connected():
                 self.dolphin_client.connect()
-                game_id = self.dolphin_client.read_address(_GC_GAME_ID_ADDRESS, 6)
-                last_error = None
-            except DolphinException as e:
-                game_id = None
-                last_error = e
-
-            recognized = game_id is not None and (
-                game_id == _EMPTY_GAME_ID or any(v.game_id == game_id for v in versions.VERSIONS)
-            )
-            if recognized:
-                break
-
-            # No match; leave the hook dropped so the next outer sync-loop
-            # tick (or retry below) rebuilds it from scratch again.
-            self.dolphin_client.disconnect()
-
-            if game_id == _EMPTY_GAME_ID or attempt == attempts - 1:
-                break
-            time.sleep(delay)
-            delay = min(delay * 2, max_delay)
-
-        if last_error is not None:
+            game_id = self.dolphin_client.read_address(_GC_GAME_ID_ADDRESS, 6)
+        except DolphinException as e:
             self.version = None
-            self.last_connect_error = str(last_error)
+            self.last_connect_error = str(e)
             return
 
         matched = next((v for v in versions.VERSIONS if v.game_id == game_id), None)
         if matched is None:
             self.version = None
-            if game_id is None or game_id == _EMPTY_GAME_ID:
+            if game_id == _EMPTY_GAME_ID:
                 self.last_connect_error = "Hooked into Dolphin, but no game is loaded yet."
             else:
+                # Drop the hook so the next call rebuilds it from scratch --
+                # matches worlds/metroidprime's disconnect_from_game() call
+                # in the same spot.
+                self.dolphin_client.disconnect()
                 self.last_connect_error = (
                     f"Connected to the wrong game ({game_id!r}); please load an NTSC-U or "
                     "PAL Metroid Prime 2: Echoes ISO."

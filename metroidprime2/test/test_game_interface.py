@@ -85,43 +85,45 @@ class TestVersionDetection(unittest.TestCase):
     def test_connect_to_game_wrong_game_leaves_version_none(self) -> None:
         interface, fake = _make_interface()
         fake.memory[0x80000000] = b"GM8E01"  # Metroid Prime 1, not Echoes.
-        interface.connect_to_game(attempts=1, base_delay=0)
+        interface.connect_to_game()
         self.assertIsNone(interface.version)
 
 
 class TestConnectRetry(unittest.TestCase):
-    """PLAN.md's Dolphin backoff/retry: connect_to_game() shouldn't settle
-    on an unrecognized read (or a transient hook failure) from the brief
-    window right after Dolphin launches, before it's retried the hook+read a
-    few times."""
+    """connect_to_game() does one hook+read attempt per call -- no internal
+    retry burst (see the module comment on why: an earlier rapid-rehook loop
+    made Dolphin misidentification worse, not better). Recovery from a
+    transient bad read instead relies on the sync loop calling
+    connect_to_game() again on its own ~1s cadence (client.py's
+    _handle_game_not_ready), which these tests simulate by calling it more
+    than once."""
 
-    def test_retries_past_transient_garbage_game_id(self) -> None:
+    def test_recovers_from_transient_garbage_game_id_across_calls(self) -> None:
         interface, fake = _make_interface()
-        # Garbage game id on the first attempt (disc still booting); the
-        # real id is in place by the second attempt.
+        # Garbage game id on the first call (disc still booting); the real
+        # id is in place by the second, simulating the next sync-loop tick.
         fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
-        real_connect = fake.connect
 
-        def flaky_connect() -> None:
-            real_connect()
-            if fake.connect_calls == 2:
-                fake.memory[0x80000000] = versions.NTSC.game_id
+        interface.connect_to_game()
 
-        fake.connect = flaky_connect  # type: ignore[method-assign]
+        self.assertIsNone(interface.version)
+        # The bad read must drop the hook so the next call rebuilds it from
+        # scratch instead of polling the same dead region.
+        self.assertEqual(1, fake.disconnect_calls)
+        self.assertFalse(fake.is_connected())
 
-        interface.connect_to_game(attempts=5, base_delay=0)
+        fake.memory[0x80000000] = versions.NTSC.game_id
+        interface.connect_to_game()
 
         self.assertIs(interface.version, versions.NTSC)
-        # The failed attempt must drop the (possibly stale) hook so the retry
-        # rebuilds it from scratch instead of polling the same dead region.
-        self.assertEqual(1, fake.disconnect_calls)
-        self.assertEqual(2, fake.connect_calls)
+        # Dropped by the first call's bad read, rebuilt by the second.
+        self.assertEqual(1, fake.connect_calls)
 
     def test_wrong_game_id_drops_hook_so_next_call_rehooks(self) -> None:
         interface, fake = _make_interface()
         fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
 
-        interface.connect_to_game(attempts=1, base_delay=0)
+        interface.connect_to_game()
 
         self.assertIsNone(interface.version)
         # Hook is left dropped, so the sync loop's next connect_to_game()
@@ -134,7 +136,7 @@ class TestConnectRetry(unittest.TestCase):
 
         self.assertIs(interface.version, versions.NTSC)
 
-    def test_retries_past_transient_hook_failure(self) -> None:
+    def test_recovers_from_transient_hook_failure_across_calls(self) -> None:
         interface, fake = _make_interface()
         fake.memory[0x80000000] = versions.NTSC.game_id
         fake.connected = False
@@ -150,14 +152,20 @@ class TestConnectRetry(unittest.TestCase):
 
         fake.connect = flaky_connect  # type: ignore[method-assign]
 
-        interface.connect_to_game(attempts=5, base_delay=0)
+        interface.connect_to_game()
+        self.assertIsNone(interface.version)
+
+        interface.connect_to_game()
 
         self.assertIs(interface.version, versions.NTSC)
         self.assertEqual(calls["count"], 2)
 
-    def test_gives_up_after_exhausting_attempts(self) -> None:
+    def test_single_hook_and_read_per_call(self) -> None:
+        """No internal retry burst: exactly one hook attempt and one read
+        per connect_to_game() call, even when the read comes back bad."""
         interface, fake = _make_interface()
         fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
+        fake.connected = False  # not hooked yet, so connect() gets exercised
 
         calls = {"count": 0}
         real_read_address = fake.read_address
@@ -168,26 +176,26 @@ class TestConnectRetry(unittest.TestCase):
 
         fake.read_address = counting_read_address  # type: ignore[method-assign]
 
-        interface.connect_to_game(attempts=3, base_delay=0)
+        interface.connect_to_game()
 
         self.assertIsNone(interface.version)
-        # One probe sequence per attempt, each dropping the hook first.
-        self.assertEqual(3, fake.disconnect_calls)
-        self.assertGreater(calls["count"], 0)
+        self.assertEqual(1, fake.connect_calls)
+        self.assertEqual(1, fake.disconnect_calls)
+        self.assertEqual(1, calls["count"])
 
     def test_warns_once_after_repeated_identical_wrong_game_id(self) -> None:
         """A stuck hook (dolphin-memory-engine latched onto a wrong-but-
         persistently-matching region) keeps reading the same garbage id no
         matter how many times connect_to_game() re-hooks. After enough
-        consecutive identical reads, that's worth a distinct warning telling
-        the user a full Dolphin restart -- not just re-hooking -- may be
-        needed, logged once rather than every cycle."""
+        consecutive identical reads across separate calls, that's worth a
+        distinct warning telling the user a full Dolphin restart -- not just
+        re-hooking -- may be needed, logged once rather than every cycle."""
         interface, fake = _make_interface()
         fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
 
         with self.assertLogs(_NULL_LOGGER, level="WARNING") as cm:
             for _ in range(_STUCK_HOOK_WARNING_THRESHOLD):
-                interface.connect_to_game(attempts=1, base_delay=0)
+                interface.connect_to_game()
 
         self.assertEqual(1, len(cm.output))
         self.assertIn("fully close and reopen Dolphin", cm.output[0])
@@ -195,9 +203,9 @@ class TestConnectRetry(unittest.TestCase):
         # A genuinely different disc resets the repeat count and re-arms the warning.
         fake.memory[0x80000000] = b"GM8E01"
         for _ in range(_STUCK_HOOK_WARNING_THRESHOLD - 1):
-            interface.connect_to_game(attempts=1, base_delay=0)
+            interface.connect_to_game()
         with self.assertLogs(_NULL_LOGGER, level="INFO") as cm:
-            interface.connect_to_game(attempts=1, base_delay=0)
+            interface.connect_to_game()
         self.assertTrue(any("fully close and reopen Dolphin" in line for line in cm.output))
 
 
@@ -615,9 +623,13 @@ class _FakeDmeModule:
 
 
 class TestDolphinClientHookSequence(unittest.TestCase):
-    """Regression for the stale-hook recovery: a fresh region scan requires
-    un_hook() (which destroys the engine's cached instance) before hook(),
-    even when the engine reports it isn't hooked."""
+    """DolphinClient.connect()/disconnect() are idempotent, matching
+    worlds/metroidprime's proven pattern: only hook() when not already
+    hooked, only un_hook() when actually hooked. An earlier version
+    unconditionally un_hook()+hook()'d every call; that made Dolphin
+    misidentification worse in practice (rapid rehook churn right after
+    auto-launch), not better -- see the module comment in game_interface.py
+    and PLAN.md/memory."""
 
     def _client_with_fake_dme(self, hooked: bool) -> tuple[DolphinClient, _FakeDmeModule]:
         client = DolphinClient(_NULL_LOGGER)
@@ -626,20 +638,25 @@ class TestDolphinClientHookSequence(unittest.TestCase):
         client.dolphin = fake_dme  # type: ignore[assignment]
         return client, fake_dme
 
-    def test_connect_unhooks_then_hooks(self) -> None:
+    def test_connect_hooks_when_not_hooked(self) -> None:
         client, fake_dme = self._client_with_fake_dme(hooked=False)
         client.connect()
-        self.assertEqual(["un_hook", "hook"], fake_dme.calls)
+        self.assertEqual(["hook"], fake_dme.calls)
 
-    def test_connect_unhooks_even_when_already_hooked(self) -> None:
+    def test_connect_is_noop_when_already_hooked(self) -> None:
         client, fake_dme = self._client_with_fake_dme(hooked=True)
         client.connect()
-        self.assertEqual(["un_hook", "hook"], fake_dme.calls)
+        self.assertEqual([], fake_dme.calls)
 
-    def test_disconnect_unhooks_unconditionally(self) -> None:
-        client, fake_dme = self._client_with_fake_dme(hooked=False)
+    def test_disconnect_unhooks_when_hooked(self) -> None:
+        client, fake_dme = self._client_with_fake_dme(hooked=True)
         client.disconnect()
         self.assertEqual(["un_hook"], fake_dme.calls)
+
+    def test_disconnect_is_noop_when_not_hooked(self) -> None:
+        client, fake_dme = self._client_with_fake_dme(hooked=False)
+        client.disconnect()
+        self.assertEqual([], fake_dme.calls)
 
 
 if __name__ == "__main__":
