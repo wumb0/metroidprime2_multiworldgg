@@ -260,27 +260,20 @@ _FALLBACK_MODEL = "EnergyTransferModule"
 # equivalent at all) -- only names that mean the same thing in both games
 # are included.
 #
-# Split into two tiers:
-#
-# _VERIFIED_CROSS_GAME_ITEM_NAMES targets an AP item name that this
-# world's OWN generation actually places at an arbitrary pickup location
-# under some reachable option combination (nonzero pool count somewhere in
-# item_pool.py) -- i.e. the model is proven to work anywhere by our own
-# seeds, the same standard "Progressive Suit" deliberately picked
-# "DarkSuit" over "VariaSuit" to meet.
-#
-# _EXPERIMENTAL_CROSS_GAME_ITEM_NAMES targets an AP item name with
-# ``default_pool_count == 0`` under every option this world has (Charge
-# Beam, Morph Ball, Combat Visor, Scan Visor, Unlimited Missiles -- all
-# mandatory starting items or never-placed useful items here, per
-# items.py), meaning open-prime-rando has, as far as this codebase knows,
-# never actually been asked to place that specific model at a non-vanilla
-# pickup location either -- the same unverified-placement profile that
-# turned out to crash the game for "VariaSuit". Shipped anyway, per
-# explicit instruction to try it; if a player reports a crash tied to one
-# of these, move that one entry out rather than reverting the whole
+# Every entry below has been manually validated in-game (MT10) -- either
+# because this world's OWN generation actually places the AP item at an
+# arbitrary pickup location under some reachable option combination
+# (nonzero pool count somewhere in item_pool.py, so the model is proven to
+# work anywhere by our own seeds, the same standard "Progressive Suit"
+# deliberately picked "DarkSuit" over "VariaSuit" to meet), or because MT10
+# plando'd the model at a non-vanilla location and confirmed no crash for
+# item names this world never places itself (Charge Beam, Morph Ball,
+# Combat Visor, Scan Visor, Unlimited Missiles -- all mandatory starting
+# items or never-placed useful items here, per items.py). If a player
+# reports a crash tied to one of these, delete that one entry (falls back
+# to the generic Energy Transfer Module) rather than reverting the whole
 # feature.
-_VERIFIED_CROSS_GAME_ITEM_NAMES: dict[tuple[str, str], str] = {
+_CROSS_GAME_ITEM_NAMES: dict[tuple[str, str], str] = {
     # Metroid Prime (MultiWorldGG/worlds/metroidprime, game = "Metroid Prime").
     ("Metroid Prime", "Energy Tank"): "Energy Tank",
     ("Metroid Prime", "Missile Expansion"): "Missile Expansion",
@@ -325,9 +318,10 @@ _VERIFIED_CROSS_GAME_ITEM_NAMES: dict[tuple[str, str], str] = {
     ("Super Metroid", "Screw Attack"): "Screw Attack",
     ("Super Metroid", "Space Jump"): "Space Jump Boots",
     ("Super Metroid", "Gravity Suit"): "Gravity Boost",
-}
-
-_EXPERIMENTAL_CROSS_GAME_ITEM_NAMES: dict[tuple[str, str], str] = {
+    # Powerup/ability models (Charge Beam, Morph Ball, Combat Visor, Scan
+    # Visor, Unlimited Missiles) -- this world never places these itself,
+    # but manual in-game validation (MT10) confirmed none of these models
+    # crash.
     ("Metroid Prime", "Charge Beam"): "Charge Beam",
     ("Metroid Prime", "Morph Ball"): "Morph Ball",
     ("Metroid Prime", "Combat Visor"): "Combat Visor",
@@ -341,26 +335,16 @@ _EXPERIMENTAL_CROSS_GAME_ITEM_NAMES: dict[tuple[str, str], str] = {
     ("Super Metroid", "Morph Ball"): "Morph Ball",
 }
 
-_CROSS_GAME_ITEM_NAMES: dict[tuple[str, str], str] = {
-    **_VERIFIED_CROSS_GAME_ITEM_NAMES,
-    **_EXPERIMENTAL_CROSS_GAME_ITEM_NAMES,
-}
-
 # Model overrides for specific cross-game matches where a source-game-
 # specific reskin exists, applied on top of (and only when) the plain
 # name match above already succeeded -- bypasses ITEM_TABLE's ordinary
 # model for that one (game, their item name) pair.
 #
-# EXPERIMENTAL, same caveat as _EXPERIMENTAL_CROSS_GAME_ITEM_NAMES above,
-# arguably more so: "MissileExpansionPrime1" (open-prime-rando's Missile
-# Expansion model styled after Metroid Prime 1's) has -- as far as this
-# codebase knows -- never been placed by ANY seed, ours or randovania's
-# prime2/prime2_opr, at any pickup location; the plain "MissileExpansion"
-# it would otherwise resolve to (via "Missile Expansion" ->
-# _VERIFIED_CROSS_GAME_ITEM_NAMES) is fully verified-safe. Shipped anyway
-# per explicit instruction to try it. If Metroid Prime Missile Expansion
-# pickups turn out to crash the game, delete this one entry (falls back
-# to plain "MissileExpansion", not the generic fallback) rather than
+# "MissileExpansionPrime1" (open-prime-rando's Missile Expansion model
+# styled after Metroid Prime 1's) has been manually validated in-game
+# (MT10) and renders properly. If Metroid Prime Missile Expansion pickups
+# ever turn out to crash the game, delete this one entry (falls back to
+# plain "MissileExpansion", not the generic fallback) rather than
 # reverting cross-game matching entirely.
 _CROSS_GAME_MODEL_OVERRIDES: dict[tuple[str, str], str] = {
     ("Metroid Prime", "Missile Expansion"): "MissileExpansionPrime1",

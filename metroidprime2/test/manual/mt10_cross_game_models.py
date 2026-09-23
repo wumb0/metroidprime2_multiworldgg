@@ -1,8 +1,10 @@
 """MT10 -- every distinct cross-game item *model* loads without crashing.
 
-The highest-risk cosmetic path: ``VariaSuit`` once crashed Echoes, and the
-experimental table is explicitly unverified. Generation only -- no ROMs are
-needed for the companion slots.
+The highest-risk cosmetic path: ``VariaSuit`` once crashed Echoes. Every
+model in ``_CROSS_GAME_ITEM_NAMES``/``_CROSS_GAME_MODEL_OVERRIDES`` has
+since been manually validated in-game by this test; re-run it whenever a
+new entry is added to either table. Generation only -- no ROMs are needed
+for the companion slots.
 
 Simplified scope: this used to plando *every* ``_CROSS_GAME_ITEM_NAMES``
 (game, their_name) pair, one pickup per entry. The individual name matches
@@ -19,11 +21,7 @@ from __future__ import annotations
 
 from ...items import ITEM_TABLE
 from ...locations import LOCATION_TABLE
-from ...patch_data import (
-    _CROSS_GAME_ITEM_NAMES,
-    _CROSS_GAME_MODEL_OVERRIDES,
-    _EXPERIMENTAL_CROSS_GAME_ITEM_NAMES,
-)
+from ...patch_data import _CROSS_GAME_ITEM_NAMES, _CROSS_GAME_MODEL_OVERRIDES
 from . import harness, presets, routes
 from .harness import ManualTest, SlotSpec, Step
 
@@ -118,16 +116,8 @@ def _notes() -> list[str]:
             f"  `{LOCATION_TABLE[location].name}` <- ({game}, {their_name}, "
             f"`{_model_for(game, their_name, our_name)}`)"
         )
-    experimental_models = sorted(
-        {
-            _model_for(game, their_name, our_name)
-            for (game, their_name), our_name in _EXPERIMENTAL_CROSS_GAME_ITEM_NAMES.items()
-        }
-        | set(_CROSS_GAME_MODEL_OVERRIDES.values())
-    )
-    lines.append(
-        "models from the *experimental*/override tables (highest crash risk): " + ", ".join(experimental_models)
-    )
+    override_models = sorted(set(_CROSS_GAME_MODEL_OVERRIDES.values()))
+    lines.append("models from the override table: " + ", ".join(override_models))
     return lines
 
 
@@ -135,7 +125,7 @@ TEST = ManualTest(
     slug=_SLUG,
     title="Cross-game models: every distinct mapped model loads without crashing",
     priority="P1",
-    proves="every distinct cross-game item model (verified and experimental) loads without crashing",
+    proves="every distinct cross-game item model (name-matched and override) loads without crashing",
     seed=1_000_010,
     config_sha256="7c3d55c4d2c96b508bc864467736be9302f1fbecc50fbbdd93d881fc18f921e4",
     options=presets.merge(
@@ -162,8 +152,9 @@ TEST = ManualTest(
     ],
     on_failure=[
         (
-            "Move the offending entry out of `_EXPERIMENTAL_CROSS_GAME_ITEM_NAMES` (as that "
-            "table's comment instructs) rather than reverting the feature."
+            "Delete the offending entry from `_CROSS_GAME_ITEM_NAMES` (or "
+            "`_CROSS_GAME_MODEL_OVERRIDES`, if that's what supplied the model) rather than "
+            "reverting the feature -- it falls back to the generic Energy Transfer Module."
         ),
         "`patch_data._pickup_appearance` / `_CROSS_GAME_MODEL_OVERRIDES`",
     ],

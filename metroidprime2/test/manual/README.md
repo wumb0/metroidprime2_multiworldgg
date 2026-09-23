@@ -656,7 +656,7 @@ If it fails, look at:
 
 ### MT10_CROSS_GAME_MODELS -- `mt10_cross_game_models` (P1)
 
-*Proves: every distinct cross-game item model (verified and experimental) loads without crashing*
+*Proves: every distinct cross-game item model (name-matched and override) loads without crashing*
 
 Build:
 ```
@@ -690,7 +690,7 @@ Notes / derived values:
 *   `Temple Grounds: GFMC Compound - Pickup (Missile Launcher)` <- (Metroid Prime, Unlimited Missiles, `UnlimitedMissiles`)
 *   `Temple Grounds: GFMC Compound - Pickup 2 (Missile On Ship)` <- (Metroid: Zero Mission, Missile Tank, `MissileExpansion`)
 *   `Sky Temple Grounds: Accursed Lake - Pickup (Sky Temple Key 9)` <- (Metroid: Zero Mission, Screw Attack, `ScrewAttack`)
-* models from the *experimental*/override tables (highest crash risk): ChargeBeam, CombatVisor, MissileExpansionPrime1, MorphBall, ScanVisor, UnlimitedMissiles
+* models from the override table: MissileExpansionPrime1
 
 Run:
 ```
@@ -711,7 +711,7 @@ Pass if:
 * No crash on collecting any pickup.
 
 If it fails, look at:
-* Move the offending entry out of `_EXPERIMENTAL_CROSS_GAME_ITEM_NAMES` (as that table's comment instructs) rather than reverting the feature.
+* Delete the offending entry from `_CROSS_GAME_ITEM_NAMES` (or `_CROSS_GAME_MODEL_OVERRIDES`, if that's what supplied the model) rather than reverting the feature -- it falls back to the generic Energy Transfer Module.
 * `patch_data._pickup_appearance` / `_CROSS_GAME_MODEL_OVERRIDES`
 
 ### MT11_DEATH_LINK -- `mt11_death_link` (P1)
