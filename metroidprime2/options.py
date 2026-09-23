@@ -352,11 +352,17 @@ class MapVisibility(Choice):
     only once its room has been visited or its map station used.
 
     `full_map`: every room is drawn from the start (rooms still need to be
-    visited to show their name/details), but item dots still wait for their
-    room to be visited.
+    visited to show their name/details). Item dots still wait for their
+    room to be visited or a map station used -- same as `vanilla`.
 
-    `full_map_and_items`: as `full_map`, plus a dot at every item location
-    from the start, mirroring the Metroid Prime 1 randomizer.
+    `full_map_and_items`: currently identical to `full_map` for item dots.
+    open-prime-rando hardcodes every pickup's map icon to only ever appear
+    once its room is visited or a map station used, with no supported way
+    to reveal it earlier (PLAN.md section M) -- unlike the Metroid Prime 1
+    randomizer, which this option was originally meant to mirror. Kept as
+    a distinct choice (rather than merged into `full_map`) so that if
+    open-prime-rando ever adds real pre-visit item reveal, this value can
+    pick it up without a player-facing option rename.
 
     These are one setting rather than two toggles because an item dot needs
     its room drawn to be visible at all -- "item dots without the revealed
