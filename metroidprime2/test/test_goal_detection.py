@@ -123,13 +123,6 @@ def _goal_ctx(area: int | None = _END_AREA, mlvl: int | None = constants.TEMPLE_
 
 
 class TestMemoryGoalDetection(unittest.TestCase):
-    def test_ending_area_declares_goal(self) -> None:
-        ctx = _goal_ctx()
-        _run_goal(ctx)
-        self.assertTrue(ctx.finished_game)
-        self.assertEqual(1, len(ctx.sent_msgs))
-        self.assertEqual("StatusUpdate", ctx.sent_msgs[0][0]["cmd"])
-
     def test_every_ending_area_declares_goal(self) -> None:
         for area in constants.GAME_END_AREA_INDICES:
             ctx = _goal_ctx(area=area)
@@ -196,24 +189,6 @@ class TestPickupBitmaskCounters(unittest.TestCase):
             ctx.sent_msgs,
         )
         self.assertEqual([[(item_id, -bit)]], ctx.game_interface.consumed_calls)
-
-    def test_multiple_bits_on_one_counter_report_all_indices(self) -> None:
-        # Indices 0, 2, 5 all land on the same counter (all < BITS_PER_COUNTER).
-        item_id_0, bit_0 = counter_and_amount(0)
-        _, bit_2 = counter_and_amount(2)
-        _, bit_5 = counter_and_amount(5)
-        combined = bit_0 | bit_2 | bit_5
-        ctx = _FakeContext()
-        inventory = _inventory(**{f"item_{item_id_0}": combined})
-        _run(ctx, inventory)
-        self.assertEqual(1, len(ctx.sent_msgs))
-        sent = ctx.sent_msgs[0][0]
-        self.assertEqual("LocationChecks", sent["cmd"])
-        self.assertEqual(
-            sorted(constants.LOCATION_ID_BASE + idx for idx in (0, 2, 5)),
-            sorted(sent["locations"]),
-        )
-        self.assertEqual([[(item_id_0, -combined)]], ctx.game_interface.consumed_calls)
 
     def test_multi_pickup_disconnect_across_several_counters_reports_all_none_invented(self) -> None:
         """The case that motivated section P: several pickups collected

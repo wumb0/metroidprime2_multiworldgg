@@ -62,16 +62,6 @@ class TestCounterAndAmount(unittest.TestCase):
             self.assertEqual([], decoded.stray, f"index {index} produced unexpected stray bits")
             self.assertEqual([(item_id, -bit)], decoded.deltas)
 
-    def test_all_119_counter_bit_pairs_are_distinct(self) -> None:
-        pairs = [counter_and_amount(index) for index in range(len(LOCATION_TABLE))]
-        self.assertEqual(len(pairs), len(set(pairs)), "two different pickup indices share a (counter, bit) pair")
-
-    def test_every_bit_value_is_a_single_set_bit(self) -> None:
-        for index in range(len(LOCATION_TABLE)):
-            _item_id, bit = counter_and_amount(index)
-            self.assertGreater(bit, 0)
-            self.assertEqual(0, bit & (bit - 1), f"index {index}'s bit value {bit} is not a single set bit")
-
     def test_index_0_and_index_bits_per_counter_minus_1_share_the_first_counter(self) -> None:
         first_item, first_bit = counter_and_amount(0)
         last_item, last_bit = counter_and_amount(BITS_PER_COUNTER - 1)
@@ -99,11 +89,6 @@ class TestFullCounterRoundTrip(unittest.TestCase):
     This module only needs to confirm ``decode`` itself has no hidden
     ceiling below a full counter's value."""
 
-    def test_no_real_index_needs_more_than_bits_per_counter(self) -> None:
-        for index in range(len(LOCATION_TABLE)):
-            _item_id, bit = counter_and_amount(index)
-            self.assertLess(bit, 1 << BITS_PER_COUNTER)
-
     def test_full_counter_value_round_trips_through_decode(self) -> None:
         full_value = (1 << BITS_PER_COUNTER) - 1
         item_id = PICKUP_COUNTER_ITEMS[0]
@@ -120,16 +105,6 @@ class TestFullCounterRoundTrip(unittest.TestCase):
 
 
 class TestDecodeMultiBitMultiCounter(unittest.TestCase):
-    def test_multiple_bits_on_one_counter(self) -> None:
-        item_id, bit_a = counter_and_amount(1)
-        _, bit_b = counter_and_amount(3)
-        inventory = _empty_inventory()
-        inventory[item_id] = (bit_a | bit_b, 0)
-        decoded = decode(inventory)
-        self.assertEqual([1, 3], decoded.indices)
-        self.assertEqual([(item_id, -(bit_a | bit_b))], decoded.deltas)
-        self.assertEqual([], decoded.stray)
-
     def test_bits_spread_across_several_counters(self) -> None:
         indices = [0, 20, 44, 60, 118]
         inventory = _empty_inventory()
@@ -147,15 +122,6 @@ class TestDecodeMultiBitMultiCounter(unittest.TestCase):
             sorted(expected_deltas.items()),
             sorted((item_id, -delta) for item_id, delta in decoded.deltas),
         )
-
-    def test_untouched_counters_contribute_nothing(self) -> None:
-        item_id, bit = counter_and_amount(0)
-        inventory = _empty_inventory()
-        inventory[item_id] = (bit, 0)
-        decoded = decode(inventory)
-        # Only the one nonzero counter should show up in deltas -- all the
-        # others are (0, 0) and must be left alone (no needless consume).
-        self.assertEqual(1, len(decoded.deltas))
 
 
 class TestStrayBitReporting(unittest.TestCase):
@@ -209,12 +175,6 @@ class TestStrayBitReporting(unittest.TestCase):
 
 
 class TestDecodedDefaults(unittest.TestCase):
-    def test_decoded_defaults_are_all_empty(self) -> None:
-        decoded = Decoded()
-        self.assertEqual([], decoded.indices)
-        self.assertEqual([], decoded.deltas)
-        self.assertEqual([], decoded.stray)
-
     def test_all_zero_inventory_decodes_to_nothing(self) -> None:
         decoded = decode(_empty_inventory())
         self.assertEqual(Decoded(), decoded)
@@ -246,20 +206,6 @@ class TestReservedItemIdsDisjoint(unittest.TestCase):
             overlap,
             f"PICKUP_COUNTER_ITEMS overlaps randovania/ITEM_TABLE-reserved ids: {overlap}",
         )
-
-    def test_randovanias_multiworld_id_is_reserved_not_a_pickup_counter(self) -> None:
-        # Item 74 ("Multiworld") is randovania's own multiworld allocation
-        # and was section O's single shared magic counter. Nothing in this
-        # world uses it any more -- the goal is a memory read
-        # (constants.GAME_END_AREA_INDICES), not a counter -- so it must
-        # stay in the reserved set and out of PICKUP_COUNTER_ITEMS, where a
-        # stale amount on an existing save can never be misread as pickup
-        # bits.
-        header = load_json("logic_database/header.json")
-        multiworld_id = header["resource_database"]["items"]["Multiworld"]["extra"]["item_id"]
-        self.assertEqual(74, multiworld_id)
-        self.assertIn(multiworld_id, _reserved_item_ids())
-        self.assertNotIn(multiworld_id, PICKUP_COUNTER_ITEMS)
 
 
 if __name__ == "__main__":

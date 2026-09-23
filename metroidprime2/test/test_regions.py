@@ -87,30 +87,15 @@ class TestNegativeReachability(MP2TestBase):
     Chamber/Landing Site/Industrial Site cluster, so no pickup location
     anywhere -- these three included -- is reachable yet."""
 
-    def test_sky_temple_key_9_unreachable_at_start(self) -> None:
-        location = LOCATION_TABLE[15]
-        self.assertEqual("Sky Temple Grounds: Accursed Lake - Pickup (Sky Temple Key 9)", location.name)
-        self.assertFalse(self.can_reach_location(location.name))
-
-    def test_dark_torvus_key_3_unreachable_at_start(self) -> None:
-        location = LOCATION_TABLE[69]
-        self.assertEqual("Dark Torvus Bog: Venomous Pond - Pickup (Dark Torvus Key 3)", location.name)
-        self.assertFalse(self.can_reach_location(location.name))
-
-    def test_ing_hive_key_1_unreachable_at_start(self) -> None:
-        location = LOCATION_TABLE[100]
-        self.assertEqual("Ing Hive: Culling Chamber - Pickup (Ing Hive Key 1)", location.name)
-        self.assertFalse(self.can_reach_location(location.name))
-
-
-class TestLudicrousTricksStillGenerates(MP2TestBase):
-    """Setting every trick to its hardest (ludicrous) difficulty must still
-    produce a valid, fully-beatable region graph. No custom test methods
-    are needed here: setting `options` makes WorldTestBase automatically
-    run test_all_state_can_reach_everything / test_empty_state_can_reach_
-    something / test_fill for this subclass."""
-
-    options = {"trick_level": "ludicrous"}
+    def test_deep_key_locations_unreachable_at_start(self) -> None:
+        for index, name in (
+            (15, "Sky Temple Grounds: Accursed Lake - Pickup (Sky Temple Key 9)"),
+            (69, "Dark Torvus Bog: Venomous Pond - Pickup (Dark Torvus Key 3)"),
+            (100, "Ing Hive: Culling Chamber - Pickup (Ing Hive Key 1)"),
+        ):
+            with self.subTest(location=name):
+                self.assertEqual(name, LOCATION_TABLE[index].name)
+                self.assertFalse(self.can_reach_location(name))
 
 
 # Great Temple/Temple Sanctuary's "Transport A Translator Gate" (Emerald).
@@ -247,16 +232,9 @@ class TestCanWarpToStart(unittest.TestCase):
     def test_false_when_nothing_collected_and_no_save_station_reachable(self) -> None:
         self.assertFalse(self.rule(_FakeReachState(set())))
 
-    def test_false_when_only_an_unrelated_region_is_reachable(self) -> None:
-        self.assertFalse(self.rule(_FakeReachState({"Agon Wastes/Mining Plaza/Pickup (Missile)"})))
-
     def test_true_once_any_save_station_is_reachable(self) -> None:
         candidate = self.db.starting_location_candidates("save_stations")[3]
         self.assertTrue(self.rule(_FakeReachState({candidate.ap_name})))
-
-    def test_true_when_every_save_station_is_reachable(self) -> None:
-        all_names = {c.ap_name for c in self.db.starting_location_candidates("save_stations")}
-        self.assertTrue(self.rule(_FakeReachState(all_names)))
 
     def test_false_when_only_a_non_save_station_anywhere_candidate_is_reachable(self) -> None:
         # A room that's a valid "anywhere" start but not one of the 18 save

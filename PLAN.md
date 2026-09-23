@@ -769,11 +769,11 @@ no equivalent for (`_cmd_reconnect` reconnects to *Dolphin*, distinct from
 server); `_cmd_deathlink`/`_cmd_test_deathlink` follow the standard
 per-world DeathLink pattern used across dozens of other worlds' clients
 (no shared base-class or server implementation exists to defer to). None
-of those are duplicates. `test_client_receive.py`'s
-`TestManualGrantAppendedLikeRealItem` is kept as coverage for
-`compute_desired_capacities` itself (the "late arrival in received order"
-shape it tests still applies to any real AP item), with its docstring
-reframed away from the now-removed command.
+of those are duplicates. The "late arrival in received order" shape the
+old `/grant_item` regression tests covered (a launcher/main pickup arriving
+after its expansions) still applies to any real AP item, so it lives on as
+the reordered-receive assertions in `test_client_receive.py`'s
+`TestMissileGating`/`TestPowerBombGating`.
 
 ## P. Pickup identity encoding (bitmask counters)
 

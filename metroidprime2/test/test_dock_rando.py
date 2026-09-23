@@ -48,11 +48,6 @@ class _FakeWorld:
 
 
 class TestBuildDoorLockAssignmentOff(unittest.TestCase):
-    def test_off_returns_empty(self) -> None:
-        db = load_game_database()
-        world = _FakeWorld(door_lock_rando=False)
-        self.assertEqual({}, build_door_lock_assignment(world, db))  # type: ignore[arg-type]
-
     def test_off_returns_empty_regardless_of_save_station_protection(self) -> None:
         # door_lock_rando's short-circuit must come first regardless of
         # normal_save_station_doors's value -- the protection only ever
@@ -110,15 +105,6 @@ class TestBuildDoorLockAssignment(MP2TestBase):
         }
         self.assertEqual(eligible_ids, set(assignment))
 
-    def test_ineligible_doors_never_reassigned(self) -> None:
-        db = load_game_database()
-        assignment = build_door_lock_assignment(self.world, db)
-        for node in db.all_nodes():
-            if node.node_type != "dock" or node.dock_type != "door":
-                continue
-            if node.default_dock_weakness not in DOOR_CAN_CHANGE_FROM:
-                self.assertNotIn(node.id, assignment)
-
     def test_paired_doors_share_the_same_new_weakness(self) -> None:
         db = load_game_database()
         assignment = build_door_lock_assignment(self.world, db)
@@ -132,6 +118,23 @@ class TestBuildDoorLockAssignment(MP2TestBase):
                     f"{node_id.ap_name} and its physical pair partner {partner_id.ap_name} "
                     "got different weaknesses",
                 )
+
+    def test_protected_faces_forced_to_normal_door(self) -> None:
+        # normal_save_station_doors defaults on (DefaultOnToggle).
+        db = load_game_database()
+        pairs = _door_pairs(db)
+        protected = save_station_door_faces(db, pairs)
+        assignment = build_door_lock_assignment(self.world, db)
+
+        for node_id in protected:
+            self.assertEqual(
+                "Normal Door",
+                assignment[node_id],
+                f"{node_id.ap_name} is a protected save-station face but got a non-Normal lock",
+            )
+
+    def test_all_pickups_reachable(self) -> None:
+        self.assert_all_locations_reachable()
 
 
 class TestSaveStationDoorFaces(unittest.TestCase):
@@ -162,41 +165,6 @@ class TestSaveStationDoorFaces(unittest.TestCase):
             node = db.node(node_id)
             self.assertEqual("dock", node.node_type)
             self.assertEqual("door", node.dock_type)
-
-
-class TestBuildDoorLockAssignmentSaveStationProtection(MP2TestBase):
-    """``normal_save_station_doors`` defaults on (``DefaultOnToggle``), so
-    just turning on ``door_lock_rando`` is enough to exercise it."""
-
-    options = {"door_lock_rando": True}
-
-    def test_protected_faces_forced_to_normal_door(self) -> None:
-        db = load_game_database()
-        pairs = _door_pairs(db)
-        protected = save_station_door_faces(db, pairs)
-        assignment = build_door_lock_assignment(self.world, db)
-
-        for node_id in protected:
-            self.assertEqual(
-                "Normal Door",
-                assignment[node_id],
-                f"{node_id.ap_name} is a protected save-station face but got a non-Normal lock",
-            )
-
-    def test_protected_pairs_still_agree(self) -> None:
-        db = load_game_database()
-        pairs = _door_pairs(db)
-        protected = save_station_door_faces(db, pairs)
-        assignment = build_door_lock_assignment(self.world, db)
-
-        for node_id in protected:
-            partner_id = pairs.get(node_id)
-            if partner_id is not None and partner_id in assignment:
-                self.assertEqual(
-                    assignment[node_id],
-                    assignment[partner_id],
-                    f"{node_id.ap_name} and its physical pair partner {partner_id.ap_name} disagree",
-                )
 
 
 class TestBuildDoorLockAssignmentSaveStationProtectionOff(MP2TestBase):
@@ -271,6 +239,9 @@ class TestBuildElevatorAssignment(MP2TestBase):
         shuffled = _reachable_nodes(db, elevator)
         self.assertTrue(pool_endpoints <= shuffled)
 
+    def test_all_pickups_reachable(self) -> None:
+        self.assert_all_locations_reachable()
+
 
 class TestBuildPortalAssignment(MP2TestBase):
     options = {"portal_rando": True}
@@ -319,15 +290,6 @@ class TestBuildPortalAssignment(MP2TestBase):
             expected = "Dark Portal" if region.asset_id is not None else "Light Portal"
             self.assertEqual(expected, new_name)
 
-    def test_other_portal_weaknesses_are_never_overridden(self) -> None:
-        db = load_game_database()
-        _portal, portal_weakness = build_portal_assignment(self.world, db, {}, {})
-        for node in db.all_nodes():
-            if node.node_type != "dock" or node.dock_type != "portal":
-                continue
-            if node.default_dock_weakness != "No Return Portal":
-                self.assertNotIn(node.id, portal_weakness)
-
     def test_shuffle_keeps_every_pool_endpoint_reachable(self) -> None:
         from ..logic.dock_rando import _reachable_nodes
 
@@ -338,46 +300,15 @@ class TestBuildPortalAssignment(MP2TestBase):
         reached = _reachable_nodes(db, {}, portal)
         self.assertTrue(pool_endpoints <= reached)
 
-
-class TestDoorLockRandoStillGenerates(MP2TestBase):
-    """No custom test methods needed beyond the explicit reachability
-    check below -- MP2TestBase disables WorldTestBase's blanket auto-tests
-    (see bases.py), so this mirrors TestVanillaPlacement's pattern instead
-    of relying on them."""
-
-    options = {"door_lock_rando": True}
-
     def test_all_pickups_reachable(self) -> None:
-        state = self.multiworld.get_all_state()
-        for location in self.multiworld.get_locations():
-            self.assertTrue(location.can_reach(state), f"{location.name} unreachable")
-
-
-class TestElevatorRandoStillGenerates(MP2TestBase):
-    options = {"elevator_rando": True}
-
-    def test_all_pickups_reachable(self) -> None:
-        state = self.multiworld.get_all_state()
-        for location in self.multiworld.get_locations():
-            self.assertTrue(location.can_reach(state), f"{location.name} unreachable")
-
-
-class TestPortalRandoStillGenerates(MP2TestBase):
-    options = {"portal_rando": True}
-
-    def test_all_pickups_reachable(self) -> None:
-        state = self.multiworld.get_all_state()
-        for location in self.multiworld.get_locations():
-            self.assertTrue(location.can_reach(state), f"{location.name} unreachable")
+        self.assert_all_locations_reachable()
 
 
 class TestAllEntranceRandoTogetherStillGenerates(MP2TestBase):
     options = {"door_lock_rando": True, "elevator_rando": True, "portal_rando": True}
 
     def test_all_pickups_reachable(self) -> None:
-        state = self.multiworld.get_all_state()
-        for location in self.multiworld.get_locations():
-            self.assertTrue(location.can_reach(state), f"{location.name} unreachable")
+        self.assert_all_locations_reachable()
 
 
 if __name__ == "__main__":

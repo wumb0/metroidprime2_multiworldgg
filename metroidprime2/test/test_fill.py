@@ -146,6 +146,12 @@ class TestNonProgressiveSuitAndGrapple(_FillMatrixCase):
     seeds = (1, 2)
 
 
+class TestLudicrousTricks(_FillMatrixCase):
+    # Every trick at its hardest difficulty must still generate and fill.
+    options = {"trick_level": "ludicrous"}
+    seeds = (1, 2)
+
+
 class TestDoorLockRando(_FillMatrixCase):
     # Seeds verified to pass against the current logic/dock_rando.py fix
     # (measured ~2.7% failure rate on a 37-seed sweep -- see that module's

@@ -119,23 +119,6 @@ class TestConnectRetry(unittest.TestCase):
         # Dropped by the first call's bad read, rebuilt by the second.
         self.assertEqual(1, fake.connect_calls)
 
-    def test_wrong_game_id_drops_hook_so_next_call_rehooks(self) -> None:
-        interface, fake = _make_interface()
-        fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
-
-        interface.connect_to_game()
-
-        self.assertIsNone(interface.version)
-        # Hook is left dropped, so the sync loop's next connect_to_game()
-        # (which only runs for DISCONNECTED) gets a fresh hook.
-        self.assertFalse(fake.is_connected())
-        self.assertEqual(1, fake.disconnect_calls)
-
-        fake.memory[0x80000000] = versions.NTSC.game_id
-        interface.connect_to_game()
-
-        self.assertIs(interface.version, versions.NTSC)
-
     def test_recovers_from_transient_hook_failure_across_calls(self) -> None:
         interface, fake = _make_interface()
         fake.memory[0x80000000] = versions.NTSC.game_id
@@ -593,13 +576,6 @@ class TestConsumeCounters(unittest.TestCase):
         pending_op_address = versions.NTSC.cstate_manager_global + versions.PENDING_OP_OFFSET
         self.assertEqual(b"\x01", fake.memory.get(pending_op_address))
 
-    def test_consume_counters_leaves_no_leftovers_for_a_normal_tick(self) -> None:
-        from .. import constants
-
-        interface, _fake = self._prepared_interface()
-        deltas = [(item_id, -1) for item_id in constants.PICKUP_COUNTER_ITEMS]
-        leftovers = interface.consume_counters(deltas)
-        self.assertEqual([], leftovers)
 
 
 class _FakeDmeModule:

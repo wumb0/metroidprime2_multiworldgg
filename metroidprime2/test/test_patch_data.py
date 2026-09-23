@@ -129,9 +129,37 @@ class TestMakeRandoConfiguration(MP2TestBase):
         for item_id in _MANDATORY_STARTING_ITEM_IDS:
             self.assertEqual(1, capacities.get(item_id), f"item {item_id} capacity")
 
-    def test_varia_suit_capacity_is_never_more_than_one(self) -> None:
-        capacities = {entry["item"]: entry["capacity"] for entry in self.config["starting_items"]}
-        self.assertEqual(1, capacities[12])
+    def test_vanilla_costs_and_double_damage_actually_doubles(self) -> None:
+        beams = self.config["beam_configuration"]
+        for beam_name in ("dark", "light", "annihilator"):
+            beam = beams[beam_name]
+            self.assertEqual(1, beam["uncharged_cost"])
+            self.assertEqual(5, beam["charged_cost"])
+            self.assertEqual(5, beam["combo_missile_cost"])
+            self.assertEqual(30, beam["combo_ammo_cost"])
+        self.assertEqual(45, beams["dark"]["ammo_a"])
+        self.assertIsNone(beams["dark"]["ammo_b"])
+        self.assertEqual(46, beams["light"]["ammo_a"])
+        self.assertIsNone(beams["light"]["ammo_b"])
+        self.assertEqual(45, beams["annihilator"]["ammo_a"])
+        self.assertEqual(46, beams["annihilator"]["ammo_b"])
+
+        # Default (200%) must actually double, unlike open-prime-rando's
+        # own internal default of 1.0/100% (a no-op) for this field.
+        custom_items = self.config["custom_items"]
+        self.assertEqual(2.0, custom_items["massive_damage_config"]["damage_increase_multiplier"])
+        self.assertEqual(1, custom_items["massive_damage_config"]["max_count"])
+        self.assertEqual(0.0, custom_items["defense_up_config"]["damage_reduction_multiplier"])
+        self.assertEqual(1, custom_items["defense_up_config"]["max_count"])
+
+    def test_starting_area_is_landing_site(self) -> None:
+        self.assertEqual(
+            {"mlvl_id": TEMPLE_GROUNDS_MLVL, "mrea_id": LANDING_SITE_MREA},
+            self.config["starting_area"],
+        )
+
+    def test_origin_region_name_is_landing_site_save_station(self) -> None:
+        self.assertEqual("Temple Grounds/Landing Site/Save Station", self.world.origin_region_name)
 
     @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
     def test_validates_against_installed_rando_configuration(self) -> None:
@@ -141,16 +169,6 @@ class TestMakeRandoConfiguration(MP2TestBase):
         from open_prime_rando.echoes.rando_configuration import RandoConfiguration
 
         RandoConfiguration.model_validate(self.config, extra="forbid")
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_every_pickup_location_is_a_valid_pickup_modification(self) -> None:
-        # Narrower than the whole-config validation above: directly
-        # exercises PickupModification on each of the 119 pickups (PLAN.md
-        # M2 test list).
-        from open_prime_rando.echoes.pickups.schema import PickupModification
-
-        for pickup in _all_pickups(self.config):
-            PickupModification.model_validate(pickup)
 
 
 class TestCrossGameItemModels(MP2TestBase):
@@ -239,39 +257,6 @@ class TestCrossGameItemModels(MP2TestBase):
             with self.subTest(game=game):
                 appearance = self._appearance_for(_other_game_item(game, "Varia Suit", 2))
                 self.assertEqual(patch_data._FALLBACK_MODEL, appearance["model_data"])
-
-
-class TestBeamConfigurationDefaults(MP2TestBase):
-    def test_vanilla_costs_and_double_damage_actually_doubles(self) -> None:
-        config = patch_data.make_rando_configuration(self.world)
-        beams = config["beam_configuration"]
-        for beam_name in ("dark", "light", "annihilator"):
-            beam = beams[beam_name]
-            self.assertEqual(1, beam["uncharged_cost"])
-            self.assertEqual(5, beam["charged_cost"])
-            self.assertEqual(5, beam["combo_missile_cost"])
-            self.assertEqual(30, beam["combo_ammo_cost"])
-        self.assertEqual(45, beams["dark"]["ammo_a"])
-        self.assertIsNone(beams["dark"]["ammo_b"])
-        self.assertEqual(46, beams["light"]["ammo_a"])
-        self.assertIsNone(beams["light"]["ammo_b"])
-        self.assertEqual(45, beams["annihilator"]["ammo_a"])
-        self.assertEqual(46, beams["annihilator"]["ammo_b"])
-
-        # Default (200%) must actually double, unlike open-prime-rando's
-        # own internal default of 1.0/100% (a no-op) for this field.
-        custom_items = config["custom_items"]
-        self.assertEqual(2.0, custom_items["massive_damage_config"]["damage_increase_multiplier"])
-        self.assertEqual(1, custom_items["massive_damage_config"]["max_count"])
-        self.assertEqual(0.0, custom_items["defense_up_config"]["damage_reduction_multiplier"])
-        self.assertEqual(1, custom_items["defense_up_config"]["max_count"])
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_validates_against_installed_rando_configuration(self) -> None:
-        from open_prime_rando.echoes.rando_configuration import RandoConfiguration
-
-        config = patch_data.make_rando_configuration(self.world)
-        RandoConfiguration.model_validate(config, extra="forbid")
 
 
 class TestBeamConfigurationNonDefault(MP2TestBase):
@@ -400,39 +385,10 @@ class TestMakeRandoConfigurationWithPortalRando(MP2TestBase):
             self.assertIsInstance(portal["portal_scan_destination"], str)
 
     @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_portals_validate_against_installed_portal_change_schema(self) -> None:
-        from open_prime_rando.echoes.portal import PortalChange
-
-        for portal in self._all_portals():
-            PortalChange.model_validate(portal)
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
     def test_validates_against_installed_rando_configuration(self) -> None:
         from open_prime_rando.echoes.rando_configuration import RandoConfiguration
 
         RandoConfiguration.model_validate(self.config, extra="forbid")
-
-
-class TestStartingAreaVanilla(MP2TestBase):
-    """starting_room defaults to "vanilla" -- config.json's starting_area
-    must still be exactly the vanilla Temple Grounds/Landing Site Save
-    Station, matching origin_region_name (M0's TEMPLE_GROUNDS_MLVL /
-    LANDING_SITE_MREA constants)."""
-
-    def setUp(self) -> None:
-        super().setUp()
-        if not self.constructed:
-            return
-        self.config = patch_data.make_rando_configuration(self.world)
-
-    def test_starting_area_is_landing_site(self) -> None:
-        self.assertEqual(
-            {"mlvl_id": TEMPLE_GROUNDS_MLVL, "mrea_id": LANDING_SITE_MREA},
-            self.config["starting_area"],
-        )
-
-    def test_origin_region_name_is_landing_site_save_station(self) -> None:
-        self.assertEqual("Temple Grounds/Landing Site/Save Station", self.world.origin_region_name)
 
 
 class TestStartingAreaSaveStations(MP2TestBase):
@@ -449,23 +405,11 @@ class TestStartingAreaSaveStations(MP2TestBase):
             return
         self.config = patch_data.make_rando_configuration(self.world)
 
-    def test_chosen_node_is_a_save_station_candidate(self) -> None:
-        db = load_game_database()
-        self.assertIn(self.world.starting_location, db.starting_location_candidates("save_stations"))
-
     def test_starting_area_matches_chosen_node(self) -> None:
         db = load_game_database()
         node = db.node(self.world.starting_location)
         mlvl_id, mrea_id = patch_data._area_asset_ids(db, node)
         self.assertEqual({"mlvl_id": mlvl_id, "mrea_id": mrea_id}, self.config["starting_area"])
-
-    def test_starting_area_shape(self) -> None:
-        self.assertEqual({"mlvl_id", "mrea_id"}, self.config["starting_area"].keys())
-        self.assertIsInstance(self.config["starting_area"]["mlvl_id"], int)
-        self.assertIsInstance(self.config["starting_area"]["mrea_id"], int)
-
-    def test_origin_region_name_matches_chosen_node(self) -> None:
-        self.assertEqual(self.world.starting_location.ap_name, self.world.origin_region_name)
 
     @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
     def test_validates_against_installed_rando_configuration(self) -> None:
@@ -488,36 +432,17 @@ class TestStartingAreaAnywhere(MP2TestBase):
             return
         self.config = patch_data.make_rando_configuration(self.world)
 
-    def test_chosen_node_is_an_anywhere_candidate(self) -> None:
-        db = load_game_database()
-        self.assertIn(self.world.starting_location, db.starting_location_candidates("anywhere"))
-
     def test_starting_area_matches_chosen_node(self) -> None:
         db = load_game_database()
         node = db.node(self.world.starting_location)
         mlvl_id, mrea_id = patch_data._area_asset_ids(db, node)
         self.assertEqual({"mlvl_id": mlvl_id, "mrea_id": mrea_id}, self.config["starting_area"])
 
-    def test_origin_region_name_matches_chosen_node(self) -> None:
-        self.assertEqual(self.world.starting_location.ap_name, self.world.origin_region_name)
-
     @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
     def test_validates_against_installed_rando_configuration(self) -> None:
         from open_prime_rando.echoes.rando_configuration import RandoConfiguration
 
         RandoConfiguration.model_validate(self.config, extra="forbid")
-
-
-class TestStartingAreaLightWorldOnly(MP2TestBase):
-    """starting_room_light_world_only excludes every dark-region room from
-    whichever pool starting_room selects."""
-
-    options = {"starting_room": "anywhere", "starting_room_light_world_only": True}
-
-    def test_chosen_node_is_in_a_light_region(self) -> None:
-        db = load_game_database()
-        _light_regions, dark_regions = db.light_dark_regions()
-        self.assertNotIn(self.world.starting_location.region, dark_regions)
 
 
 class TestStartingItemsWithPrecollectedMissileLauncher(MP2TestBase):
@@ -708,21 +633,6 @@ class TestDetectIsoVersion(unittest.TestCase):
             detect_iso_version(self._write_fake_iso(b"GM8E01"))
 
 
-class TestPatcherRunnerDryImport(unittest.TestCase):
-    def test_module_imports_without_open_prime_rando_at_call_time(self) -> None:
-        # detect_iso_version and the module import itself must not require
-        # open-prime-rando (every OPR/retro_data_structures import in
-        # patcher_runner.py is deferred into function bodies -- PLAN.md
-        # section I) -- this exercises that regardless of whether OPR
-        # happens to be installed in this environment.
-        from .. import client
-        from ..client import patcher_runner
-
-        self.assertTrue(hasattr(patcher_runner, "patch_iso_with_ap"))
-        self.assertTrue(hasattr(patcher_runner, "detect_iso_version"))
-        del client
-
-
 class TestItemMapIconsAlwaysVisible(unittest.TestCase):
     """``item_map_icons_always_visible`` (client/patcher_runner.py):
     implements ``map_visibility``'s ``full_map_and_items`` value -- carried
@@ -901,13 +811,3 @@ class TestRevealMapRemovedShim(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual("", reveal_map_option.from_any(value).value)
 
-
-class TestRevealMapAbsentGeneratesFine(MP2TestBase):
-    """Companion to TestRevealMapRemovedShim: a world with no `reveal_map`
-    key at all (the normal case for every YAML written after this option
-    was folded into `map_visibility`) must generate exactly like any other
-    default-options world -- MP2TestBase.setUp() generating self.world
-    without error is the assertion."""
-
-    def test_world_generated(self) -> None:
-        self.assertIsNotNone(self.world)

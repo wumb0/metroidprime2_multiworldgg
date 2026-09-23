@@ -109,41 +109,27 @@ class TestSkyTempleKeysAllGuardians(MP2TestBase):
         self.assertEqual(0, len([n for n in pool_names if n.startswith("Sky Temple Key")]))
 
 
-class TestProgressiveSuitOn(MP2TestBase):
-    options = {"progressive_suit": True, "progressive_grapple": False}
+class TestProgressiveOn(MP2TestBase):
+    options = {"progressive_suit": True, "progressive_grapple": True}
 
-    def test_progressive_suit_pair_replaced_by_two_progressive_items(self) -> None:
+    def test_progressive_pairs_replaced_by_two_progressive_items(self) -> None:
         counts = Counter(_own_pool_names(self))
         self.assertEqual(2, counts["Progressive Suit"])
         self.assertEqual(0, counts["Dark Suit"])
         self.assertEqual(0, counts["Light Suit"])
-
-
-class TestProgressiveSuitOff(MP2TestBase):
-    options = {"progressive_suit": False, "progressive_grapple": False}
-
-    def test_separate_dark_and_light_suit_items(self) -> None:
-        counts = Counter(_own_pool_names(self))
-        self.assertEqual(0, counts["Progressive Suit"])
-        self.assertEqual(1, counts["Dark Suit"])
-        self.assertEqual(1, counts["Light Suit"])
-
-
-class TestProgressiveGrappleOn(MP2TestBase):
-    options = {"progressive_suit": False, "progressive_grapple": True}
-
-    def test_progressive_grapple_pair_replaced_by_two_progressive_items(self) -> None:
-        counts = Counter(_own_pool_names(self))
         self.assertEqual(2, counts["Progressive Grapple"])
         self.assertEqual(0, counts["Grapple Beam"])
         self.assertEqual(0, counts["Screw Attack"])
 
 
-class TestProgressiveGrappleOff(MP2TestBase):
+class TestProgressiveOff(MP2TestBase):
     options = {"progressive_suit": False, "progressive_grapple": False}
 
-    def test_separate_grapple_and_screw_attack_items(self) -> None:
+    def test_separate_non_progressive_items(self) -> None:
         counts = Counter(_own_pool_names(self))
+        self.assertEqual(0, counts["Progressive Suit"])
+        self.assertEqual(1, counts["Dark Suit"])
+        self.assertEqual(1, counts["Light Suit"])
         self.assertEqual(0, counts["Progressive Grapple"])
         self.assertEqual(1, counts["Grapple Beam"])
         self.assertEqual(1, counts["Screw Attack"])

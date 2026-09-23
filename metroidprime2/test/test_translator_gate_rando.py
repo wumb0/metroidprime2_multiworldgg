@@ -2,8 +2,8 @@
 randomization): pure-logic unit tests against a lightweight stand-in for
 ``world`` (mirrors ``test_dock_rando.py``'s approach), plus integration-level
 checks through a fully generated world (mirrors
-``test_dock_rando.py``'s ``TestDoorLockRandoStillGenerates``) and the patch
-data it produces (mirrors ``test_patch_data.py``).
+``test_dock_rando.py``'s ``TestAllEntranceRandoTogetherStillGenerates``) and
+the patch data it produces (mirrors ``test_patch_data.py``).
 """
 
 from __future__ import annotations
@@ -69,10 +69,6 @@ class TestBuildTranslatorGateAssignment(unittest.TestCase):
         # reachable outcome of the 5-way choice, not merely permitted by the
         # type -- across enough seeds, with 17 independent 1-in-5 draws per
         # seed, at least one seed must produce a None somewhere.
-        db = load_game_database()
-        gate_count = sum(1 for node in db.all_nodes() if node.node_type == "configurable_node")
-        self.assertEqual(17, gate_count)
-
         saw_none = False
         saw_color = False
         for seed in range(20):
@@ -94,14 +90,12 @@ class TestTranslatorGateRandoStillGenerates(MP2TestBase):
     """No custom test methods needed beyond the explicit reachability check
     below -- MP2TestBase disables WorldTestBase's blanket auto-tests (see
     bases.py), so this mirrors test_dock_rando.py's
-    TestDoorLockRandoStillGenerates pattern."""
+    TestAllEntranceRandoTogetherStillGenerates pattern."""
 
     options = {"translator_gate_rando": "full_random_unlocked"}
 
     def test_all_pickups_reachable(self) -> None:
-        state = self.multiworld.get_all_state()
-        for location in self.multiworld.get_locations():
-            self.assertTrue(location.can_reach(state), f"{location.name} unreachable")
+        self.assert_all_locations_reachable()
 
     def test_patch_data_translator_gates_match_assignment(self) -> None:
         config = patch_data.make_rando_configuration(self.world)

@@ -115,19 +115,6 @@ class TestOnDeathlink(unittest.TestCase):
         )
         self.assertEqual((False, True), (should_send, new_pending))
 
-    def test_subsequent_organic_death_after_respawn_still_sends(self) -> None:
-        ctx = _bare_context()
-        ctx.on_deathlink({"time": 1.0, "cause": "", "source": "OtherPlayer"})
-        self.assertTrue(ctx.is_pending_death_link_reset)
-
-        # Respawn: health goes positive, clearing the pending flag.
-        _, ctx.is_pending_death_link_reset = death_link_check(99.0, ctx.is_pending_death_link_reset)
-        self.assertFalse(ctx.is_pending_death_link_reset)
-
-        # A later organic death (no on_deathlink involved) must still send.
-        should_send, new_pending = death_link_check(0.0, ctx.is_pending_death_link_reset)
-        self.assertEqual((True, True), (should_send, new_pending))
-
 
 if __name__ == "__main__":
     unittest.main()

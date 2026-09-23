@@ -361,7 +361,7 @@ for _our_name in _CROSS_GAME_ITEM_NAMES.values():
     assert ITEM_TABLE[_our_name].model not in _UNSAFE_CROSS_GAME_MODELS, (
         f"_CROSS_GAME_ITEM_NAMES: {_our_name!r} resolves to an unsafe model"
     )
-del _our_name
+del _our_name  # pyright: ignore[reportPossiblyUnboundVariable]
 
 for _game_and_name, _override_model in _CROSS_GAME_MODEL_OVERRIDES.items():
     assert _game_and_name in _CROSS_GAME_ITEM_NAMES, (
