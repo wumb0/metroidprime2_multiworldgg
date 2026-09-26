@@ -231,9 +231,9 @@ class TestWarpToStartDisabled(_WarpToStartOptionTest):
 
 @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
 class TestWarpToStartInstalled(unittest.TestCase):
-    """``warp_to_start_installed`` wraps the same open-prime-rando hook as
-    ``goal_trigger_installed`` and must restore it just as carefully -- the
-    two nest inside one ``_apply_patches`` call."""
+    """``warp_to_start_installed`` wraps the open-prime-rando hook and must
+    restore it just as carefully -- it nests inside one ``_apply_patches``
+    call alongside every other hook (e.g. ``item_map_icons_always_visible``)."""
 
     def _dol_version(self, echoes_version: object) -> object:
         @dataclass(frozen=True)

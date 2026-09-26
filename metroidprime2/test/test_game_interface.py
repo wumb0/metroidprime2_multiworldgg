@@ -14,8 +14,13 @@ import struct
 import unittest
 
 from ..client import versions
-from ..client.dolphin_client import DolphinException
-from ..client.game_interface import ConnectionState, EchoesInterface, encode_hud_message
+from ..client.dolphin_client import DolphinClient, DolphinException
+from ..client.game_interface import (
+    _STUCK_HOOK_WARNING_THRESHOLD,
+    ConnectionState,
+    EchoesInterface,
+    encode_hud_message,
+)
 
 _OPR_AVAILABLE = importlib.util.find_spec("open_prime_rando") is not None
 _NULL_LOGGER = logging.getLogger("metroidprime2.test.test_game_interface")
@@ -31,12 +36,19 @@ class FakeDolphinClient:
         self.memory: dict[int, bytes] = {}
         self.writes: list[tuple[int, bytes]] = []
         self.connected = True
+        self.connect_calls = 0
+        self.disconnect_calls = 0
 
     def is_connected(self) -> bool:
         return self.connected
 
     def connect(self) -> None:
+        self.connect_calls += 1
         self.connected = True
+
+    def disconnect(self) -> None:
+        self.disconnect_calls += 1
+        self.connected = False
 
     def read_address(self, address: int, bytes_to_read: int):
         data = self.memory.get(address)
@@ -73,40 +85,41 @@ class TestVersionDetection(unittest.TestCase):
     def test_connect_to_game_wrong_game_leaves_version_none(self) -> None:
         interface, fake = _make_interface()
         fake.memory[0x80000000] = b"GM8E01"  # Metroid Prime 1, not Echoes.
-        interface.connect_to_game(attempts=1, base_delay=0)
+        interface.connect_to_game()
         self.assertIsNone(interface.version)
 
 
 class TestConnectRetry(unittest.TestCase):
-    """PLAN.md's Dolphin backoff/retry: connect_to_game() shouldn't settle
-    on a garbage/unrecognized game id read (or a transient hook failure)
-    from the brief window right after Dolphin launches, before it's
-    retried the hook+read a few times."""
+    """connect_to_game() does one hook+read attempt per call -- no internal
+    retry burst (see the module comment on why: an earlier rapid-rehook loop
+    made Dolphin misidentification worse, not better). Recovery from a
+    transient bad read instead relies on the sync loop calling
+    connect_to_game() again on its own ~1s cadence (client.py's
+    _handle_game_not_ready), which these tests simulate by calling it more
+    than once."""
 
-    def test_retries_past_transient_garbage_game_id(self) -> None:
+    def test_recovers_from_transient_garbage_game_id_across_calls(self) -> None:
         interface, fake = _make_interface()
-        # First read is garbage (neither a known id nor the empty/"not
-        # loaded yet" sentinel); by the second attempt the disc has
-        # finished booting and the real id is in place.
+        # Garbage game id on the first call (disc still booting); the real
+        # id is in place by the second, simulating the next sync-loop tick.
         fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
 
-        real_read_address = fake.read_address
-        calls = {"count": 0}
+        interface.connect_to_game()
 
-        def flaky_read_address(address: int, bytes_to_read: int):
-            calls["count"] += 1
-            if calls["count"] == 2:
-                fake.memory[0x80000000] = versions.NTSC.game_id
-            return real_read_address(address, bytes_to_read)
+        self.assertIsNone(interface.version)
+        # The bad read must drop the hook so the next call rebuilds it from
+        # scratch instead of polling the same dead region.
+        self.assertEqual(1, fake.disconnect_calls)
+        self.assertFalse(fake.is_connected())
 
-        fake.read_address = flaky_read_address  # type: ignore[method-assign]
-
-        interface.connect_to_game(attempts=5, base_delay=0)
+        fake.memory[0x80000000] = versions.NTSC.game_id
+        interface.connect_to_game()
 
         self.assertIs(interface.version, versions.NTSC)
-        self.assertEqual(calls["count"], 2)
+        # Dropped by the first call's bad read, rebuilt by the second.
+        self.assertEqual(1, fake.connect_calls)
 
-    def test_retries_past_transient_hook_failure(self) -> None:
+    def test_recovers_from_transient_hook_failure_across_calls(self) -> None:
         interface, fake = _make_interface()
         fake.memory[0x80000000] = versions.NTSC.game_id
         fake.connected = False
@@ -122,14 +135,20 @@ class TestConnectRetry(unittest.TestCase):
 
         fake.connect = flaky_connect  # type: ignore[method-assign]
 
-        interface.connect_to_game(attempts=5, base_delay=0)
+        interface.connect_to_game()
+        self.assertIsNone(interface.version)
+
+        interface.connect_to_game()
 
         self.assertIs(interface.version, versions.NTSC)
         self.assertEqual(calls["count"], 2)
 
-    def test_gives_up_after_exhausting_attempts(self) -> None:
+    def test_single_hook_and_read_per_call(self) -> None:
+        """No internal retry burst: exactly one hook attempt and one read
+        per connect_to_game() call, even when the read comes back bad."""
         interface, fake = _make_interface()
         fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
+        fake.connected = False  # not hooked yet, so connect() gets exercised
 
         calls = {"count": 0}
         real_read_address = fake.read_address
@@ -140,10 +159,37 @@ class TestConnectRetry(unittest.TestCase):
 
         fake.read_address = counting_read_address  # type: ignore[method-assign]
 
-        interface.connect_to_game(attempts=3, base_delay=0)
+        interface.connect_to_game()
 
         self.assertIsNone(interface.version)
-        self.assertEqual(calls["count"], 3)
+        self.assertEqual(1, fake.connect_calls)
+        self.assertEqual(1, fake.disconnect_calls)
+        self.assertEqual(1, calls["count"])
+
+    def test_warns_once_after_repeated_identical_wrong_game_id(self) -> None:
+        """A stuck hook (dolphin-memory-engine latched onto a wrong-but-
+        persistently-matching region) keeps reading the same garbage id no
+        matter how many times connect_to_game() re-hooks. After enough
+        consecutive identical reads across separate calls, that's worth a
+        distinct warning telling the user a full Dolphin restart -- not just
+        re-hooking -- may be needed, logged once rather than every cycle."""
+        interface, fake = _make_interface()
+        fake.memory[0x80000000] = b"\xff\xff\xff\xff\xff\xff"
+
+        with self.assertLogs(_NULL_LOGGER, level="WARNING") as cm:
+            for _ in range(_STUCK_HOOK_WARNING_THRESHOLD):
+                interface.connect_to_game()
+
+        self.assertEqual(1, len(cm.output))
+        self.assertIn("fully close and reopen Dolphin", cm.output[0])
+
+        # A genuinely different disc resets the repeat count and re-arms the warning.
+        fake.memory[0x80000000] = b"GM8E01"
+        for _ in range(_STUCK_HOOK_WARNING_THRESHOLD - 1):
+            interface.connect_to_game()
+        with self.assertLogs(_NULL_LOGGER, level="INFO") as cm:
+            interface.connect_to_game()
+        self.assertTrue(any("fully close and reopen Dolphin" in line for line in cm.output))
 
 
 class TestBuildStringAndUuid(unittest.TestCase):
@@ -233,6 +279,21 @@ class TestInGameState(unittest.TestCase):
 
         self.assertFalse(interface.is_in_game())
 
+    def test_current_area_id_reads_cstate_offset(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.AREA_ID_OFFSET, 53)
+        self.assertEqual(53, interface.current_area_id())
+
+    def test_current_area_id_none_when_version_unset(self) -> None:
+        interface, _fake = _make_interface()
+        self.assertIsNone(interface.current_area_id())
+
+    def test_current_area_id_none_when_unreadable(self) -> None:
+        interface, _fake = _make_interface()
+        interface.version = versions.NTSC
+        self.assertIsNone(interface.current_area_id())
+
     def test_has_pending_op(self) -> None:
         interface, fake = _make_interface()
         interface.version = versions.NTSC
@@ -313,6 +374,48 @@ class TestHealth(unittest.TestCase):
         _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, 0)
 
         interface.set_current_health(-1.0)  # Must not raise.
+        self.assertEqual([], fake.writes)
+
+
+class TestAlive(unittest.TestCase):
+    def test_set_alive_false_clears_bit_without_touching_other_bits(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+
+        player_state_addr = 0x80700000
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, player_state_addr)
+        # Bit 0x80 (alive) set, plus an unrelated bit (firingComboBeam) also
+        # set -- must survive the read-modify-write untouched.
+        fake.memory[player_state_addr + versions.ALIVE_OFFSET] = bytes([0x80 | 0x40])
+
+        interface.set_alive(False)
+
+        self.assertEqual(
+            bytes([0x40]),
+            fake.memory[player_state_addr + versions.ALIVE_OFFSET],
+        )
+
+    def test_set_alive_true_sets_bit_without_touching_other_bits(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+
+        player_state_addr = 0x80700000
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, player_state_addr)
+        fake.memory[player_state_addr + versions.ALIVE_OFFSET] = bytes([0x40])
+
+        interface.set_alive(True)
+
+        self.assertEqual(
+            bytes([0x80 | 0x40]),
+            fake.memory[player_state_addr + versions.ALIVE_OFFSET],
+        )
+
+    def test_set_alive_null_player_state_pointer_is_a_noop(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, 0)
+
+        interface.set_alive(False)  # Must not raise.
         self.assertEqual([], fake.writes)
 
 
@@ -419,6 +522,117 @@ class TestGrantBatching(unittest.TestCase):
         # Pending-op flag is the very last write of the call.
         self.assertEqual(pending_op_address, addresses_written[-1])
         self.assertEqual(b"\x01", fake.memory[pending_op_address])
+
+
+@unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+class TestConsumeCounters(unittest.TestCase):
+    """PLAN.md section P's constraint-1 escape hatch: a pickup bitmask
+    counter can hold up to 2**30 - 1 (BITS_PER_COUNTER), which doesn't fit
+    ``adjust_item_amount_patch``'s signed 16-bit ``li`` -- ``consume_counters``
+    routes every counter through ``_wide_decrement_patch`` instead. Exercised
+    against real DOL addresses (``versions.NTSC``), like ``TestGrantBatching``
+    above, specifically because a too-narrow instruction choice fails at
+    *assembly* time (``Instruction.compose``'s range asserts), not at some
+    higher-level check this module could fake around.
+    """
+
+    def _prepared_interface(self) -> tuple[EchoesInterface, FakeDolphinClient]:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        return interface, fake
+
+    def test_wide_decrement_patch_assembles_for_a_full_30_bit_counter_value(self) -> None:
+        from ppc_asm import assembler
+
+        from ..client.game_interface import _wide_decrement_patch
+
+        interface, _fake = self._prepared_interface()
+        full_value = (1 << 30) - 1  # constants.BITS_PER_COUNTER
+        instructions = _wide_decrement_patch(interface._powerup_functions_addresses(), 67, full_value)
+        # The point of the test: this must not raise (Instruction.compose's
+        # range asserts are exactly what li(r5, abs(delta)) would trip for
+        # a value this large).
+        assembled = bytes(assembler.assemble_instructions(versions.NTSC.cstate_manager_global, instructions))
+        self.assertGreater(len(assembled), 0)
+
+    def test_wide_decrement_patch_rejects_negative_amount(self) -> None:
+        from ..client.game_interface import _wide_decrement_patch
+
+        interface, _fake = self._prepared_interface()
+        with self.assertRaises(AssertionError):
+            _wide_decrement_patch(interface._powerup_functions_addresses(), 67, -1)
+
+    def test_consume_counters_handles_several_full_counters_in_one_body(self) -> None:
+        from .. import constants
+
+        interface, fake = self._prepared_interface()
+        full_value = (1 << constants.BITS_PER_COUNTER) - 1
+
+        leftovers = interface.consume_counters(
+            [(item_id, -full_value) for item_id in constants.PICKUP_COUNTER_ITEMS]
+        )
+
+        self.assertEqual([], leftovers)
+        pending_op_address = versions.NTSC.cstate_manager_global + versions.PENDING_OP_OFFSET
+        self.assertEqual(b"\x01", fake.memory.get(pending_op_address))
+
+
+
+class _FakeDmeModule:
+    """Minimal stand-in for the ``dolphin_memory_engine`` module, recording
+    the hook/unhook call order."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.hooked = False
+
+    def is_hooked(self) -> bool:
+        return self.hooked
+
+    def un_hook(self) -> None:
+        self.calls.append("un_hook")
+        self.hooked = False
+
+    def hook(self) -> None:
+        self.calls.append("hook")
+        self.hooked = True
+
+
+class TestDolphinClientHookSequence(unittest.TestCase):
+    """DolphinClient.connect()/disconnect() are idempotent, matching
+    worlds/metroidprime's proven pattern: only hook() when not already
+    hooked, only un_hook() when actually hooked. An earlier version
+    unconditionally un_hook()+hook()'d every call; that made Dolphin
+    misidentification worse in practice (rapid rehook churn right after
+    auto-launch), not better -- see the module comment in game_interface.py
+    and PLAN.md/memory."""
+
+    def _client_with_fake_dme(self, hooked: bool) -> tuple[DolphinClient, _FakeDmeModule]:
+        client = DolphinClient(_NULL_LOGGER)
+        fake_dme = _FakeDmeModule()
+        fake_dme.hooked = hooked
+        client.dolphin = fake_dme  # type: ignore[assignment]
+        return client, fake_dme
+
+    def test_connect_hooks_when_not_hooked(self) -> None:
+        client, fake_dme = self._client_with_fake_dme(hooked=False)
+        client.connect()
+        self.assertEqual(["hook"], fake_dme.calls)
+
+    def test_connect_is_noop_when_already_hooked(self) -> None:
+        client, fake_dme = self._client_with_fake_dme(hooked=True)
+        client.connect()
+        self.assertEqual([], fake_dme.calls)
+
+    def test_disconnect_unhooks_when_hooked(self) -> None:
+        client, fake_dme = self._client_with_fake_dme(hooked=True)
+        client.disconnect()
+        self.assertEqual(["un_hook"], fake_dme.calls)
+
+    def test_disconnect_is_noop_when_not_hooked(self) -> None:
+        client, fake_dme = self._client_with_fake_dme(hooked=False)
+        client.disconnect()
+        self.assertEqual([], fake_dme.calls)
 
 
 if __name__ == "__main__":

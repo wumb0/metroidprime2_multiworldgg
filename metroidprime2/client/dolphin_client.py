@@ -45,6 +45,18 @@ class DolphinClient:
             return False
 
     def connect(self) -> None:
+        # Matches worlds/metroidprime's DolphinClient.connect(): only hook
+        # when not already hooked. An earlier version of this method
+        # unconditionally un_hook()+hook()'d on every call on the theory that
+        # dolphin-memory-engine caches a stale region across calls -- that
+        # was never verified against a live Dolphin instance, and in
+        # practice made the misidentification issue it was meant to fix
+        # worse, not better (see PLAN.md/memory): connect_to_game()'s old
+        # retry loop called this several times in rapid succession right
+        # after Dolphin launches, hammering un_hook()/hook() while Dolphin's
+        # own memory layout is still settling, which is exactly the metroidprime
+        # (Prime 1) client -- proven not to hit this issue with the same
+        # auto-launch path -- does not do.
         if not self.dolphin.is_hooked():
             self.dolphin.hook()
         if not self.dolphin.is_hooked():

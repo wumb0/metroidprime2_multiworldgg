@@ -103,11 +103,19 @@ commands:
   but wrong seed / connected and waiting for a save / connected and in game).
 - `/test_hud` -- queues a test HUD message to display in-game, to confirm the connection can write to the game.
 - `/mp2_debug_inventory` -- prints the raw amount/capacity of every non-empty inventory slot, as read directly
-  from game memory. Useful for diagnosing item-delivery issues.
+  from game memory. Useful for diagnosing item-delivery issues. Requires `debug: true` (see below).
 - `/deathlink` -- toggles DeathLink on/off for this client, overriding the room's default setting.
 - `/test_deathlink [reason]` -- sends a test DeathLink to the rest of the group without touching in-game health,
-  to verify the send/receive path end-to-end. Requires DeathLink to be enabled (see `/deathlink`) and a
-  connection to the server.
+  to verify the send/receive path end-to-end. Requires DeathLink to be enabled (see `/deathlink`), a
+  connection to the server, and `debug: true` (see below).
+
+`/mp2_debug_inventory` and `/test_deathlink` are disabled by default. To use them, set `debug: true` under
+`metroidprime2_options` in your `host.yaml`:
+
+```yaml
+metroidprime2_options:
+  debug: true
+```
 
 ## Troubleshooting
 

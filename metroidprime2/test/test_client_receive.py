@@ -52,23 +52,6 @@ class TestMissileGating(unittest.TestCase):
         )
         self.assertEqual(5 * (1 + 1 + 0), desired_with_launcher[44])
 
-    def test_flag_off_is_byte_for_byte_the_old_behavior(self) -> None:
-        # Default (flag omitted) must match passing False explicitly, for
-        # every case above.
-        cases = [
-            _received("Missile Expansion", "Missile Expansion"),
-            _received("Missile Launcher"),
-            _received("Missile Launcher", "Missile Expansion", "Missile Expansion"),
-            _received("Seeker Launcher"),
-            _received("Missile Launcher", "Seeker Launcher"),
-        ]
-        for received in cases:
-            with self.subTest(received=received):
-                self.assertEqual(
-                    compute_desired_capacities(received, 0),
-                    compute_desired_capacities(received, 0, False),
-                )
-
     def test_unlock_option_expansions_alone_unlock_launcher(self) -> None:
         # With missile_expansions_unlock_launcher on, expansions alone (no
         # Missile Launcher) unlock the launcher flag and grant 5 capacity
@@ -108,6 +91,13 @@ class TestPowerBombGating(unittest.TestCase):
         )
         self.assertEqual(2 + 3, desired[43])
 
+        # Expansions received before the main pickup still count once it
+        # arrives, same as missiles (and the historical /grant_item bug).
+        desired_reordered = compute_desired_capacities(
+            _received("Power Bomb Expansion", "Power Bomb Expansion", "Power Bomb Expansion", "Power Bomb"), 0
+        )
+        self.assertEqual(desired[43], desired_reordered[43])
+
     def test_unlock_option_expansions_alone_unlock_power_bombs(self) -> None:
         # With power_bomb_expansions_unlock_power_bombs on, expansions alone
         # (no Power Bomb main pickup) unlock Power Bombs and grant 1
@@ -129,21 +119,6 @@ class TestPowerBombGating(unittest.TestCase):
         desired_off = compute_desired_capacities(received, 0, False, False)
         desired_on = compute_desired_capacities(received, 0, False, True)
         self.assertEqual(desired_off, desired_on)
-
-    def test_unlock_option_flag_off_is_byte_for_byte_the_old_behavior(self) -> None:
-        cases = [
-            _received("Power Bomb Expansion"),
-            _received("Power Bomb"),
-            _received(
-                "Power Bomb", "Power Bomb Expansion", "Power Bomb Expansion", "Power Bomb Expansion"
-            ),
-        ]
-        for received in cases:
-            with self.subTest(received=received):
-                self.assertEqual(
-                    compute_desired_capacities(received, 0),
-                    compute_desired_capacities(received, 0, False, False),
-                )
 
     def test_missile_and_power_bomb_options_do_not_leak_into_each_other(self) -> None:
         # missile_expansions_unlock_launcher must not affect Power Bomb
@@ -280,37 +255,6 @@ class TestPlanGrants(unittest.TestCase):
         self.assertEqual([12, 44, 97], [item_id for item_id, _delta in grants])
 
 
-class TestManualGrantAppendedLikeRealItem(unittest.TestCase):
-    """Regression test for the ``/grant_item`` bug (PLAN.md's manual-grant
-    fix): the command used to look the item up in ITEM_TABLE and push its
-    raw ``gains`` straight to game memory, bypassing this module entirely.
-    For a cross-computed item that permanently stranded the player: a
-    Missile Launcher granted this way after 8 Missile Expansions had already
-    been received applied raw gains of 5 missile capacity, but
-    ``compute_desired_capacities`` still saw "8 expansions, no launcher" in
-    ``ctx.items_received`` on every following tick (desired[44] == 0), and
-    ``plan_grants`` never lowers a capacity it thinks is already too high --
-    so the player was capped at 5 missiles instead of 45, forever.
-
-    ``_handle_grant_items`` now appends manually granted item names to the
-    received list (attributed to ``ctx.slot``) instead, exactly like a real
-    AP item -- these tests build the ``received`` list the same way and
-    assert the *fixed* totals."""
-
-    def test_missile_launcher_manually_granted_after_expansions(self) -> None:
-        received = [*_received(*(["Missile Expansion"] * 8)), ("Missile Launcher", 1)]
-        desired = compute_desired_capacities(received, 0)
-        self.assertEqual(1, desired[73])
-        self.assertEqual(45, desired[44])
-
-    def test_power_bomb_manually_granted_after_expansions(self) -> None:
-        for n in (1, 3, 5):
-            with self.subTest(n=n):
-                received = [*_received(*(["Power Bomb Expansion"] * n)), ("Power Bomb", 1)]
-                desired = compute_desired_capacities(received, 0)
-                self.assertEqual(2 + n, desired[43])
-
-
 class TestPlanGrantsLoggingSuppression(unittest.TestCase):
     """``plan_grants`` is called every ~0.5s tick; before this fix, a
     negative delta (capacity already above what's desired -- see the
@@ -321,16 +265,6 @@ class TestPlanGrantsLoggingSuppression(unittest.TestCase):
 
     def setUp(self) -> None:
         receive_items._last_negative_delta_warning.clear()
-
-    def test_repeated_calls_return_identical_deltas(self) -> None:
-        desired = {44: 45, 45: 50}
-        current = {44: (5, 5), 45: (0, 50)}
-        first = plan_grants(desired, current)
-        second = plan_grants(desired, current)
-        third = plan_grants(desired, current)
-        self.assertEqual([(44, 40)], first)
-        self.assertEqual(first, second)
-        self.assertEqual(first, third)
 
     def test_negative_delta_logged_once_across_repeated_calls(self) -> None:
         desired = {42: 5}

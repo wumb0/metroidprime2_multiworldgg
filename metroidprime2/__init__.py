@@ -228,6 +228,12 @@ class MetroidPrime2World(World):
                 "show_item_locations": bool(
                     self.options.map_visibility.value == MapVisibility.option_full_map_and_items
                 ),
+                # PLAN.md section P's compatibility gate: client/patcher_runner.py
+                # refuses to patch a .apmp2 whose pickup encoding it doesn't
+                # recognize, since the per-pickup resource mapping baked into
+                # config.json at generation time and the DOL writes that make
+                # a client understand it happen at two different times.
+                "pickup_encoding": constants.PICKUP_ENCODING_VERSION,
             },
             indent=4,
         )

@@ -1,17 +1,15 @@
 """Client-side ISO patching for Metroid Prime 2: Echoes.
 
 Reproduces open-prime-rando's ``echoes.patcher.patch_iso`` step by step
-(rather than calling it directly) for two reasons (PLAN.md section I):
-
-1. Two DOL writes must land *before* ``_apply_patches`` runs, so that its
-   trailing ``editor.save_modifications(output, ...)`` picks them up along
-   with every other DOL patch it makes: persisting the multiworld "magic"
-   counter item (item 74) across saves, and giving it a large enough
-   ``powerup_max`` that its amount can climb past 119 without wrapping.
-2. A goal-detection sentinel needs to be injected into the Credits area,
-   which requires wrapping ``open_prime_rando.echoes.patcher.
-   register_world_changes`` for the duration of the patch (see
-   ``goal_trigger_installed`` below).
+(rather than calling it directly) because two DOL writes per counter must
+land *before* ``_apply_patches`` runs, so that its trailing
+``editor.save_modifications(output, ...)`` picks them up along with every
+other DOL patch it makes: persisting each of the four pickup bitmask
+counters (``constants.PICKUP_COUNTER_ITEMS``, PLAN.md section P) across
+saves, and giving each a large enough ``powerup_max`` that its amount can
+never wrap. (Goal detection does not patch the ISO at all; it is a
+client-side memory read of the current area -- see
+``constants.GAME_END_AREA_INDICES``.)
 
 Every ``open_prime_rando``/``retro_data_structures`` import in this module
 is deliberately deferred into function bodies: importing this module (e.g.
@@ -37,8 +35,6 @@ from ..utils import get_output_path
 if TYPE_CHECKING:
     from open_prime_rando.area_patcher import AreaPatcher
     from open_prime_rando.echoes.rando_configuration import RandoConfiguration
-    from open_prime_rando.patcher_editor import PatcherEditor
-    from retro_data_structures.formats.mrea import Area
 
 ProgressCallback = Callable[[str, float], None]
 
@@ -93,106 +89,14 @@ def detect_iso_version(iso_path: str | os.PathLike[str]) -> str:
     raise ValueError(f"Not a supported Metroid Prime 2: Echoes ISO (game id {game_id!r}).")
 
 
-# --------------------------------------------------------------------------
-# Goal-trigger sentinel (PLAN.md section J, mechanism 1)
-# --------------------------------------------------------------------------
-
-# amount - 1 >= 119 is the client's goal condition (PLAN.md section J);
-# 120 is comfortably clear of the 119 real pickup indices (max amount 119)
-# without depending on the exact pickup count.
-_GOAL_SENTINEL_AMOUNT = 120
-
-
-def _add_goal_trigger(editor: PatcherEditor, mlvl: Any, area: Area) -> None:
-    """Raw ``AreaPatcher`` function (PLAN.md section J): adds a one-shot
-    Timer wired to a ``SetInventoryAmount`` SpecialFunction that sets item
-    74 (``PersistentCounter8``, the multiworld magic counter) to
-    ``_GOAL_SENTINEL_AMOUNT`` a second after the Credits area loads. The
-    client treats any magic-item amount past the real pickup range as the
-    goal signal, so this needs no memory offsets (mechanism 1 of two in
-    PLAN.md section J -- mechanism 2, a direct current-area memory read, is
-    an optional PLAN.md M4 addition).
-
-    Modeled directly on
-    ``open_prime_rando.echoes.pickups.pickup_editing._add_modify_inventory_sf``
-    (the same ``SpecialFunction(function=Function.SetInventoryAmount, ...)``
-    shape used to grant pickup resources) and the looping-Timer pattern in
-    ``pickup_editing.patch_complex_pickup``.
-    """
-    from retro_data_structures.enums.echoes import Message, PlayerItemEnum, State
-    from retro_data_structures.properties.echoes.archetypes.EditorProperties import EditorProperties
-    from retro_data_structures.properties.echoes.objects import SpecialFunction, Timer
-    from retro_data_structures.properties.echoes.objects.SpecialFunction import Function
-
-    layer = area.add_layer("AP Goal Trigger")
-
-    timer = layer.add_instance_with(
-        Timer(
-            editor_properties=EditorProperties(name="AP Goal Timer"),
-            time=1.0,
-            auto_reset=False,
-            auto_start=True,
-        )
-    )
-    special_function = layer.add_instance_with(
-        SpecialFunction(
-            editor_properties=EditorProperties(name="AP Goal Trigger"),
-            function=Function.SetInventoryAmount,
-            int_parm2=_GOAL_SENTINEL_AMOUNT,
-            inventory_item_parm=PlayerItemEnum.PersistentCounter8,
-            sound1=-1,
-            sound2=-1,
-            sound3=-1,
-        )
-    )
-    timer.add_connection(State.Zero, Message.Action, special_function)
-
-
-@contextlib.contextmanager
-def goal_trigger_installed():
-    """Context manager: for its duration, every call to
-    ``open_prime_rando.echoes.patcher.register_world_changes`` also
-    registers ``_add_goal_trigger`` on the Credits area, then restores the
-    original function on exit (including on exception) -- so this can
-    safely wrap a single ``_apply_patches`` call without leaving the
-    module patched afterwards.
-
-    ``register_world_changes`` is called by name (an unqualified global
-    lookup) from inside ``open_prime_rando.echoes.patcher._apply_patches``,
-    which is resolved against the module's namespace at call time -- so
-    replacing the attribute on the module object here is picked up by that
-    call without needing to touch ``_apply_patches`` itself.
-    """
-    from open_prime_rando.echoes import patcher as opr_patcher
-
-    original_register_world_changes = opr_patcher.register_world_changes
-
-    def _register_world_changes_with_goal_trigger(
-        area_patcher: AreaPatcher, world_changes: list[Any]
-    ) -> None:
-        original_register_world_changes(area_patcher, world_changes)
-        area_patcher.add_raw_function(
-            constants.TEMPLE_GROUNDS_MLVL,
-            constants.CREDITS_MREA,
-            _add_goal_trigger,
-        )
-
-    opr_patcher.register_world_changes = _register_world_changes_with_goal_trigger
-    try:
-        yield
-    finally:
-        opr_patcher.register_world_changes = original_register_world_changes
-
-
 @contextlib.contextmanager
 def warp_to_start_installed(dol_version: Any, starting_area: Any):
     """Context manager installing both halves of warp-to-start (see
     ``client/warp_patch.py``) for the duration of one ``_apply_patches``
     call.
 
-    Wraps ``register_world_changes`` the same way (and for the same reason)
-    as ``goal_trigger_installed``; the two nest safely, each restoring the
-    function it replaced. That hook is also where the DOL half goes: it runs
+    Wraps ``register_world_changes`` the same way the removed goal-trigger
+    hook did; the hook is where the DOL half goes: it runs
     inside ``_apply_patches``, so the code-cave request it makes is still
     pending when ``_apply_patches`` calls
     ``editor.code_cave.fulfill_requests()``.
@@ -234,26 +138,36 @@ def warp_to_start_installed(dol_version: Any, starting_area: Any):
 @contextlib.contextmanager
 def item_map_icons_always_visible():
     """Context manager: for its duration, every pickup's map icon is
-    forced to ``ObjectVisibility.Always`` instead of open-prime-rando's
-    hardcoded ``AreaVisitOrMapStation``, implementing the player-facing
-    ``map_visibility`` option's ``full_map_and_items`` value -- delivered
-    here as ``options.json``'s ``show_item_locations`` flag, the internal
-    patch-time setting derived from it (PLAN.md section M).
+    explicitly set to ``ObjectVisibility.AreaVisitOrMapStation``, matching
+    open-prime-rando's own hardcoded default for pickup icons and
+    implementing the player-facing ``map_visibility`` option's
+    ``full_map_and_items`` value -- delivered here as ``options.json``'s
+    ``show_item_locations`` flag, the internal patch-time setting derived
+    from it (PLAN.md section M).
 
-    open-prime-rando already adds a map icon for every pickup it patches
+    ``ObjectVisibility.Always`` was tried first, but grepping the pinned
+    open-prime-rando release shows no code path -- upstream or in
+    Randovania -- ever assigns it to any mappable object, for any object
+    type, in any game; every real usage only ever sets
+    ``AreaVisitOrMapStation``/``AreaVisitOrMapStation2``. That makes
+    ``Always`` untested territory the reverse-engineered enum names may
+    not accurately describe, and matches the reported symptom (map icons
+    setting enabled, no dots ever rendered). ``AreaVisitOrMapStation`` is
+    open-prime-rando's own proven default for pickup icons
     (``open_prime_rando.echoes.pickups.pickup_editing._add_map_icon``, a
-    ``MappableObject`` of custom ``object_type=0x12``), but hardcodes
-    ``visibility_mode=ObjectVisibility.AreaVisitOrMapStation`` -- the dot
-    only shows once the room has been visited or a map station used.
-    OPR's own ``map_visibility.unvisited_map_icons`` setting does not cover
-    these: ``general_changes.py``'s ``objects_to_reveal`` set (the object
-    types that setting forces visible) lists only Elevator/SaveStation/
-    Portal/LightTeleporter/TranslatorGate/Up-DownArrow, not pickups.
+    ``MappableObject`` of custom ``object_type=0x12``) -- the dot shows
+    once the room has been visited or a map station used, same as every
+    real Randovania-generated Echoes game. OPR's own
+    ``map_visibility.unvisited_map_icons`` setting does not cover these
+    regardless: ``general_changes.py``'s ``objects_to_reveal`` set (the
+    object types that setting forces visible) lists only Elevator/
+    SaveStation/Portal/LightTeleporter/TranslatorGate/Up-DownArrow, not
+    pickups.
 
     ``_add_map_icon`` is called from exactly one place,
     ``patch_simple_pickup`` (an unqualified global lookup resolved against
     the module's namespace at call time, the same mechanism
-    ``goal_trigger_installed`` above relies on for
+    ``warp_to_start_installed`` above relies on for
     ``register_world_changes``); ``patch_complex_pickup`` delegates to
     ``patch_simple_pickup``, so replacing the module attribute here covers
     every pickup regardless of stage count. The wrapper calls the original
@@ -276,7 +190,7 @@ def item_map_icons_always_visible():
         before = len(area.mapa.mappable_objects)
         original_add_map_icon(editor, mlvl, area, instances)
         for mappable in area.mapa.mappable_objects[before:]:
-            mappable.visibility_mode = ObjectVisibility.Always
+            mappable.visibility_mode = ObjectVisibility.AreaVisitOrMapStation
 
     pickup_editing._add_map_icon = _add_map_icon_always_visible
     try:
@@ -294,6 +208,26 @@ def _read_apmp2_json(apmp2_file: str | os.PathLike[str], member: str) -> dict[st
     with zipfile.ZipFile(apmp2_file) as zf:
         with zf.open(member) as f:
             return json.loads(f.read().decode("utf-8"))
+
+
+def _check_pickup_encoding_compatibility(apmp2_options: dict[str, Any]) -> None:
+    """PLAN.md section P's compatibility gate: the per-pickup resource
+    mapping (which item/bit each pickup grants) is baked into config.json
+    at *generation* time, while the DOL writes that make this client
+    understand that mapping as a bitmask happen client-side at *patch*
+    time. A new (bitmask-aware) client fed an old ``.apmp2`` would
+    therefore patch an ISO whose pickups still use the old summed encoding
+    and then misread every pickup as a bitmask -- silent divergence that
+    costs location checks, so this is a hard error, not a warning.
+    """
+    pickup_encoding = apmp2_options.get("pickup_encoding")
+    if pickup_encoding != constants.PICKUP_ENCODING_VERSION:
+        raise ValueError(
+            "This .apmp2 file's pickup encoding "
+            f"({pickup_encoding!r}) doesn't match what this client understands "
+            f"({constants.PICKUP_ENCODING_VERSION!r}). Regenerate the seed with a matching "
+            "version of the metroidprime2 apworld before patching."
+        )
 
 
 def _load_configuration(
@@ -343,7 +277,7 @@ def patch_iso_with_ap(
 
     Synchronous and potentially slow (this is exactly
     ``open_prime_rando.echoes.patcher.patch_iso``'s body, inlined so the
-    two DOL writes and ``goal_trigger_installed`` can be spliced in before
+    two DOL writes can be spliced in before
     ``_apply_patches``); callers on an asyncio event loop (``client.py``,
     PLAN.md milestone M3) should run it via ``asyncio.to_thread``.
 
@@ -376,6 +310,7 @@ def patch_iso_with_ap(
     # .apmp2's options.json instead. Both .get defaults keep .apmp2 files
     # produced before the respective option existed working.
     apmp2_options = _read_apmp2_json(apmp2_file, "options.json")
+    _check_pickup_encoding_compatibility(apmp2_options)
     warp_to_start = bool(apmp2_options.get("warp_to_start", False))
     show_item_locations = bool(apmp2_options.get("show_item_locations", False))
 
@@ -386,20 +321,25 @@ def patch_iso_with_ap(
 
     dol_version = find_version_for_dol(editor.dol, dol_versions.ALL_VERSIONS)
 
-    # Persist the multiworld magic counter (item 74) across saves, and give
-    # it enough capacity that its amount can exceed the 119 real pickup
-    # indices (used as the goal sentinel, PLAN.md section J) without
-    # overflowing. Both tables are byte-per-item/u32-per-item, indexed by
-    # PlayerItemEnum value (PLAN.md Context facts).
-    editor.dol.write(dol_version.powerup_should_persist + constants.MAGIC_ITEM, b"\x01")
-    editor.dol.write(
-        dol_version.powerup_max + constants.MAGIC_ITEM * 4,
-        struct.pack(">I", 65536),
-    )
+    # Persist every pickup bitmask counter (constants.PICKUP_COUNTER_ITEMS
+    # -- PLAN.md section P) across saves, and give each enough capacity
+    # that its amount can never overflow. Both tables are
+    # byte-per-item/u32-per-item, indexed by PlayerItemEnum value (PLAN.md
+    # Context facts). A retail NTSC DOL already has
+    # constants.COUNTER_MAX_CAPACITY in `powerup_max` for every one of
+    # these items and 0 in `powerup_should_persist` (measured -- see
+    # PLAN.md section P): the persist byte is the write that actually
+    # matters, and the ceiling is rewritten only so it is guaranteed on
+    # every DOL version rather than assumed from one.
+    for counter_item in constants.PICKUP_COUNTER_ITEMS:
+        editor.dol.write(dol_version.powerup_should_persist + counter_item, b"\x01")
+        editor.dol.write(
+            dol_version.powerup_max + counter_item * 4,
+            struct.pack(">I", constants.COUNTER_MAX_CAPACITY),
+        )
 
     try:
         with contextlib.ExitStack() as patches:
-            patches.enter_context(goal_trigger_installed())
             if warp_to_start:
                 patches.enter_context(
                     warp_to_start_installed(dol_version, configuration.starting_area)

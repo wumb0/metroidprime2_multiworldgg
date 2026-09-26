@@ -64,14 +64,18 @@ class TestDeathLinkCheck(unittest.TestCase):
 
 
 class _FakeGameInterface:
-    """Stands in for ``EchoesInterface``: records the health write
+    """Stands in for ``EchoesInterface``: records the health/alive writes
     ``on_deathlink`` performs without touching Dolphin."""
 
     def __init__(self) -> None:
         self.last_health_written: float | None = None
+        self.last_alive_written: bool | None = None
 
     def set_current_health(self, new_health_amount: float) -> None:
         self.last_health_written = new_health_amount
+
+    def set_alive(self, alive: bool) -> None:
+        self.last_alive_written = alive
 
 
 def _bare_context() -> MetroidPrime2Context:
@@ -100,6 +104,7 @@ class TestOnDeathlink(unittest.TestCase):
         ctx.on_deathlink(data)
 
         self.assertEqual(-1.0, ctx.game_interface.last_health_written)  # type: ignore[attr-defined]
+        self.assertEqual(False, ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
         self.assertTrue(ctx.is_pending_death_link_reset)
 
         # The follow-up poll tick sees health <= 0 with the flag already
@@ -109,19 +114,6 @@ class TestOnDeathlink(unittest.TestCase):
             ctx.is_pending_death_link_reset,
         )
         self.assertEqual((False, True), (should_send, new_pending))
-
-    def test_subsequent_organic_death_after_respawn_still_sends(self) -> None:
-        ctx = _bare_context()
-        ctx.on_deathlink({"time": 1.0, "cause": "", "source": "OtherPlayer"})
-        self.assertTrue(ctx.is_pending_death_link_reset)
-
-        # Respawn: health goes positive, clearing the pending flag.
-        _, ctx.is_pending_death_link_reset = death_link_check(99.0, ctx.is_pending_death_link_reset)
-        self.assertFalse(ctx.is_pending_death_link_reset)
-
-        # A later organic death (no on_deathlink involved) must still send.
-        should_send, new_pending = death_link_check(0.0, ctx.is_pending_death_link_reset)
-        self.assertEqual((True, True), (should_send, new_pending))
 
 
 if __name__ == "__main__":

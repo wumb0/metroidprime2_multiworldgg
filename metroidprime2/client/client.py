@@ -20,11 +20,14 @@ from NetUtils import ClientStatus
 from settings import get_settings
 
 from .. import constants
-from ..items import ITEM_TABLE
-from ..locations import LOCATION_TABLE
+from ..pickup_encoding import decode
 from ..utils import get_apworld_version, get_output_path, setup_libs
 from .death_link import death_link_check
-from .dolphin_client import DolphinException
+from .dolphin_client import (
+    DolphinException,
+    assert_no_running_dolphin,
+    get_num_dolphin_instances,
+)
 from .game_interface import ConnectionState, EchoesInterface
 from .notification_manager import NotificationManager
 from .receive_items import compute_desired_capacities, plan_grants
@@ -49,11 +52,6 @@ except ImportError:
 
 if TYPE_CHECKING:
     pass
-
-# PLAN.md section J: "amount - 1 >= 119" is the goal sentinel (the
-# in-ISO trigger sets the magic item's amount to 120 -- see
-# client/patcher_runner.py's _GOAL_SENTINEL_AMOUNT).
-_GOAL_INDEX_THRESHOLD = len(LOCATION_TABLE)
 
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
 
@@ -115,51 +113,13 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         """Queue a HUD message to display in-game."""
         self.ctx.notification_manager.queue_notification(" ".join(map(str, args)))
 
-    def _cmd_grant_item(self, *args: list[Any]) -> None:
-        """Queue an item to be granted as if it had been received from AP
-        (useful for testing). Usage: /grant_item <item name>, e.g.
-        /grant_item Missile Expansion. Item names are matched
-        case-insensitively against items.ITEM_TABLE.
-
-        The grant is *not* applied immediately: it is appended to
-        ``ctx.manual_grants`` and picked up by the next
-        ``_handle_grant_items`` tick, which folds it into the same
-        ``compute_desired_capacities``/``plan_grants`` pass used for real AP
-        items (see receive_items.py). This used to write the item's raw
-        ``gains`` straight to game memory, bypassing that model entirely --
-        for any item whose capacity is cross-computed from the *whole*
-        received list (Missile Launcher, Power Bomb, the beam ammo
-        expansions, etc.) that could strand the player below their true
-        capacity forever, since ``plan_grants`` never lowers a capacity it
-        thinks is already too high (PLAN.md's manual-grant fix). Going
-        through the normal path also means a progressive item lands on the
-        correct stage for however many copies have already been received,
-        rather than always granting stage 1.
-
-        Manual grants live only for this client session: they are not
-        persisted anywhere, so restarting the client forgets them and the
-        game simply keeps whatever capacity it already has (nothing is ever
-        taken away)."""
-        if not args:
-            logger.error("Usage: /grant_item <item name>")
-            return
-
-        requested = " ".join(map(str, args))
-        match = next((name for name in ITEM_TABLE if name.lower() == requested.lower()), None)
-        if match is None:
-            logger.error(f"Unknown item {requested!r}.")
-            return
-
-        if self.ctx.connection_state != ConnectionState.IN_GAME:
-            logger.error("Not connected to a running game.")
-            return
-
-        self.ctx.manual_grants.append(match)
-        logger.info(f"Queued {match}; it will be granted on the next sync tick.")
-
     def _cmd_mp2_debug_inventory(self, *_args: list[Any]) -> None:
         """Print the raw inventory (amount/capacity per item id) read from
-        game memory, skipping empty slots."""
+        game memory, skipping empty slots. Requires debug: true under
+        metroidprime2_options in host.yaml."""
+        if not self.ctx.debug_enabled:
+            logger.error("This command requires debug: true under metroidprime2_options in host.yaml.")
+            return
         inventory = self.ctx.game_interface.read_inventory()
         if inventory is None:
             logger.info("Not connected to a running game.")
@@ -186,7 +146,11 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         health, to verify the send path. 'incoming' simulates a DeathLink
         arriving from another player, which does kill you in-game, to
         verify the receive path. Requires DeathLink to be enabled (see
-        /deathlink) and a connection to the server."""
+        /deathlink), a connection to the server, and debug: true under
+        metroidprime2_options in host.yaml."""
+        if not self.ctx.debug_enabled:
+            logger.error("This command requires debug: true under metroidprime2_options in host.yaml.")
+            return
         if not self.ctx.death_link_enabled:
             logger.error("DeathLink is disabled; enable it with /deathlink first.")
             return
@@ -225,21 +189,13 @@ class MetroidPrime2Context(CommonContext):
     connection_state: ConnectionState = ConnectionState.DISCONNECTED
     slot_data: dict[str, Any] = {}  # noqa: RUF012 -- matches CommonContext.slot_data's own unannotated convention
     expected_uuid: str | None = None
-    magic_capacity_ensured: bool = False
     last_sent_mlvl: int | None = None
     last_error_message: str | None = None
     apmp2_file: str | None = None
     mp2_iso: str | None = None
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
-    # Names queued by /grant_item, folded into _handle_grant_items's
-    # received list on the next tick (see receive_items.py and PLAN.md's
-    # manual-grant fix). Unlike slot_data (whose class-level {} default is
-    # safe because on_package always *replaces* it wholesale) this list is
-    # *appended* to in place, so a shared class-level default would leak
-    # across MetroidPrime2Context instances -- no default here; __init__
-    # below gives every instance its own list.
-    manual_grants: list[str]
+    debug_enabled: bool = False
 
     def __init__(
         self,
@@ -254,7 +210,6 @@ class MetroidPrime2Context(CommonContext):
         self.notification_manager = NotificationManager(HUD_MESSAGE_DURATION, self.game_interface.send_hud_message)
         self.apmp2_file = apmp2_file
         self.mp2_iso = mp2_iso
-        self.manual_grants = []
 
     async def server_auth(self, password_requested: bool = False) -> None:
         if password_requested and not self.password:
@@ -266,6 +221,13 @@ class MetroidPrime2Context(CommonContext):
     def on_deathlink(self, data: dict[str, Any]) -> None:
         super().on_deathlink(data)
         self.game_interface.set_current_health(-1.0)
+        # set_current_health alone doesn't kill the player -- it bypasses the
+        # game's damage/death pipeline entirely, leaving the camera and gun
+        # model stuck in whatever state they were in. set_alive(False) is
+        # what actually triggers the game's own death handling (mirrors
+        # worlds/metroidprime's set_alive(False)); the health write above is
+        # kept so the health <= 0 debounce below still arms.
+        self.game_interface.set_alive(False)
         # Mark this death as already reported so the next _handle_check_deathlink
         # poll tick (which sees health <= 0) does not re-send it as if it were an
         # organic in-game death -- that would re-broadcast the incoming DeathLink
@@ -282,7 +244,6 @@ class MetroidPrime2Context(CommonContext):
             self.slot_data = args["slot_data"]
             self.expected_uuid = self.slot_data.get("world_uuid")
             self.game_interface.expected_uuid = self.expected_uuid
-            self.magic_capacity_ensured = False
 
             if "death_link" in self.slot_data:
                 self.death_link_enabled = bool(self.slot_data["death_link"])
@@ -309,9 +270,17 @@ def update_connection_status(ctx: MetroidPrime2Context, status: ConnectionState)
     if ctx.connection_state == status:
         return
     logger.info(_STATUS_MESSAGES[status])
+    if get_num_dolphin_instances() > 1:
+        # Windows only (get_num_dolphin_instances() returns 0 elsewhere).
+        # dolphin-memory-engine's findPID() hooks the first Dolphin.exe it
+        # sees, so with several running the client can attach to the wrong
+        # one and read garbage/another game -- notify so the user can close
+        # the extras. Mirrors worlds/metroidprime's MULTIPLE_DOLPHIN_INSTANCES.
+        logger.warning(
+            "Multiple Dolphin instances detected; the client may be attached to the wrong "
+            "one. Close all but the Dolphin running Metroid Prime 2: Echoes."
+        )
     ctx.connection_state = status
-    if status != ConnectionState.IN_GAME:
-        ctx.magic_capacity_ensured = False
 
 
 async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
@@ -333,6 +302,11 @@ async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
             if state == ConnectionState.IN_GAME:
                 await _handle_game_ready(ctx)
             else:
+                if state == ConnectionState.IN_MENU:
+                    # worlds/metroidprime does the same: the game can read as
+                    # "in menu" during the ending, so keep checking the goal
+                    # there too rather than only in the IN_GAME branch.
+                    await _handle_check_goal(ctx)
                 await _handle_game_not_ready(ctx)
         except Exception as e:
             if isinstance(e, DolphinException):
@@ -345,6 +319,17 @@ async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
 
 async def _handle_game_not_ready(ctx: MetroidPrime2Context) -> None:
     if ctx.connection_state == ConnectionState.DISCONNECTED:
+        ctx.game_interface.connect_to_game()
+    elif ctx.connection_state == ConnectionState.WRONG_GAME:
+        # The game id matched a known version but the build string didn't
+        # (get_connection_state's check), which can mean the hook is reading
+        # a stale/partially-loaded region rather than a genuinely different
+        # disc (dolphin-memory-engine caches the emulated MEM1 region at
+        # hook() time). Drop the hook and re-hook so this can recover instead
+        # of sitting in WRONG_GAME forever -- the sync loop only ever re-runs
+        # connect_to_game() from DISCONNECTED, so without this a stale read
+        # here never recovers.
+        ctx.game_interface.disconnect_from_game()
         ctx.game_interface.connect_to_game()
     await asyncio.sleep(1)
 
@@ -369,27 +354,28 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
             return
         ctx.last_error_message = None
 
+        # 0. Goal check is a pure memory read, so it runs before (and
+        # independently of) the pending-op guard and the inventory protocol.
+        await _handle_check_goal(ctx)
+
         # 1. Pending-op guard: never write over a body the game hasn't consumed yet.
         if ctx.game_interface.has_pending_op():
             delay = 0.1
             return
 
-        # 2. Inventory read + one-time magic item capacity top-up per connection.
+        # 2. Inventory read.
         inventory = ctx.game_interface.read_inventory()
         if inventory is None:
             return
 
-        magic_amount, magic_capacity = inventory[constants.MAGIC_ITEM]
-
-        if not ctx.magic_capacity_ensured:
-            ctx.game_interface.ensure_magic_capacity(magic_capacity)
-            ctx.magic_capacity_ensured = True
-            return
-
-        # 3./4. Magic item protocol: a collected pickup (amount > 0) takes
-        # priority over granting received items, exactly one body per tick.
-        if magic_amount > 0:
-            await _handle_magic_item_amount(ctx, magic_amount)
+        # 3./4. Pickup-counter protocol: any of the four pickup bitmask
+        # counters being nonzero takes priority over granting received
+        # items, exactly one body per tick.
+        pickup_counters_pending = any(
+            inventory[item_id][0] > 0 for item_id in constants.PICKUP_COUNTER_ITEMS
+        )
+        if pickup_counters_pending:
+            await _handle_pickup_counters(ctx, inventory)
         else:
             await _handle_grant_items(ctx, inventory)
 
@@ -412,38 +398,92 @@ async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
         await ctx.send_death(f"{ctx.player_names[ctx.slot]} ran out of energy.")
 
 
-async def _handle_magic_item_amount(ctx: MetroidPrime2Context, amount: int) -> None:
-    index = amount - 1
-    if 0 <= index < _GOAL_INDEX_THRESHOLD:
-        await ctx.send_msgs([{"cmd": "LocationChecks", "locations": [constants.LOCATION_ID_BASE + index]}])
-    elif index >= _GOAL_INDEX_THRESHOLD:
-        if not ctx.finished_game:
-            await ctx.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
-            ctx.finished_game = True
-    else:
+async def _handle_check_goal(ctx: MetroidPrime2Context) -> None:
+    """Declares the goal once the player's current area is one of the ending
+    areas (``constants.GAME_END_AREA_INDICES``). Mirrors
+    ``worlds/metroidprime``'s "current level == End_of_Game" check: a raw
+    memory read of the current MLVL plus ``CStateManager::m_nextAreaId``,
+    with nothing the ISO has to be patched to produce (the old in-ISO
+    magic-item sentinel never fired in practice). Either read returns None
+    while disconnected or at the menu, which simply won't match."""
+    if ctx.finished_game or not ctx.slot:
+        return
+    if ctx.game_interface.current_mlvl() != constants.TEMPLE_GROUNDS_MLVL:
+        return
+    if ctx.game_interface.current_area_id() not in constants.GAME_END_AREA_INDICES:
+        return
+    logger.info("Reached the ending areas; reporting goal.")
+    await ctx.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
+    ctx.finished_game = True
+
+
+async def _handle_pickup_counters(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]]) -> None:
+    """Reads every persistent counter this world's pickups can set, and
+    reports what happened since the last successful consume (PLAN.md
+    section P, replacing section O's single-shared-counter
+    ``_handle_magic_item_amount``/``location_reconciliation`` approach
+    entirely -- see PLAN.md section P for the measured collision rates that
+    made that approach unworkable).
+
+    Nothing here has anything to do with the goal: that is a plain memory
+    read of the current area (``_handle_check_goal``), so no counter amount
+    can ever declare victory.
+
+    ``pickup_encoding.decode`` turns every nonzero pickup counter into the
+    0-based indices whose bit was set -- distinct powers of two sum
+    losslessly, so any number of pickups collected across any length of
+    disconnect decode back to exactly the indices that produced them, with
+    no search and no guessing (unlike section O's
+    ``location_reconciliation``, removed by this section). Every decoded
+    index is reported in one ``LocationChecks`` message before any counter
+    is consumed, keeping this function's previous send-before-consume
+    ordering.
+
+    A decoded index that isn't in ``ctx.missing_locations`` is warned
+    about rather than silently accepted: it is the tell for this design's
+    one residual failure mode (collecting the same pickup twice across a
+    save reload while detached carries into a neighbouring bit -- PLAN.md
+    section P, "Residual failure modes"). ``stray`` bits (decoded past the
+    last real pickup index, or above a counter's declared bit range) are
+    warned about the same way without dropping the indices that DID decode
+    cleanly -- every counter with a nonzero amount is still consumed by
+    its exact read value regardless, so a stray bit is cleared rather than
+    left to corrupt a future decode.
+    """
+    decoded = decode(inventory)
+
+    if decoded.stray:
         logger.warning(
-            f"Magic item amount {amount} doesn't correspond to a pickup index or the goal "
-            "sentinel; consuming it without acting on it."
+            f"Pickup counter(s) decoded {len(decoded.stray)} stray bit(s) that don't correspond to "
+            f"any real pickup index: {decoded.stray}; consuming them along with the rest."
         )
-    ctx.game_interface.consume_magic_item(amount)
+
+    for index in decoded.indices:
+        location_id = constants.LOCATION_ID_BASE + index
+        if location_id not in ctx.missing_locations:
+            logger.warning(
+                f"Decoded pickup index {index} was already checked server-side; reporting it again "
+                "anyway (likely the same pickup collected twice across a save reload while "
+                "disconnected -- see PLAN.md section P's residual failure modes)."
+            )
+
+    if decoded.indices:
+        await ctx.send_msgs(
+            [{"cmd": "LocationChecks", "locations": [constants.LOCATION_ID_BASE + idx for idx in decoded.indices]}]
+        )
+
+    if decoded.deltas:
+        ctx.game_interface.consume_counters(decoded.deltas)
 
 
 async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tuple]) -> None:
-    if not ctx.items_received and not ctx.manual_grants:
+    if not ctx.items_received:
         return
 
-    # Manual grants (queued by /grant_item) are appended after the real AP
-    # items, attributed to ctx.slot itself so the "last item" HUD message
-    # below reads "<item> acquired" rather than crediting another player --
-    # see MetroidPrime2CommandProcessor._cmd_grant_item's docstring and
-    # PLAN.md's manual-grant fix. They fold into the same
-    # compute_desired_capacities/plan_grants pass as real items, so a
-    # manually granted item's capacity is computed against the *entire*
-    # received history (real + manual) exactly like any other item.
     received = [
         (ctx.item_names.lookup_in_game(network_item.item, ctx.game), network_item.player)
         for network_item in ctx.items_received
-    ] + [(name, ctx.slot) for name in ctx.manual_grants]
+    ]
     first_non_starting = ctx.slot_data.get("first_non_starting_item_index", 0)
     # .get default keeps older .apmp2/slot_data (generated before this option
     # existed) working, matching the flag-off behavior.
@@ -459,7 +499,14 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
         return
 
     last_item_name, last_sender = received[-1]
-    if last_sender != ctx.slot:
+    if len(received) <= first_non_starting:
+        # Everything outstanding is still start-inventory catch-up (grant()'s
+        # per-tick remote-execution body budget can take several ticks to
+        # apply a large start_inventory block) -- there's no real "receive"
+        # to announce yet, so re-showing this message every tick would spam
+        # the HUD until catch-up finishes.
+        message = None
+    elif last_sender != ctx.slot:
         sender_name = ctx.player_names.get(last_sender, "another world")
         message = f"Received {last_item_name} from {sender_name}"
     else:
@@ -504,13 +551,23 @@ async def run_game(romfile: str, mp2_settings: Any) -> None:
     emulator_path = mp2_settings["emulator_settings"]["executable_path"]
     emulator_arguments = mp2_settings["emulator_settings"]["arguments"]
 
-    if auto_start:
-        subprocess.Popen(
-            [str(emulator_path), romfile, *emulator_arguments],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+    if not auto_start:
+        return
+
+    if not assert_no_running_dolphin():
+        # Windows only: a Dolphin is already running, so launching another
+        # one would leave the client's hook free to attach to either instance
+        # (findPID() takes the first Dolphin.exe it sees). Use the one
+        # that's already up instead -- the sync loop will hook it.
+        logger.info("Dolphin is already running; not launching a second instance.")
+        return
+
+    subprocess.Popen(
+        [str(emulator_path), romfile, *emulator_arguments],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> None:
@@ -559,6 +616,7 @@ def main(*args: str) -> None:
         logger.info("main")
 
         ctx = MetroidPrime2Context(connect, password, apmp2_file, iso)
+        ctx.debug_enabled = bool(get_settings()["metroidprime2_options"]["debug"])
 
         if apmp2_file:
             options = get_options_from_apmp2(apmp2_file)

@@ -22,10 +22,6 @@ class TestLocations(unittest.TestCase):
         names = [loc.name for loc in LOCATION_TABLE]
         self.assertEqual(len(names), len(set(names)))
 
-    def test_unique_codes(self) -> None:
-        codes = [loc.code for loc in LOCATION_TABLE]
-        self.assertEqual(len(codes), len(set(codes)))
-
     def test_codes_contiguous_from_base(self) -> None:
         codes = sorted(loc.code for loc in LOCATION_TABLE)
         expected = [constants.LOCATION_ID_BASE + i for i in range(119)]

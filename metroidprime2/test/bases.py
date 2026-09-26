@@ -51,3 +51,8 @@ class MP2TestBase(WorldTestBase):
         # every entrance-rando combination -- lives in test_fill.py
         # instead, using seeds hand-verified to pass deterministically.
         return False
+
+    def assert_all_locations_reachable(self) -> None:
+        state = self.multiworld.get_all_state()
+        for location in self.multiworld.get_locations():
+            self.assertTrue(location.can_reach(state), f"{location.name} unreachable")

@@ -5,8 +5,8 @@ Every ``open_prime_rando``/``retro_data_structures`` import here is
 deferred into the methods that need it, so this module (and therefore
 ``client/dolphin_client.py`` / ``client/versions.py`` importers) can be
 imported without the patcher stack installed; only actually talking to a
-running Dolphin (``execute``/``grant``/``consume_magic_item``/
-``ensure_magic_capacity``/``send_hud_message``) requires it.
+running Dolphin (``execute``/``grant``/``consume_counters``/
+``send_hud_message``) requires it.
 
 Protocol reference: ``open_prime_rando.dol_patching.all_prime_dol_patches``
 and randovania's ``PrimeRemoteConnector``/``EchoesRemoteConnector`` (see
@@ -16,13 +16,11 @@ PLAN.md Context facts and section J).
 from __future__ import annotations
 
 import struct
-import time
 import uuid
 from enum import Enum
 from logging import Logger
 from typing import TYPE_CHECKING
 
-from .. import constants
 from . import versions
 from .dolphin_client import DolphinClient, DolphinException
 
@@ -35,19 +33,34 @@ if TYPE_CHECKING:
 
 _GC_GAME_ID_ADDRESS = 0x80000000
 _MESSAGE_OVERHEAD = 6
-_MAGIC_ITEM_MIN_CAPACITY = 4096
 
-# Right after Dolphin launches (or right after a savestate/game boot), the
+# Version detection reads the 6-byte disc id at 0x80000000 and matches it
+# against each known version's ``game_id`` (the "NR"-suffixed patched id --
+# see ``versions.NTSC``'s comment).
+#
+# Right after Dolphin launches (or right after a savestate/game boot) the
 # memory hook can attach and read the game id before the disc has actually
 # finished booting -- e.g. leftover memory from a previous run, or a
 # partial DMA of the disc header -- which reads as something other than a
-# real, known game id. Rather than treat that first read as a definitive
-# "wrong game"/failure, connect_to_game() retries the hook+read a few times
-# with backoff before settling on whatever it last saw.
-_GAME_ID_CONNECT_ATTEMPTS = 5
-_GAME_ID_RETRY_BASE_DELAY = 0.2  # seconds
-_GAME_ID_RETRY_MAX_DELAY = 2.0  # seconds
+# real, known game id. connect_to_game() doesn't treat that as a definitive
+# "wrong game"/failure: it drops the hook so the *next* call (driven by the
+# sync loop's own ~1s cadence, see client.py's DISCONNECTED handling) hooks
+# fresh, matching worlds/metroidprime's MetroidPrimeInterface.connect_to_game()
+# -- one hook+read attempt per call, no internal retry burst. An earlier
+# version of this function did its own 5-attempt rapid-rehook-with-backoff
+# loop instead; that turned out to make misidentification worse rather than
+# better (see PLAN.md/memory), plausibly by hammering dolphin-memory-engine's
+# hook()/un_hook() while Dolphin's own memory layout is still settling right
+# after launch -- something the proven-reliable Prime 1 client never does.
 _EMPTY_GAME_ID = b"\x00\x00\x00\x00\x00\x00"
+
+# A stuck hook can keep reading the same wrong game id call after call
+# (dolphin-memory-engine latched onto a wrong-but-persistently-matching
+# region). Once connect_to_game() has seen the exact same unrecognized game
+# id this many times in a row (each call is one real sync-loop tick apart,
+# see above), warn that a full Dolphin restart -- not just reloading the
+# game -- may be needed.
+_STUCK_HOOK_WARNING_THRESHOLD = 5
 
 
 class ConnectionState(Enum):
@@ -87,6 +100,60 @@ def encode_hud_message(message: str, max_message_size: int, last_encoded_size: i
     return encoded_message, new_last_encoded_size
 
 
+def _wide_decrement_patch(
+    powerup_functions: PowerupFunctionsAddresses, item_id: int, amount: int
+) -> list[BaseInstruction]:
+    """Amount-only ``decr_pickup(item_id, amount)`` call for a counter
+    whose value can exceed the signed 16-bit range
+    ``open_prime_rando.dol_patching.all_prime_dol_patches.
+    adjust_item_amount_patch`` assumes (PLAN.md section P's constraint-1
+    escape hatch, taken once the reserved-id accounting forced the layout
+    down to 4 counters of 30 usable bits each -- see
+    ``constants.PICKUP_COUNTER_ITEMS``'s docstring for why).
+
+    ``adjust_item_amount_patch`` builds its amount operand with
+    ``li(r5, abs(delta))`` -- ``addi rD, r0, SIMM16``, a SIGNED 16-bit
+    immediate (``Instruction.compose`` asserts
+    ``-32768 <= literal < 32768``) -- so it cannot express an amount
+    bigger than 32767. This builds the exact same
+    ``_load_player_state`` -> ``li(r4, item_id)`` -> ``bl(decr_pickup)``
+    shape (mirroring ``adjust_item_amount_patch``'s own negative-delta
+    branch), just with a wider amount load: ``lis`` loads the high 16
+    bits into r5 and ``ori`` ORs in the low 16 bits. Both ``addis``'s and
+    ``ori``'s literal fields are UNSIGNED 16-bit per
+    ``Instruction.compose`` (``0 <= it < 65536``), and both halves below
+    are masked to ``0xFFFF`` before being passed in, so neither call can
+    ever fail that assert regardless of ``amount`` -- unlike ``li``, there
+    is no upper bound this trips over short of the 32-bit register itself.
+
+    ``amount`` must be >= 0: this only ever decrements (there is no
+    ``incr_pickup`` counterpart here, matching ``consume_counters``'s
+    contract that every delta it's given is already the exact negative
+    amount to remove).
+
+    ``_load_player_state`` is private to ``all_prime_dol_patches``, not
+    part of its public API -- importing it directly is acceptable here
+    because ``pyproject.toml`` pins ``open-prime-rando==0.20.1`` exactly.
+    On Echoes (the only game this world targets) it is a single
+    instruction, ``lwz(r3, 0x150C, r31)``; inline that literal ``lwz`` in
+    place of the import if a future OPR version ever removes or changes
+    it.
+    """
+    assert amount >= 0, f"_wide_decrement_patch amount must be non-negative, got {amount}"
+
+    from open_prime_rando.dol_patching.all_prime_dol_patches import _load_player_state
+    from ppc_asm.assembler.ppc import bl, li, lis, ori, r3, r4, r5, r31
+    from retro_data_structures.game_check import Game
+
+    return [
+        *_load_player_state(Game.ECHOES, r3, r31),
+        li(r4, item_id),
+        lis(r5, (amount >> 16) & 0xFFFF),
+        ori(r5, r5, amount & 0xFFFF),
+        bl(powerup_functions.decr_pickup),
+    ]
+
+
 class EchoesInterface:
     logger: Logger
     dolphin_client: DolphinClient
@@ -103,71 +170,68 @@ class EchoesInterface:
         self.expected_uuid = None
         self.last_connect_error: str | None = None
         self._logged_wrong_game_id: bytes | None = None
+        self._wrong_game_id_repeat_count = 0
+        self._warned_stuck_hook = False
         self._last_message_size = 0
 
     # ----------------------------------------------------------------
     # Connection / version detection
     # ----------------------------------------------------------------
 
-    def connect_to_game(
-        self,
-        attempts: int = _GAME_ID_CONNECT_ATTEMPTS,
-        base_delay: float = _GAME_ID_RETRY_BASE_DELAY,
-        max_delay: float = _GAME_ID_RETRY_MAX_DELAY,
-    ) -> None:
-        """Hooks into Dolphin if needed, then reads the 6-byte game id at
-        0x80000000 to pick NTSC/PAL (or neither).
-
-        Hooking and reading is retried up to ``attempts`` times (with
-        exponential backoff between tries, capped at ``max_delay``) as long
-        as the read game id isn't recognized -- either a known version or
-        the all-zero "nothing loaded yet" sentinel -- since an unrecognized
-        id can just mean Dolphin was hooked before the disc finished
-        booting. Only the last attempt's result (or error) is kept."""
-        last_error: DolphinException | None = None
-        game_id: bytes | None = None
-        delay = base_delay
-        attempts = max(1, attempts)
-
-        for attempt in range(attempts):
-            try:
-                if not self.dolphin_client.is_connected():
-                    self.dolphin_client.connect()
-                game_id = self.dolphin_client.read_address(_GC_GAME_ID_ADDRESS, 6)
-                last_error = None
-            except DolphinException as e:
-                game_id = None
-                last_error = e
-
-            recognized = game_id is not None and (
-                game_id == _EMPTY_GAME_ID or any(v.game_id == game_id for v in versions.VERSIONS)
-            )
-            if recognized or attempt == attempts - 1:
-                break
-            time.sleep(delay)
-            delay = min(delay * 2, max_delay)
-
-        if last_error is not None:
+    def connect_to_game(self) -> None:
+        """Hooks into Dolphin if needed (idempotently -- see
+        ``DolphinClient.connect``), then reads the 6-byte game id at
+        0x80000000 to pick NTSC/PAL (or neither). One hook+read attempt per
+        call; see the module comment above for why this doesn't retry
+        internally."""
+        try:
+            if not self.dolphin_client.is_connected():
+                self.dolphin_client.connect()
+            game_id = self.dolphin_client.read_address(_GC_GAME_ID_ADDRESS, 6)
+        except DolphinException as e:
             self.version = None
-            self.last_connect_error = str(last_error)
+            self.last_connect_error = str(e)
             return
 
         matched = next((v for v in versions.VERSIONS if v.game_id == game_id), None)
         if matched is None:
             self.version = None
-            if game_id == b"\x00\x00\x00\x00\x00\x00":
+            if game_id == _EMPTY_GAME_ID:
                 self.last_connect_error = "Hooked into Dolphin, but no game is loaded yet."
             else:
+                # Drop the hook so the next call rebuilds it from scratch --
+                # matches worlds/metroidprime's disconnect_from_game() call
+                # in the same spot.
+                self.dolphin_client.disconnect()
                 self.last_connect_error = (
                     f"Connected to the wrong game ({game_id!r}); please load an NTSC-U or "
                     "PAL Metroid Prime 2: Echoes ISO."
                 )
-            if game_id != b"\x00\x00\x00\x00\x00\x00" and game_id != self._logged_wrong_game_id:
-                self.logger.info(self.last_connect_error)
-                self._logged_wrong_game_id = game_id
+                if game_id != self._logged_wrong_game_id:
+                    self.logger.info(self.last_connect_error)
+                    self._logged_wrong_game_id = game_id
+                    self._wrong_game_id_repeat_count = 1
+                    self._warned_stuck_hook = False
+                else:
+                    self._wrong_game_id_repeat_count += 1
+
+                if (
+                    self._wrong_game_id_repeat_count >= _STUCK_HOOK_WARNING_THRESHOLD
+                    and not self._warned_stuck_hook
+                ):
+                    self._warned_stuck_hook = True
+                    self.logger.warning(
+                        "Still reading the same unexpected game id after several reconnect "
+                        "attempts. If Metroid Prime 2: Echoes is definitely loaded, "
+                        "dolphin-memory-engine may have hooked a stale/wrong memory region "
+                        "that re-hooking can't clear on its own -- fully close and reopen "
+                        "Dolphin (not just reloading the game) to fix this."
+                    )
             return
 
         self._logged_wrong_game_id = None
+        self._wrong_game_id_repeat_count = 0
+        self._warned_stuck_hook = False
         self.last_connect_error = None
         self.version = matched
 
@@ -175,6 +239,8 @@ class EchoesInterface:
         self.dolphin_client.disconnect()
         self.version = None
         self._logged_wrong_game_id = None
+        self._wrong_game_id_repeat_count = 0
+        self._warned_stuck_hook = False
 
     def read_build_string(self) -> tuple[bool, uuid.UUID | None]:
         """Returns (matches, embedded_uuid). ``matches`` is True if the
@@ -243,6 +309,15 @@ class EchoesInterface:
         if not game_state:
             return None
         return self._read_u32(game_state + 4)
+
+    def current_area_id(self) -> int | None:
+        """TAreaId of the area the player is currently in (u32 at
+        ``cstate_manager_global + AREA_ID_OFFSET``), or None if Dolphin isn't
+        connected. This is an *index* into the current MLVL's area list, not
+        an MREA asset id -- see ``constants.GAME_END_AREA_INDICES``."""
+        if self.version is None:
+            return None
+        return self._read_u32(self.version.cstate_manager_global + versions.AREA_ID_OFFSET)
 
     def is_in_game(self) -> bool:
         """*(cstate + CPLAYER_OFFSET) != 0 and its vtable == cplayer_vtable,
@@ -326,10 +401,12 @@ class EchoesInterface:
 
     def set_current_health(self, new_health_amount: float) -> None:
         """Direct write to the same field ``get_current_health`` reads --
-        used to kill the player on an incoming DeathLink (mirrors
-        ``worlds/metroidprime``'s raw CPlayerState pokes; there's no
-        remote-execution-safe way to force a death through the normal
-        item-grant call path)."""
+        drops the HUD-displayed energy on an incoming DeathLink. This alone
+        does NOT kill the player (it bypasses the game's own damage/death
+        pipeline, leaving camera and gun-model state stuck); pair with
+        ``set_alive(False)``, which is what actually triggers death. There's
+        no remote-execution-safe way to force a death through the normal
+        item-grant call path, hence the raw poke."""
         player_state = self._player_state_pointer()
         if player_state is None:
             return
@@ -337,6 +414,33 @@ class EchoesInterface:
             self.dolphin_client.write_address(
                 player_state + versions.HEALTH_OFFSET, struct.pack(">f", new_health_amount)
             )
+        except DolphinException:
+            # Called from on_deathlink(), which runs on the server-loop package
+            # handler -- a dropped connection mid-write must not propagate out
+            # of that handler, matching every other Dolphin access in this class.
+            return
+
+    def set_alive(self, alive: bool) -> None:
+        """Read-modify-write the ``versions.ALIVE_BIT_MASK`` bit of the byte
+        at ``versions.ALIVE_OFFSET`` (``CPlayerState::alive``, packed
+        alongside an unrelated ``firingComboBeam`` bit in the same byte --
+        hence read-modify-write instead of a blind overwrite). This is the
+        actual DeathLink kill trigger (mirrors ``worlds/metroidprime``'s
+        ``set_alive(False)``); see ``versions.ALIVE_OFFSET`` for the
+        (unconfirmed) bit-position reasoning."""
+        player_state = self._player_state_pointer()
+        if player_state is None:
+            return
+        try:
+            data = self.dolphin_client.read_address(player_state + versions.ALIVE_OFFSET, 1)
+            if data is None:
+                return
+            value = data[0]
+            if alive:
+                value |= versions.ALIVE_BIT_MASK
+            else:
+                value &= ~versions.ALIVE_BIT_MASK & 0xFF
+            self.dolphin_client.write_address(player_state + versions.ALIVE_OFFSET, bytes([value]))
         except DolphinException:
             # Called from on_deathlink(), which runs on the server-loop package
             # handler -- a dropped connection mid-write must not propagate out
@@ -462,34 +566,66 @@ class EchoesInterface:
 
         return leftovers
 
-    def consume_magic_item(self, amount: int) -> None:
-        """adjust_item_amount_patch(MAGIC_ITEM, -amount) -- amount only,
-        capacity is left untouched (PLAN.md section J)."""
-        from open_prime_rando.dol_patching import all_prime_dol_patches
-        from retro_data_structures.game_check import Game
+    def consume_counters(self, deltas: list[tuple[int, int]]) -> list[tuple[int, int]]:
+        """Clears the exact amount ``pickup_encoding.decode`` read off each
+        counter this tick (``deltas`` are already negative -- PLAN.md
+        section P point 2: consume the exact value read, never a blanket
+        zero, so a pickup landing between the read and this consume
+        survives to the next tick instead of being silently discarded).
 
-        instructions = all_prime_dol_patches.adjust_item_amount_patch(
-            self._powerup_functions_addresses(), Game.ECHOES, constants.MAGIC_ITEM, -amount
-        )
-        self.execute(instructions, None)
+        This mirrors ``grant``'s own batching/leftover mechanics (one
+        remote-execution body per tick, up to the ~420-byte budget --
+        PLAN.md section P constraint 7: all four pickup counters
+        comfortably fit in one, with room to spare) but is NOT built on
+        ``grant`` itself, since ``grant`` always adjusts capacity alongside
+        amount and that is wrong here: a pickup counter's capacity only
+        ever needs to grow, and it self-manages via the native additive
+        pickup path (constraint 4, with ``COUNTER_MAX_CAPACITY`` large
+        enough that it never wraps).
 
-    def ensure_magic_capacity(self, capacity: int) -> None:
-        """Tops up the magic item's capacity to at least 4096 so its
-        amount can climb well past the 119 real pickup indices (and the
-        120 goal sentinel) without wrapping (PLAN.md Context fact 33/Risk
-        L5)."""
-        if capacity >= _MAGIC_ITEM_MIN_CAPACITY:
-            return
-        from open_prime_rando.dol_patching import all_prime_dol_patches
-        from retro_data_structures.game_check import Game
+        Each counter goes through ``_wide_decrement_patch`` rather than
+        OPR's ``adjust_item_amount_patch``: a counter holds up to
+        ``2**constants.BITS_PER_COUNTER - 1`` (30 bits), which does not fit
+        that patch's signed 16-bit ``li`` (PLAN.md section P's constraint-1
+        escape hatch).
+        """
+        powerup_functions = self._powerup_functions_addresses()
+        batch_instructions: list[BaseInstruction] = []
+        batch_count = 0
+        leftovers: list[tuple[int, int]] = []
+        exhausted = False
 
-        instructions = all_prime_dol_patches.increment_item_capacity_patch(
-            self._powerup_functions_addresses(),
-            Game.ECHOES,
-            constants.MAGIC_ITEM,
-            _MAGIC_ITEM_MIN_CAPACITY - capacity,
-        )
-        self.execute(instructions, None)
+        for item_id, delta in deltas:
+            if exhausted:
+                leftovers.append((item_id, delta))
+                continue
+
+            item_instructions = _wide_decrement_patch(powerup_functions, item_id, -delta)
+
+            candidate = [*batch_instructions, *item_instructions]
+            try:
+                self._try_body(candidate, None)
+            except ValueError:
+                if batch_count == 0:
+                    # A single counter's consume alone exceeds the budget -- shouldn't
+                    # happen given the ~420-byte budget, but don't get stuck retrying
+                    # it forever.
+                    self.logger.error(
+                        f"Consume for item {item_id} (delta {delta}) alone exceeds the "
+                        "remote-execution body budget; dropping it."
+                    )
+                    continue
+                leftovers.append((item_id, delta))
+                exhausted = True
+                continue
+
+            batch_instructions = candidate
+            batch_count += 1
+
+        if batch_count > 0:
+            self.execute(batch_instructions, None)
+
+        return leftovers
 
     def send_hud_message(self, message: str) -> bool:
         """Standalone HUD message (no item deltas), for
