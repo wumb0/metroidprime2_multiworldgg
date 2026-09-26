@@ -134,6 +134,11 @@ class TestSkyTempleKeysAllGuardians(_FillMatrixCase):
     seeds = (1, 2)
 
 
+class TestSkyTempleKeysAllGuardiansPlus6(_FillMatrixCase):
+    options = {"sky_temple_keys": "all_guardians_plus_6"}
+    seeds = (1, 2)
+
+
 class TestProgressiveSuitAndGrapple(_FillMatrixCase):
     options = {"progressive_suit": True, "progressive_grapple": True}
     seeds = (1, 2)

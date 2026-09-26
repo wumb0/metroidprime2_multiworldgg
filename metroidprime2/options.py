@@ -74,6 +74,10 @@ class SkyTempleKeys(Choice):
 
     All Guardians pre-places keys 1-3 on the 3 dark temple guardians
     (Amorbis, Chykka, Quadraxis) and pre-collects keys 4-9.
+
+    All Guardians Plus 6 also pre-places keys 1-3 on the 3 dark temple
+    guardians, but shuffles keys 4-9 into the general pool instead of
+    pre-collecting them.
     """
 
     display_name = "Sky Temple Keys"
@@ -89,6 +93,7 @@ class SkyTempleKeys(Choice):
     option_9 = 9
     option_all_bosses = 10
     option_all_guardians = 11
+    option_all_guardians_plus_6 = 12
     default = 9
 
 

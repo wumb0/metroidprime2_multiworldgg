@@ -671,6 +671,19 @@ def _world_changes(world: MetroidPrime2World, db: GameDatabase) -> list[dict[str
         mlvl_id, mrea_id = _area_asset_ids(db, node)
         change = area_change_for(mlvl_id, mrea_id)
         change.setdefault("elevators", []).append(_elevator_modification(db, node, target_id))
+        # Keep the room's own name on the map screen truthful: vanilla
+        # elevator rooms are themselves named "Transport to <destination>"
+        # (e.g. Temple Grounds' "Transport to Agon Wastes"), which lies
+        # once elevator_rando sends that elevator somewhere else. Renaming
+        # unconditionally (rather than only when the target differs from
+        # vanilla) also fixes the rooms that don't already follow that
+        # pattern (Temple Transport A/B/C, Sky Temple Gateway, Aerie
+        # Transport Station), which otherwise give no indication at all of
+        # where they now lead. Uses open-prime-rando's own AreaChange.new_name
+        # field (general_changes.change_area_name), the same mechanism OPR
+        # itself uses for area renames -- no client-side patch-time code
+        # needed.
+        change["new_name"] = f"Transport to {target_id.region}"
 
     for node in db.all_nodes():
         if node.node_type != "dock" or node.dock_type != "portal":

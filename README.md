@@ -70,7 +70,7 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `sky_temple_keys` | Choice: `0`-`9`, `all_bosses`, `all_guardians` | `9` | How many of the 9 Sky Temple Keys are shuffled into the general pool vs. pre-placed/pre-collected. `all_bosses` places one key on each of the 9 boss/guardian locations; `all_guardians` places keys on the 3 dark temple guardians and pre-collects the rest. |
+| `sky_temple_keys` | Choice: `0`-`9`, `all_bosses`, `all_guardians`, `all_guardians_plus_6` | `9` | How many of the 9 Sky Temple Keys are shuffled into the general pool vs. pre-placed/pre-collected. `all_bosses` places one key on each of the 9 boss/guardian locations; `all_guardians` places keys 1-3 on the 3 dark temple guardians and pre-collects keys 4-9; `all_guardians_plus_6` places keys 1-3 the same way but shuffles keys 4-9 into the pool instead. |
 | `progressive_suit` | Toggle (on by default) | on | Combine Dark Suit and Light Suit into two copies of a single Progressive Suit item. |
 | `progressive_grapple` | Toggle | off | Combine Grapple Beam and Screw Attack into two copies of a single Progressive Grapple item. |
 | `missile_expansions_unlock_launcher` | Toggle | off | Receiving any Missile Expansion also unlocks the Missile Launcher itself, so expansions are usable before the launcher is found. Off matches Randovania (expansions grant nothing without the launcher); this also affects logic, not just the in-game grant. |
