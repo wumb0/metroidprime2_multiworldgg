@@ -315,6 +315,18 @@ requires:
   # Options: true, false
   warp_to_start: true
 
+  # Once you have Morph Ball Bombs, pressing spring_ball_button in Morph
+  # Ball jumps as high as a bomb jump, without laying a bomb. Only works
+  # on the ground. Logic never requires it.
+  # Options: true, false
+  spring_ball: false
+
+  # The button that triggers spring_ball. l_trigger means a full press,
+  # past the click.
+  # Options: c_stick_up, c_stick_down, c_stick_left, c_stick_right,
+  #          d_pad_up, l_trigger
+  spring_ball_button: c_stick_up
+
   # ------------------------------------------------------------------
   # Cosmetic
   # ------------------------------------------------------------------

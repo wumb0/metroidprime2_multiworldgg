@@ -848,7 +848,7 @@ If it fails, look at:
 
 ### MT13_PAL_PARITY -- `mt13_pal_parity` (P1)
 
-*Proves: MT01/MT03/MT04/MT07 pass identically on a PAL ISO (different DOL addresses)*
+*Proves: MT01/MT03/MT04/MT07/MT14 pass identically on a PAL ISO (different DOL addresses)*
 
 Build:
 ```
@@ -861,7 +861,7 @@ What the build contains:
 
 Notes / derived values:
 * This is not a separate build: it is a checklist to re-run the per-build-address tests with `--pal`.
-* Any difference from the NTSC run means `client/versions.py` (or `tools/find_warp_addresses.py`) needs a PAL-specific fix.
+* Any difference from the NTSC run means `client/versions.py` (or `tools/find_warp_addresses.py` / `tools/find_spring_ball_addresses.py`) needs a PAL-specific fix.
 
 Run:
 ```
@@ -880,6 +880,8 @@ Steps:
    **Expect:** It passes exactly as on NTSC.
 4. **Do:** Run MT07 (`mt07_counter_persistence`) with `--pal`.
    **Expect:** It passes exactly as on NTSC.
+5. **Do:** Run MT14 (`mt14_spring_ball`) with `--pal`.
+   **Expect:** It passes exactly as on NTSC.
 
 Pass if:
 * Every re-run test passes on PAL.
@@ -889,6 +891,175 @@ If it fails, look at:
 * `client/versions.py` (`PAL` address table)
 * `tools/find_warp_addresses.py` (re-derive the warp hook for PAL)
 * `client/warp_patch.py`
+* `tools/find_spring_ball_addresses.py` (re-derive the spring ball addresses for PAL)
+* `client/spring_ball_patch.py`
+
+### MT14_SPRING_BALL -- `mt14_spring_ball` (P1)
+
+*Proves: the button jumps on the ground only, keeps rolling momentum, and leaves vanilla bomb jumps alone*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt14_spring_ball --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `portal_rando=False`, `spring_ball=True`, `spring_ball_button=c_stick_up`, `translator_gate_rando=vanilla`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt14_spring_ball --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt14_spring_ball/mt14_spring_ball.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt14_spring_ball/mt14_spring_ball.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** In Landing Site, morph and tap C-Stick up while resting on flat ground.
+   **Expect:** The ball hops as high as a single bomb jump, with the bomb-jump sound and rumble but no bomb.
+2. **Do:** Roll forward at full speed and tap C-Stick up.
+   **Expect:** The ball jumps and keeps rolling forward through the jump instead of stopping dead.
+   *(exercises: BombJump zeroes horizontal velocity; the cave restores it.)*
+3. **Do:** Hold C-Stick up.
+   **Expect:** The ball jumps again each time it lands, with a short pause (about 2/3 s) between jumps.
+4. **Do:** Jump, and tap C-Stick up again at the top of the jump.
+   **Expect:** Nothing happens in mid-air.
+5. **Do:** Lay a bomb and bomb jump, then do a double bomb jump.
+   **Expect:** Both behave exactly as in vanilla.
+6. **Do:** Charge a Boost Ball and tap C-Stick up before releasing.
+   **Expect:** The ball jumps and the boost charge is cancelled (vanilla bomb-jump behavior).
+7. **Do:** Unmorph and tap C-Stick up.
+   **Expect:** Only the vanilla first-person C-Stick action happens; no jump.
+8. **Do:** Find a Spider Ball track, attach to it (hold R) and tap C-Stick up.
+   **Expect:** No spring while attached. Releasing R and resting on the ground, it works again.
+
+Pass if:
+* The button jumps only on the ground, only in Morph Ball, and only with bombs.
+* Rolling momentum survives the jump.
+* Holding the button repeats after a short cooldown, never several times per landing.
+* Laid bombs and Boost Ball behave exactly as in vanilla.
+* `--variant no_bombs` and `--variant off` never jump; `--variant d_pad_up` jumps on D-Pad up only.
+
+If it fails, look at:
+* `client/spring_ball_patch.py`
+* `client/versions.py::SpringBallAddresses`
+* `tools/find_spring_ball_addresses.py` (re-derive the addresses for this build)
+
+### MT14_SPRING_BALL -- `mt14_spring_ball_no_bombs` (P1)
+
+*Proves: the button jumps on the ground only, keeps rolling momentum, and leaves vanilla bomb jumps alone*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt14_spring_ball --iso <vanilla.iso> --variant no_bombs
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `portal_rando=False`, `spring_ball=True`, `spring_ball_button=c_stick_up`, `translator_gate_rando=vanilla`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x0, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt14_spring_ball --iso <vanilla.iso> --variant no_bombs
+2. Host       python MultiServer.py manual_tests/mt14_spring_ball_no_bombs/mt14_spring_ball_no_bombs.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt14_spring_ball_no_bombs/mt14_spring_ball_no_bombs.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Morph in Landing Site and tap / hold C-Stick up on the ground.
+   **Expect:** Nothing happens: spring ball needs Morph Ball Bombs.
+
+Pass if:
+* The button jumps only on the ground, only in Morph Ball, and only with bombs.
+* Rolling momentum survives the jump.
+* Holding the button repeats after a short cooldown, never several times per landing.
+* Laid bombs and Boost Ball behave exactly as in vanilla.
+* `--variant no_bombs` and `--variant off` never jump; `--variant d_pad_up` jumps on D-Pad up only.
+
+If it fails, look at:
+* `client/spring_ball_patch.py`
+* `client/versions.py::SpringBallAddresses`
+* `tools/find_spring_ball_addresses.py` (re-derive the addresses for this build)
+
+### MT14_SPRING_BALL -- `mt14_spring_ball_off` (P1)
+
+*Proves: the button jumps on the ground only, keeps rolling momentum, and leaves vanilla bomb jumps alone*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt14_spring_ball --iso <vanilla.iso> --variant off
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `portal_rando=False`, `spring_ball=False`, `spring_ball_button=c_stick_up`, `translator_gate_rando=vanilla`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt14_spring_ball --iso <vanilla.iso> --variant off
+2. Host       python MultiServer.py manual_tests/mt14_spring_ball_off/mt14_spring_ball_off.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt14_spring_ball_off/mt14_spring_ball_off.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Morph in Landing Site and tap / hold C-Stick up on the ground.
+   **Expect:** Nothing happens: with `spring_ball: false` the hook is never installed.
+
+Pass if:
+* The button jumps only on the ground, only in Morph Ball, and only with bombs.
+* Rolling momentum survives the jump.
+* Holding the button repeats after a short cooldown, never several times per landing.
+* Laid bombs and Boost Ball behave exactly as in vanilla.
+* `--variant no_bombs` and `--variant off` never jump; `--variant d_pad_up` jumps on D-Pad up only.
+
+If it fails, look at:
+* `client/spring_ball_patch.py`
+* `client/versions.py::SpringBallAddresses`
+* `tools/find_spring_ball_addresses.py` (re-derive the addresses for this build)
+
+### MT14_SPRING_BALL -- `mt14_spring_ball_d_pad_up` (P1)
+
+*Proves: the button jumps on the ground only, keeps rolling momentum, and leaves vanilla bomb jumps alone*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt14_spring_ball --iso <vanilla.iso> --variant d_pad_up
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `portal_rando=False`, `spring_ball=True`, `spring_ball_button=d_pad_up`, `translator_gate_rando=vanilla`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt14_spring_ball --iso <vanilla.iso> --variant d_pad_up
+2. Host       python MultiServer.py manual_tests/mt14_spring_ball_d_pad_up/mt14_spring_ball_d_pad_up.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt14_spring_ball_d_pad_up/mt14_spring_ball_d_pad_up.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Morph in Landing Site and tap C-Stick up, then D-Pad up.
+   **Expect:** C-Stick up does nothing; D-Pad up jumps.
+
+Pass if:
+* The button jumps only on the ground, only in Morph Ball, and only with bombs.
+* Rolling momentum survives the jump.
+* Holding the button repeats after a short cooldown, never several times per landing.
+* Laid bombs and Boost Ball behave exactly as in vanilla.
+* `--variant no_bombs` and `--variant off` never jump; `--variant d_pad_up` jumps on D-Pad up only.
+
+If it fails, look at:
+* `client/spring_ball_patch.py`
+* `client/versions.py::SpringBallAddresses`
+* `tools/find_spring_ball_addresses.py` (re-derive the addresses for this build)
 
 ## Suggested runs
 

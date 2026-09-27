@@ -139,6 +139,8 @@ override just that one. Every trick option shares the same scale: `use_global` (
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `warp_to_start` | Toggle (on by default) | on | Declining to save at a Save Station while holding L+R warps you back to the starting room (Samus' ship in Landing Site, or wherever `starting_room` chose). Declining without L+R held behaves exactly as in vanilla. |
+| `spring_ball` | Toggle | off | Once you have Morph Ball Bombs, pressing `spring_ball_button` in Morph Ball jumps as high as a bomb jump without laying a bomb. Only works on the ground, with a short cooldown between jumps. Mirrors the Prime 1 randomizer's "when bombs acquired" spring ball. Logic never requires it. |
+| `spring_ball_button` | Choice: `c_stick_up`/`c_stick_down`/`c_stick_left`/`c_stick_right`/`d_pad_up`/`l_trigger` | `c_stick_up` | The button that triggers `spring_ball`. None of these do anything in vanilla Morph Ball. `l_trigger` means a full press, past the click. |
 
 Cutscenes are always skippable (press Start) -- this isn't a configurable option because open-prime-rando's `patch_iso` applies it unconditionally to every seed, the same way it always randomizes a couple of small cosmetic puzzle colors (Main Gyro Chamber, the Sanctuary/Temple Grounds "echo lock" panels) from your seed.
 
