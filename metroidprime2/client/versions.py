@@ -64,7 +64,7 @@ class WarpToStartAddresses:
 
 @dataclass(frozen=True)
 class SpringBallAddresses:
-    """Addresses the spring ball caves need (``client/spring_ball_patch.py``).
+    """Addresses the spring ball cave needs (``client/spring_ball_patch.py``).
 
     Names are PrimeDecomp/echoes symbols (``config/G2ME01/symbols.txt``);
     PAL was located by matching each NTSC function's code with branch
@@ -73,28 +73,20 @@ class SpringBallAddresses:
     confirm them against a disc.
     """
 
-    boost_ball_movement_call: int
-    """The ``bl ComputeBoostBallMovement`` in
-    ``CMorphBall::ComputeBallMovement``; replaced with a ``bl`` to the entry
-    cave."""
+    boost_ball_argument_setup: int
+    """The ``fmr f1, f31`` that starts the argument setup for
+    ``bl ComputeBoostBallMovement`` in ``CMorphBall::ComputeBallMovement``;
+    replaced with a ``bl`` to the cave."""
 
     compute_boost_ball_movement: int
-    """``CMorphBall::ComputeBoostBallMovement``, which the caves
-    tail-branch into."""
+    """``CMorphBall::ComputeBoostBallMovement``. Not called by the cave;
+    the hook guard checks the original ``bl`` to it is intact."""
 
     has_power_up: int
     """``CPlayerState::HasPowerUp``."""
 
     is_movement_allowed: int
     """``CMorphBall::IsMovementAllowed``."""
-
-    get_tweak_player: int
-    """``CPlayer::GetTweakPlayer``."""
-
-    get_player_ball_half_extent: int
-    """The tweak-player getter ``BombJump`` calls first (``lfs f1, 0x320``):
-    the ball's half-extent, which ``BombJump`` adds to the player's z before
-    measuring the distance to the bomb."""
 
     bomb_jump: int
     """``CPlayer::BombJump``."""
@@ -226,12 +218,10 @@ NTSC = EchoesVersionInfo(
         send_script_msgs=0x80047FF0,
     ),
     spring_ball=SpringBallAddresses(
-        boost_ball_movement_call=0x800CE8CC,
+        boost_ball_argument_setup=0x800CE8BC,
         compute_boost_ball_movement=0x800C6B78,
         has_power_up=0x80085480,
         is_movement_allowed=0x800CE7D0,
-        get_tweak_player=0x8000BF94,
-        get_player_ball_half_extent=0x80217DE4,
         bomb_jump=0x80186838,
         set_velocity_wr=0x800EA404,
         set_move_state=0x80187370,
@@ -266,12 +256,10 @@ PAL = EchoesVersionInfo(
         send_script_msgs=0x80048160,
     ),
     spring_ball=SpringBallAddresses(
-        boost_ball_movement_call=0x800CE9A4,
+        boost_ball_argument_setup=0x800CE994,
         compute_boost_ball_movement=0x800C6C50,
         has_power_up=0x800855BC,
         is_movement_allowed=0x800CE8A8,
-        get_tweak_player=0x8000BFD8,
-        get_player_ball_half_extent=0x8021811C,
         bomb_jump=0x80186B1C,
         set_velocity_wr=0x800EA4EC,
         set_move_state=0x80187658,

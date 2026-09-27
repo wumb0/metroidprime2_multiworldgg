@@ -2,26 +2,38 @@
 laying a bomb, available once Morph Ball Bombs are collected.
 
 A port of randomprime's ``patch_spring_ball`` (Metroid Prime 1), which
-``open-prime-rando`` has no equivalent for. Both work the same way: the
-``bl CMorphBall::ComputeBoostBallMovement`` inside
-``CMorphBall::ComputeBallMovement`` is redirected through a code cave that,
-when the button is held and every gate below passes, calls
-``CPlayer::BombJump`` with a fake bomb position, then tail-branches into the
-original ``ComputeBoostBallMovement`` so vanilla movement runs untouched.
+``open-prime-rando`` has no equivalent for. Both hook
+``CMorphBall::ComputeBallMovement`` just before it calls
+``CMorphBall::ComputeBoostBallMovement``: when the button is held and every
+gate below passes, the cave calls ``CPlayer::BombJump`` with a fake bomb at
+the player's own position, then lets vanilla movement run untouched.
+
+Unlike randomprime, the hook replaces the ``fmr f1, f31`` in front of
+``bl ComputeBoostBallMovement`` rather than the ``bl`` itself. The cave
+performs that ``fmr`` on the way out and returns, and ComputeBallMovement
+reloads the call's arguments from its own non-volatile registers. That
+also lets the cave read those registers (ball, input, state manager)
+directly instead of copying them. ``apply_dol_patches`` checks the whole
+five-instruction sequence first, so a build laid out differently is
+refused rather than patched.
 
 Gates, in cave order (each mirrors one of randomprime's, re-derived against
 the Echoes DOL -- see ``metroidprime2/tools/find_spring_ball_addresses.py``):
 
-- a per-controller cooldown of ``COOLDOWN_FRAMES`` since the last spring;
+- a cooldown of ``COOLDOWN_FRAMES`` since the last spring (one counter for
+  all players);
 - the configured button (``BUTTONS``);
 - the ball is in its Normal or Boost state (not Spider, Screw Attack or
   Projectile);
-- ``CMorphBall::GetBombJumpState`` is ``BombJumpAvailable``;
-- the player is on the ground (``NPlayer::EPlayerMovementState`` OnGround);
+- the player is on the ground (``NPlayer::EPlayerMovementState`` OnGround)
+  and ``CMorphBall::GetBombJumpState`` is ``BombJumpAvailable``;
 - the surface restraint isn't Shrubbery (Prime 1's snakeweed);
 - nothing is attached to the player and no energy-drain source is active;
 - the player has Morph Ball Bombs;
 - ``CMorphBall::IsMovementAllowed``.
+
+There is no morph-state check: both callers of ComputeBallMovement (in
+``CPlayer::ProcessInput``) only call it while Morphed.
 
 Echoes' ``BombJump`` zeroes horizontal velocity, as Prime 1's does, so the
 cave saves it beforehand and restores it through ``SetVelocityWR`` (which
@@ -34,16 +46,11 @@ ball is still on the ground.
 Unlike randomprime, there are no hooks that reset the cooldown on morph and
 unmorph. The cooldown only counts down while the ball is being simulated,
 so a spring immediately followed by an unmorph can leave up to
-``COOLDOWN_FRAMES`` of wait for the next time you morph. That saves two more
-DOL hooks and code caves, which are in short supply in Echoes (see below).
+``COOLDOWN_FRAMES`` of wait for the next time you morph.
 
-**Code cave split.** The whole routine doesn't fit in any single free
-region open-prime-rando registers for Echoes (the largest is 0x14C bytes),
-so it is two caves. A *body* cave (checks, the jump itself, the epilogue and
-the data words) is strictly the larger of the two, so ``CodeCaveTracker``
-places it first. The *entry* cave (the hook target: frame setup, cooldown,
-button and early checks) is placed after it, so it can reference the body's
-address by symbol. The body never references the entry.
+The cave has to fit in the largest free region open-prime-rando registers
+for Echoes (the error handler's 0x14C bytes); ``CodeCaveTracker`` places
+the largest request first, and this is it.
 """
 
 from __future__ import annotations
@@ -83,7 +90,8 @@ _MORPH_BALL_BOMB_JUMP_STATE = 0x18F4
 ``BombJump`` does nothing unless it is 0 (available)."""
 
 _PLAYER_POSITION = 0x54
-"""The player's world position (three floats), as ``BombJump`` reads it."""
+"""The player's world position (three floats), as ``BombJump`` reads it --
+and, passed straight through, the cave's fake bomb position."""
 
 _PLAYER_VELOCITY = 0x1A8
 """``CPhysicsActor`` velocity (three floats), as ``SetVelocityWR`` writes
@@ -105,20 +113,12 @@ nonzero while something is draining energy. Echoes has no out-of-line
 _PLAYER_SURFACE_RESTRAINT = 0x344
 """``CPlayer::ESurfaceRestraints`` (``Get/SetSurfaceRestraint``)."""
 
-_PLAYER_MORPH_STATE = 0x38C
-"""``CPlayer::EPlayerMorphBallState``; 1 = Morphed. ``BombJump`` does
-nothing unless it is 1."""
-
 _PLAYER_STATE = 0x1314
 """``CPlayerState*``."""
-
-_FINAL_INPUT_CONTROLLER = 0x4
-"""``CFinalInput::mControllerIdx``, which indexes the cooldown array."""
 
 _SURFACE_RESTRAINT_SHRUBBERY = 7
 _MOVEMENT_STATE_ON_GROUND = 0
 _MOVEMENT_STATE_FALLING_MORPHED = 4
-_MORPHED = 1
 _INVALID_UNIQUE_ID = 0xFFFF
 _BALL_STATE_BOOST = 1
 
@@ -189,32 +189,50 @@ reached indirectly)."""
 
 
 # --------------------------------------------------------------------------
-# Caves
+# Cave
 # --------------------------------------------------------------------------
 
-BODY_SYMBOL = "AP::SpringBall::Body"
-DONE_SYMBOL = "AP::SpringBall::Done"
-COOLDOWNS_SYMBOL = "AP::SpringBall::Cooldowns"
+_FRAME_SIZE = 0x28
+_VELOCITY = 0x08
+_SAVED_REGISTERS = 0x14
+"""Stack frame layout: 0x08 the new velocity vector (its z slot doubles as
+scratch for loading ``HALF_PIPE_DIVISOR``), r27-r31 saved at 0x14-0x27."""
 
-_FRAME_SIZE = 0x40
-_BOMB_POSITION = 0x10
-_VELOCITY = 0x1C
-_DELTA_TIME = 0x28
-_SAVED_REGISTERS = 0x2C
-"""Stack frame layout (both caves share the one frame the entry cave
-builds): 0x10 fake bomb position, 0x1C new velocity, 0x28 ``dt``, and
-r27-r31 saved at 0x2C-0x3F."""
+# Registers. Borrowed from ComputeBallMovement, which keeps its arguments
+# in non-volatile registers across the hooked instruction (the cave only
+# reads these, and lmw restores them regardless):
+#   r29 CMorphBall*, r30 const CFinalInput*, r31 CStateManager*, f31 dt.
+# Owned by the cave: r28 CPlayer*, r27 &cooldown.
 
-# Registers, for the lifetime of the frame:
-#   r31 CMorphBall*, r30 const CFinalInput*, r29 CStateManager*,
-#   r28 CPlayer*, r27 this controller's cooldown word.
+HOOK_SITE_WORDS = (0xFC20F890, 0x7FA3EB78, 0x7FC4F378, 0x7FE5FB78)
+"""``fmr f1, f31; mr r3, r29; mr r4, r30; mr r5, r31`` -- the argument setup
+for ``bl ComputeBoostBallMovement``, which immediately follows. The first
+word is replaced with the ``bl`` to the cave; the cave's register
+assumptions above hold only while all of these are in place."""
+
+_FMR_F1_F31 = HOOK_SITE_WORDS[0]
+
+
+def _raw(value: int) -> BaseInstruction:
+    from ppc_asm.assembler.ppc import Instruction
+
+    return Instruction(value)
 
 
 def _andi_dot(ra_rs: int, mask: int) -> BaseInstruction:
     """``andi. rA, rS, mask`` with rA == rS (not in ppc_asm)."""
-    from ppc_asm.assembler.ppc import Instruction
+    return _raw((28 << 26) | (ra_rs << 21) | (ra_rs << 16) | mask)
 
-    return Instruction((28 << 26) | (ra_rs << 21) | (ra_rs << 16) | mask)
+
+def _xori(ra_rs: int, mask: int) -> BaseInstruction:
+    """``xori rA, rS, mask`` with rA == rS (not in ppc_asm)."""
+    return _raw((26 << 26) | (ra_rs << 21) | (ra_rs << 16) | mask)
+
+
+def _or_dot(ra_rs: int, rb: int) -> BaseInstruction:
+    """``or. rA, rS, rB`` with rA == rS (not in ppc_asm): sets cr0 eq when
+    both are zero."""
+    return _raw((31 << 26) | (ra_rs << 21) | (ra_rs << 16) | (rb << 11) | (444 << 1) | 1)
 
 
 def _clear_upper_bytes(register: GeneralRegister) -> BaseInstruction:
@@ -230,14 +248,14 @@ def _clear_upper_bytes(register: GeneralRegister) -> BaseInstruction:
 
 
 def _button_check(button: AnalogDirection | DigitalButton) -> list[BaseInstruction]:
-    """Branches to the entry cave's exit unless ``button`` is held."""
+    """Branches to ``_done`` unless ``button`` is held."""
     from ppc_asm.assembler.ppc import beq, ble, cmpw, lbz, lis, lwz, ori, r0, r12, r30, xoris
 
     if isinstance(button, DigitalButton):
         return [
             lbz(r0, button.offset, r30),
             _andi_dot(0, button.mask),
-            beq("_entry_done"),
+            beq("_done"),
         ]
     return [
         lwz(r0, button.offset, r30),
@@ -245,30 +263,39 @@ def _button_check(button: AnalogDirection | DigitalButton) -> list[BaseInstructi
         lis(r12, ANALOG_THRESHOLD_BITS >> 16),
         ori(r12, r12, ANALOG_THRESHOLD_BITS & 0xFFFF),
         cmpw(0, r0, r12),
-        ble("_entry_done"),
+        ble("_done"),
     ]
 
 
-def build_entry_cave(button: AnalogDirection | DigitalButton) -> list[BaseInstruction]:
-    """The hook target, called in place of ``ComputeBoostBallMovement`` with
-    its arguments: r3 = CMorphBall*, r4 = const CFinalInput*,
-    r5 = CStateManager*, f1 = dt. Builds the frame both caves share, then
-    either branches into the body or straight to its epilogue."""
+def build_cave(addresses: SpringBallAddresses, button: AnalogDirection | DigitalButton) -> list[BaseInstruction]:
+    """The whole routine, called in place of the ``fmr f1, f31`` in front of
+    ``bl ComputeBoostBallMovement``. Ends by doing that ``fmr`` itself, so
+    ComputeBallMovement goes on to set up and make the call as in vanilla."""
     from ppc_asm.assembler import custom_ppc
     from ppc_asm.assembler.ppc import (
         LR,
-        add,
         addi,
         b,
+        beq,
         bgt,
+        bl,
         ble,
+        blr,
         bne,
         cmplwi,
         cmpwi,
-        f1,
+        f0,
+        f2,
+        fdivs,
+        lfs,
+        lhz,
+        li,
+        lis,
+        lmw,
         lwz,
         mfspr,
         mr,
+        mtspr,
         r0,
         r1,
         r3,
@@ -278,114 +305,51 @@ def build_entry_cave(button: AnalogDirection | DigitalButton) -> list[BaseInstru
         r27,
         r28,
         r29,
-        r30,
         r31,
-        rlwinm,
         stfs,
         stmw,
         stw,
         stwu,
     )
 
+    half_pipe_divisor_bits = struct.unpack(">I", struct.pack(">f", HALF_PIPE_DIVISOR))[0]
+    assert half_pipe_divisor_bits & 0xFFFF == 0, "loaded with a single lis"
+
     button_check = _button_check(button)
-    button_check[0].with_label("_spring_ball_check")
+    button_check[0].with_label("_check")
 
     return [
         stwu(r1, -_FRAME_SIZE, r1),
         mfspr(r0, LR),
         stw(r0, _FRAME_SIZE + 4, r1),
         stmw(r27, _SAVED_REGISTERS, r1),
-        stfs(f1, _DELTA_TIME, r1),
-        mr(r31, r3),
-        mr(r30, r4),
-        mr(r29, r5),
-        lwz(r28, _MORPH_BALL_PLAYER, r31),
-        # r27 = &cooldowns[controller & 3]
-        custom_ppc.load_address(r27, COOLDOWNS_SYMBOL),
-        lwz(r0, _FINAL_INPUT_CONTROLLER, r30),
-        rlwinm(r0, r0, 2, 28, 29),
-        add(r27, r27, r0),
+        lwz(r28, _MORPH_BALL_PLAYER, r29),
+        custom_ppc.load_address(r27, "_cooldown"),
         # While cooling down, count down and skip everything else. (Not in
         # r0: as addi's base register, r0 reads as a literal 0.)
         lwz(r12, 0, r27),
         cmpwi(r12, 0),
-        ble("_spring_ball_check"),
+        ble("_check"),
         addi(r12, r12, -1),
         stw(r12, 0, r27),
-        b("_entry_done"),
+        b("_done"),
         *button_check,
-        lwz(r0, _MORPH_BALL_STATE, r31),
+        lwz(r0, _MORPH_BALL_STATE, r29),
         cmplwi(r0, _BALL_STATE_BOOST),
-        bgt("_entry_done"),
-        lwz(r0, _MORPH_BALL_BOMB_JUMP_STATE, r31),
-        cmpwi(r0, 0),
-        bne("_entry_done"),
-        lwz(r0, _PLAYER_MORPH_STATE, r28),
-        cmpwi(r0, _MORPHED),
-        bne("_entry_done"),
+        bgt("_done"),
+        # On the ground (OnGround == 0) and bomb jumps available (== 0).
         lwz(r0, _PLAYER_MOVEMENT_STATE, r28),
-        cmpwi(r0, _MOVEMENT_STATE_ON_GROUND),
-        bne("_entry_done"),
-        b(BODY_SYMBOL),
-        # Conditional branches only reach +-32 KiB, and the body cave can be
-        # megabytes away, so every early exit funnels through here.
-        b(DONE_SYMBOL).with_label("_entry_done"),
-    ]
-
-
-def build_body_cave(addresses: SpringBallAddresses) -> list[BaseInstruction]:
-    """The rest of the gates, the jump, the shared epilogue (labelled
-    ``_done``) and the data words (``_cooldowns``, then the half-pipe
-    divisor). Entered from the entry cave with its frame and registers
-    live. Every branch out of here is to a fixed game address, so this can
-    be assembled before the entry cave is placed."""
-    from ppc_asm.assembler import custom_ppc
-    from ppc_asm.assembler.ppc import (
-        LR,
-        Instruction,
-        addi,
-        b,
-        beq,
-        bl,
-        ble,
-        bne,
-        cmplwi,
-        cmpwi,
-        f0,
-        f1,
-        f2,
-        fadds,
-        fdivs,
-        lfs,
-        lhz,
-        li,
-        lmw,
-        lwz,
-        mr,
-        mtspr,
-        r0,
-        r1,
-        r3,
-        r4,
-        r5,
-        r27,
-        r28,
-        r29,
-        r30,
-        r31,
-        stfs,
-        stw,
-    )
-
-    return [
+        lwz(r12, _MORPH_BALL_BOMB_JUMP_STATE, r29),
+        _or_dot(0, 12),
+        bne("_done"),
         lwz(r0, _PLAYER_SURFACE_RESTRAINT, r28),
         cmpwi(r0, _SURFACE_RESTRAINT_SHRUBBERY),
         beq("_done"),
-        lhz(r0, _PLAYER_ATTACHED_ACTOR, r28),
-        cmplwi(r0, _INVALID_UNIQUE_ID),
-        bne("_done"),
+        # Nothing attached (id == 0xFFFF) and nothing draining (count == 0).
+        lhz(r12, _PLAYER_ATTACHED_ACTOR, r28),
+        _xori(12, _INVALID_UNIQUE_ID),
         lwz(r0, _PLAYER_ENERGY_DRAIN_SOURCE_COUNT, r28),
-        cmpwi(r0, 0),
+        _or_dot(0, 12),
         bne("_done"),
         lwz(r3, _PLAYER_STATE, r28),
         li(r4, MORPH_BALL_BOMB),
@@ -393,41 +357,33 @@ def build_body_cave(addresses: SpringBallAddresses) -> list[BaseInstruction]:
         _clear_upper_bytes(r3),
         cmplwi(r3, 0),
         beq("_done"),
-        mr(r3, r31),
+        mr(r3, r29),
         bl(addresses.is_movement_allowed),
         _clear_upper_bytes(r3),
         cmplwi(r3, 0),
         beq("_done"),
-        # Fake bomb at exactly the point BombJump measures the ball from
-        # (position + (0, 0, ball half-extent)), so the distance and
-        # "bomb below the ball" checks pass whatever the tweak values are.
-        mr(r3, r28),
-        bl(addresses.get_tweak_player),
-        bl(addresses.get_player_ball_half_extent),
-        lfs(f0, _PLAYER_POSITION + 8, r28),
-        fadds(f0, f0, f1),
-        stfs(f0, _BOMB_POSITION + 8, r1),
-        lfs(f0, _PLAYER_POSITION, r28),
-        stfs(f0, _BOMB_POSITION, r1),
-        lfs(f0, _PLAYER_POSITION + 4, r28),
-        stfs(f0, _BOMB_POSITION + 4, r1),
         # BombJump zeroes horizontal velocity; keep it.
         lfs(f0, _PLAYER_VELOCITY, r28),
         stfs(f0, _VELOCITY, r1),
         lfs(f0, _PLAYER_VELOCITY + 4, r28),
         stfs(f0, _VELOCITY + 4, r1),
+        # A "bomb" at the player's own position: BombJump measures from
+        # position + (0, 0, half-extent), so it sees a bomb half-extent
+        # below the ball -- inside the 1.5 bomb jump radius (ball radius
+        # is 0.7 on both builds), and below the ball, as it requires.
         mr(r3, r28),
-        addi(r4, r1, _BOMB_POSITION),
-        mr(r5, r29),
+        addi(r4, r28, _PLAYER_POSITION),
+        mr(r5, r31),
         bl(addresses.bomb_jump),
         # The half-pipe cooldown is a non-negative float, so its raw bits
         # are > 0 exactly when the float is.
         lfs(f0, _PLAYER_VELOCITY + 8, r28),
-        lwz(r0, _MORPH_BALL_HALF_PIPE_COOLDOWN, r31),
+        lwz(r0, _MORPH_BALL_HALF_PIPE_COOLDOWN, r29),
         cmpwi(r0, 0),
         ble("_store_vertical"),
-        custom_ppc.load_address(r3, "_half_pipe_divisor"),
-        lfs(f2, 0, r3),
+        lis(r0, half_pipe_divisor_bits >> 16),
+        stw(r0, _VELOCITY + 8, r1),
+        lfs(f2, _VELOCITY + 8, r1),
         fdivs(f0, f0, f2),
         stfs(f0, _VELOCITY + 8, r1).with_label("_store_vertical"),
         mr(r3, r28),
@@ -435,77 +391,46 @@ def build_body_cave(addresses: SpringBallAddresses) -> list[BaseInstruction]:
         bl(addresses.set_velocity_wr),
         mr(r3, r28),
         li(r4, _MOVEMENT_STATE_FALLING_MORPHED),
-        mr(r5, r29),
+        mr(r5, r31),
         bl(addresses.set_move_state),
         li(r0, COOLDOWN_FRAMES),
         stw(r0, 0, r27),
-        # Epilogue: restore the hooked call's arguments and tail-branch into
-        # it, so it returns straight to ComputeBallMovement.
-        mr(r3, r31).with_label("_done"),
-        mr(r4, r30),
-        mr(r5, r29),
-        lfs(f1, _DELTA_TIME, r1),
-        lmw(r27, _SAVED_REGISTERS, r1),
+        lmw(r27, _SAVED_REGISTERS, r1).with_label("_done"),
         lwz(r0, _FRAME_SIZE + 4, r1),
         mtspr(LR, r0),
         addi(r1, r1, _FRAME_SIZE),
-        b(addresses.compute_boost_ball_movement),
-        Instruction(0).with_label("_cooldowns"),
-        Instruction(0),
-        Instruction(0),
-        Instruction(0),
-        Instruction(struct.unpack(">I", struct.pack(">f", HALF_PIPE_DIVISOR))[0]).with_label("_half_pipe_divisor"),
+        _raw(_FMR_F1_F31),
+        blr(),
+        _raw(0).with_label("_cooldown"),
     ]
 
 
-def label_offset(instructions: list[BaseInstruction], label: str) -> int:
-    """Byte offset of ``label`` within ``instructions``."""
-    offset = 0
-    for instruction in instructions:
-        if instruction.label == label:
-            return offset
-        offset += instruction.byte_count
-    raise KeyError(label)
-
-
 def apply_dol_patches(cave: CodeCaveTracker, addresses: SpringBallAddresses, button: str) -> None:
-    """Requests both caves and points the hooked ``bl`` at the entry cave.
+    """Requests the cave and points the hooked instruction at it.
 
     Must run before ``CodeCaveTracker.fulfill_requests()``, i.e. from inside
     open-prime-rando's ``_apply_patches``. Refuses to patch a DOL whose hook
-    site isn't the expected ``bl ComputeBoostBallMovement``, rather than
+    site isn't exactly the expected argument setup and call, rather than
     corrupting an unknown build.
     """
     from ppc_asm import assembler
     from ppc_asm.assembler.ppc import bl
 
-    expected = bytes(
-        assembler.assemble_instructions(addresses.boost_ball_movement_call, [bl(addresses.compute_boost_ball_movement)])
+    site = addresses.boost_ball_argument_setup
+    call = site + 4 * len(HOOK_SITE_WORDS)
+    expected = b"".join(struct.pack(">I", word) for word in HOOK_SITE_WORDS) + bytes(
+        assembler.assemble_instructions(call, [bl(addresses.compute_boost_ball_movement)])
     )
-    actual = cave.dol_editor.read(addresses.boost_ball_movement_call, 4)
+    actual = cave.dol_editor.read(site, len(expected))
     if actual != expected:
         raise ValueError(
-            f"Spring Ball hook site 0x{addresses.boost_ball_movement_call:08X} holds "
-            f"{actual.hex()}, expected {expected.hex()}; this DOL isn't a supported build."
+            f"Spring Ball hook site 0x{site:08X} holds {actual.hex()}, expected {expected.hex()}; "
+            f"this DOL isn't a supported build."
         )
-
     if button not in BUTTONS:
         raise ValueError(f"Unknown spring ball button {button!r}; expected one of {sorted(BUTTONS)}")
 
-    entry = build_entry_cave(BUTTONS[button])
-    body = build_body_cave(addresses)
-    if assembler.byte_count(body) <= assembler.byte_count(entry):
-        raise AssertionError("the spring ball body cave must be placed before the entry cave")
+    def _with_cave(address: int) -> None:
+        cave.dol_editor.write_instructions(site, [bl(address)])
 
-    symbols = cave.dol_editor.symbols
-
-    def _with_body(address: int) -> None:
-        symbols[BODY_SYMBOL] = address
-        symbols[DONE_SYMBOL] = address + label_offset(body, "_done")
-        symbols[COOLDOWNS_SYMBOL] = address + label_offset(body, "_cooldowns")
-
-    def _with_entry(address: int) -> None:
-        cave.dol_editor.write_instructions(addresses.boost_ball_movement_call, [bl(address)])
-
-    cave.request_code_cave(body, _with_body)
-    cave.request_code_cave(entry, _with_entry)
+    cave.request_code_cave(build_cave(addresses, BUTTONS[button]), _with_cave)

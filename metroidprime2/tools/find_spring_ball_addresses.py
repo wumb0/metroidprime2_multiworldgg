@@ -1,20 +1,22 @@
 """Locates the DOL addresses the spring ball patch needs, for an Echoes ISO.
 
-The spring ball caves (``client/spring_ball_patch.py``) hook one ``bl`` and
-call seven game functions, all of which move between NTSC-U and PAL. Like
+The spring ball cave (``client/spring_ball_patch.py``) hooks one
+instruction and calls four game functions, all of which move between
+NTSC-U and PAL. Like
 ``find_warp_addresses.py``, this recovers them by pattern matching instead
 of trusting a hardcoded table, anchoring on struct offsets that are the same
 in both builds:
 
 - ``CMorphBall::ComputeBallMovement`` switches on ``mBallState``
   (``lwz r0, 0xC80(r3)`` / ``cmpwi r0, 6`` / ``beq`` / ``bge`` /
-  ``cmpwi r0, 4``); its first ``bl`` is the hooked
-  call to ``ComputeBoostBallMovement``, whose own first ``bl`` is
-  ``IsMovementAllowed``.
+  ``cmpwi r0, 4``); its first ``bl`` is the call to
+  ``ComputeBoostBallMovement``, whose own first ``bl`` is
+  ``IsMovementAllowed``. The hook is the ``fmr f1, f31`` four instructions
+  before that call, which must be followed by exactly
+  ``spring_ball_patch.HOOK_SITE_WORDS``.
 - ``CPlayer::BombJump`` opens by testing the morph state and
   ``GetBombJumpState`` (``lwz r0, 0x38C(r3)`` / ``cmpwi r0, 1`` /
-  ``bne`` / ``lwz r3, 0x1174(r31)`` / ``bl`` / ``cmpwi r3, 1``). Its next
-  two calls are ``GetTweakPlayer`` and the ball half-extent getter; the
+  ``bne`` / ``lwz r3, 0x1174(r31)`` / ``bl`` / ``cmpwi r3, 1``). The
   call after ``li r4, 0x19`` (Gravity Boost) is ``HasPowerUp``; the call
   after ``addi r4, r1, 0x10`` is ``SetVelocityWR``.
 - ``CPlayer::SetMoveState`` is the target of the ``li r4, 4`` call that
@@ -36,6 +38,7 @@ import dataclasses
 import sys
 from pathlib import Path
 
+from ..client.spring_ball_patch import HOOK_SITE_WORDS
 from .find_warp_addresses import DolText, _branch_target, _function_end, _function_start, _read_dol
 
 
@@ -63,12 +66,10 @@ def _is_bne(instruction: int) -> bool:
 class FoundSpringBallAddresses:
     """Same fields as ``client.versions.SpringBallAddresses``."""
 
-    boost_ball_movement_call: int
+    boost_ball_argument_setup: int
     compute_boost_ball_movement: int
     has_power_up: int
     is_movement_allowed: int
-    get_tweak_player: int
-    get_player_ball_half_extent: int
     bomb_jump: int
     set_velocity_wr: int
     set_move_state: int
@@ -136,6 +137,12 @@ def find_spring_ball_addresses(dol: bytes) -> FoundSpringBallAddresses:
         ],
     )
     boost_call, compute_boost = _first_call_after(text, switch, limit=16)
+    argument_setup = boost_call - 4 * len(HOOK_SITE_WORDS)
+    if not _matches(text, argument_setup, list(HOOK_SITE_WORDS)):
+        raise ValueError(
+            f"the argument setup before bl ComputeBoostBallMovement at 0x{boost_call:08X} "
+            f"isn't {[hex(word) for word in HOOK_SITE_WORDS]}"
+        )
     _, is_movement_allowed = _first_call_after(text, compute_boost, limit=32)
 
     # BombJump and the calls inside it
@@ -152,10 +159,6 @@ def find_spring_ball_addresses(dol: bytes) -> FoundSpringBallAddresses:
     )
     bomb_jump = _function_start(text, bomb_jump_anchor)
     calls = _calls(text, bomb_jump, _function_end(text, bomb_jump_anchor))
-    if len(calls) < 3:
-        raise ValueError(f"BombJump at 0x{bomb_jump:08X} makes only {len(calls)} calls")
-    get_tweak_player = calls[1][1]
-    get_player_ball_half_extent = calls[2][1]
     has_power_up = _call_preceded_by(text, calls, _li(4, 0x19), 1, "HasPowerUp(GravityBoost) in BombJump")
     set_velocity_wr = _call_preceded_by(text, calls, _addi(4, 1, 0x10), 6, "SetVelocityWR in BombJump")
 
@@ -180,12 +183,10 @@ def find_spring_ball_addresses(dol: bytes) -> FoundSpringBallAddresses:
     )
 
     return FoundSpringBallAddresses(
-        boost_ball_movement_call=boost_call,
+        boost_ball_argument_setup=argument_setup,
         compute_boost_ball_movement=compute_boost,
         has_power_up=has_power_up,
         is_movement_allowed=is_movement_allowed,
-        get_tweak_player=get_tweak_player,
-        get_player_ball_half_extent=get_player_ball_half_extent,
         bomb_jump=bomb_jump,
         set_velocity_wr=set_velocity_wr,
         set_move_state=set_move_state,
