@@ -41,6 +41,19 @@ The "Sky Temple Keys" option controls how the 9 keys are handled:
 
 Keys placed this way (All Bosses / All Guardians) are recorded in the spoiler log.
 
+### Sky Temple Key hints
+
+The 9 Luminoth pillars in Sky Temple Gateway can tell you where each Sky Temple Key actually is, controlled by the
+"Sky Temple Key Hints" option:
+
+- **Scanned** (default): scan a pillar to see where that key is -- your own world or another player's -- and the
+  hint is sent to the multiworld server for everyone to see, the same as any other in-game hint. Nothing is
+  reported to the server until the scan actually finishes; a partial scan tells you nothing.
+- **Precollected**: every key's hint is already known and sent to the server as soon as the game begins, without
+  needing to scan anything.
+- **Disabled**: the pillars' text is replaced with a generic "lost somewhere in Aether" message instead of a real
+  hint, since the vanilla riddles describe vanilla key locations and would be misleading once keys are shuffled.
+
 ## What does the logic that places my items know about?
 
 Reachability is computed from Randovania's Metroid Prime 2: Echoes logic database -- the same data the standalone

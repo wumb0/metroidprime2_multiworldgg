@@ -331,6 +331,66 @@ class TestReadInventory(unittest.TestCase):
         self.assertIsNone(interface.read_inventory())
 
 
+class TestReadScanProgress(unittest.TestCase):
+    """``EchoesInterface.read_scan_progress`` (PLAN.md section Q.5)."""
+
+    _PLAYER_STATE_ADDR = 0x80700000
+    _SCAN_DATA_ADDR = 0x80710000
+
+    def _prepared_interface(self) -> tuple[EchoesInterface, FakeDolphinClient]:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, self._PLAYER_STATE_ADDR)
+        return interface, fake
+
+    def _write_header(self, fake: FakeDolphinClient, count: int, capacity: int, data_ptr: int) -> None:
+        fake.memory[self._PLAYER_STATE_ADDR + versions.SCAN_STATES_OFFSET] = struct.pack(
+            ">III", count, capacity, data_ptr
+        )
+
+    def test_happy_path_parses_scan_ids_and_progress(self) -> None:
+        interface, fake = self._prepared_interface()
+        entries = [(0x11111111, 10), (0x22222222, 255), (0x33333333, 0)]
+        self._write_header(fake, len(entries), len(entries), self._SCAN_DATA_ADDR)
+        buffer = b"".join(struct.pack(">IBBxx", scan_id, progress, 0) for scan_id, progress in entries)
+        fake.memory[self._SCAN_DATA_ADDR] = buffer
+
+        self.assertEqual(dict(entries), interface.read_scan_progress())
+
+    def test_null_player_state_pointer_returns_none(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, 0)
+        self.assertIsNone(interface.read_scan_progress())
+
+    def test_zero_count_returns_none(self) -> None:
+        interface, fake = self._prepared_interface()
+        self._write_header(fake, 0, 0, self._SCAN_DATA_ADDR)
+        self.assertIsNone(interface.read_scan_progress())
+
+    def test_count_above_capacity_returns_none(self) -> None:
+        interface, fake = self._prepared_interface()
+        self._write_header(fake, 5, 3, self._SCAN_DATA_ADDR)
+        self.assertIsNone(interface.read_scan_progress())
+
+    def test_count_above_max_count_sanity_cap_returns_none(self) -> None:
+        interface, fake = self._prepared_interface()
+        huge = versions.SCAN_STATES_MAX_COUNT + 1
+        self._write_header(fake, huge, huge, self._SCAN_DATA_ADDR)
+        self.assertIsNone(interface.read_scan_progress())
+
+    def test_bad_data_pointer_outside_mem1_returns_none(self) -> None:
+        interface, fake = self._prepared_interface()
+        self._write_header(fake, 1, 1, 0x12345678)
+        self.assertIsNone(interface.read_scan_progress())
+
+    def test_dolphin_exception_on_header_read_returns_none(self) -> None:
+        interface, _fake = self._prepared_interface()
+        # No fake memory installed at the header address at all -- FakeDolphinClient
+        # raises DolphinException for any unmapped read.
+        self.assertIsNone(interface.read_scan_progress())
+
+
 class TestHealth(unittest.TestCase):
     def test_get_current_health_reads_float_at_health_offset(self) -> None:
         interface, fake = _make_interface()

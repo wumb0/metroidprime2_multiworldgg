@@ -185,6 +185,30 @@ ALIVE_BIT_MASK = 0x80
 """High bit of the ``ALIVE_OFFSET`` byte; see ``ALIVE_OFFSET`` docstring
 for the (unconfirmed) reasoning."""
 
+SCAN_STATES_OFFSET = 0x5A0
+"""Offset from a CPlayerState pointer of its scan-state vector header
+(PLAN.md section Q.1, disassembled from both retail NTSC and PAL DOLs):
+``CPlayerState::ScanStates()`` is ``addi r3,r3,0x59C; blr`` (NTSC
+0x800851DC, PAL 0x80085318) -- the ``rstl::vector<SScanState>`` itself, at
+CPlayerState+0x59C -- and ``GetScanTime`` (NTSC 0x80085068, PAL 0x800851A4)
+reads the element count from +0x5A0 and the data pointer from +0x5A8,
+indexing with a stride-8 (``slwi 3``) multiply and reading ``SScanState``'s
+u8 progress field at element+4. So, from a CPlayerState pointer: count at
+``SCAN_STATES_OFFSET`` (+0x5A0), capacity at +0x5A4, data pointer at +0x5A8.
+Each ``SScanState`` is 8 bytes: ``u32 scan_asset_id; u8 progress; u8 flag;
+pad[2]``, sorted ascending by id. ``progress == 255`` means the scan is
+complete (``SetScanTime`` stores ``255*t``; loading a save restores
+complete scans as 255) -- see ``hint_scans.SCAN_COMPLETE``."""
+
+SCAN_STATE_SIZE = 8
+"""Bytes per ``SScanState`` entry -- see ``SCAN_STATES_OFFSET``."""
+
+SCAN_STATES_MAX_COUNT = 2048
+"""Sanity cap on the scan-state vector's element count (retail has ~820
+entries fully unlocked); a count above this from
+``read_scan_progress`` means the pointer/offsets are wrong, not a
+legitimately huge save."""
+
 
 NTSC = EchoesVersionInfo(
     name="NTSC",

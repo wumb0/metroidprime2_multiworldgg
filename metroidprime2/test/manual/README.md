@@ -1061,6 +1061,169 @@ If it fails, look at:
 * `client/versions.py::SpringBallAddresses`
 * `tools/find_spring_ball_addresses.py` (re-derive the addresses for this build)
 
+### MT15_SKY_TEMPLE_KEY_HINTS -- `mt15_sky_temple_key_hints` (P1)
+
+*Proves: each Sky Temple Gateway pillar names its key's real location, and only a completed scan sends that hint to the server*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Filler1 (Clique) slot with a text client, so hint messages are visible from both sides.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt15_sky_temple_key_hints --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_key_hints=scanned`, `sky_temple_keys=7`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+* plando: 2 placement(s):
+  * `Sky Temple Key 1` -> `The Button`
+  * `Sky Temple Key 2` -> `Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)`
+* companion slots: Filler1 (Clique)
+
+Notes / derived values:
+* Key 1 is plando'd to `Filler1`'s `The Button`; key 2 to `Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)`.
+* Keys 3-7 are wherever fill put them (see the spoiler); keys 8 and 9 start collected.
+* The pillars are the 9 Luminoth scan posts around the gateway's teleporter. Each rewritten text names its key, so which post is which doesn't matter.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt15_sky_temple_key_hints --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt15_sky_temple_key_hints/mt15_sky_temple_key_hints.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt15_sky_temple_key_hints/mt15_sky_temple_key_hints.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Connect the client and wait a few seconds in the gateway without scanning anything.
+   **Expect:** No hints are sent (`/hints` in the client shows none for the Sky Temple Keys).
+2. **Do:** Scan Visor on a pillar; hold scan until the bar is about half full, then let go / look away.
+   **Expect:** No hint is sent and the client logs nothing about a hint scan.
+   *(exercises: Only progress == 255 (a finished scan) counts.)*
+3. **Do:** Scan the Sky Temple Key 1 pillar to completion.
+   **Expect:** Text reads "Sky Temple Key 1 is in Filler1's The Button." in item/player/location colors. The client logs `Hint scan complete`, and a priority hint for key 1 at `Filler1`'s `The Button` shows up in both clients.
+4. **Do:** Scan the Sky Temple Key 2 pillar.
+   **Expect:** Text reads "Sky Temple Key 2 is in your Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)." and the matching hint appears.
+5. **Do:** Scan the Sky Temple Key 8 and 9 pillars.
+   **Expect:** Both read "... is already in your possession." No hint is sent for either.
+6. **Do:** Scan the pillars for keys 3-7.
+   **Expect:** Each names the location the spoiler lists for that key, and each sends exactly one hint.
+7. **Do:** Open the Logbook (Sky Temple Key Hints).
+   **Expect:** Each entry's body shows the same hint text as the scan.
+8. **Do:** Close and restart the MP2 client, then reconnect.
+   **Expect:** No duplicate hint messages appear (the server ignores already-known hints).
+9. **Do:** Save, reset Dolphin, reload the save, and reconnect.
+   **Expect:** The scanned pillars are still marked scanned; still no duplicate hints.
+
+Pass if:
+* Every pillar's text names its key's real location (or says it's already owned).
+* A partial scan sends nothing; a completed scan sends exactly one priority hint.
+* Precollected keys never produce a hint.
+* Client restarts and save reloads don't duplicate hints.
+
+If it fails, look at:
+* `patch_data.py::_sky_temple_key_string_changes` (wrong or missing text)
+* `hint_scans.py` (`SKY_TEMPLE_KEY_HINT_SCANS` strg/scan table, `newly_completed_hints`)
+* `client/game_interface.py::read_scan_progress` / `client/versions.py::SCAN_STATES_OFFSET`
+* `client/client.py::_handle_hint_scans`
+
+### MT15_SKY_TEMPLE_KEY_HINTS -- `mt15_sky_temple_key_hints_disabled` (P1)
+
+*Proves: each Sky Temple Gateway pillar names its key's real location, and only a completed scan sends that hint to the server*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Filler1 (Clique) slot with a text client, so hint messages are visible from both sides.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt15_sky_temple_key_hints --iso <vanilla.iso> --variant disabled
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_key_hints=disabled`, `sky_temple_keys=7`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+* plando: 2 placement(s):
+  * `Sky Temple Key 1` -> `The Button`
+  * `Sky Temple Key 2` -> `Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)`
+* companion slots: Filler1 (Clique)
+
+Notes / derived values:
+* Key 1 is plando'd to `Filler1`'s `The Button`; key 2 to `Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)`.
+* Keys 3-7 are wherever fill put them (see the spoiler); keys 8 and 9 start collected.
+* The pillars are the 9 Luminoth scan posts around the gateway's teleporter. Each rewritten text names its key, so which post is which doesn't matter.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt15_sky_temple_key_hints --iso <vanilla.iso> --variant disabled
+2. Host       python MultiServer.py manual_tests/mt15_sky_temple_key_hints_disabled/mt15_sky_temple_key_hints_disabled.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt15_sky_temple_key_hints_disabled/mt15_sky_temple_key_hints_disabled.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Scan any pillar to completion.
+   **Expect:** Text reads "Sky Temple Key N is lost somewhere in Aether." No hint is sent.
+
+Pass if:
+* No pillar reveals a location and no scan sends a hint.
+
+If it fails, look at:
+* `patch_data.py::_sky_temple_key_string_changes` (wrong or missing text)
+* `hint_scans.py` (`SKY_TEMPLE_KEY_HINT_SCANS` strg/scan table, `newly_completed_hints`)
+* `client/game_interface.py::read_scan_progress` / `client/versions.py::SCAN_STATES_OFFSET`
+* `client/client.py::_handle_hint_scans`
+
+### MT15_SKY_TEMPLE_KEY_HINTS -- `mt15_sky_temple_key_hints_precollected` (P1)
+
+*Proves: each Sky Temple Gateway pillar names its key's real location, and only a completed scan sends that hint to the server*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Filler1 (Clique) slot with a text client, so hint messages are visible from both sides.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt15_sky_temple_key_hints --iso <vanilla.iso> --variant precollected
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_key_hints=precollected`, `sky_temple_keys=7`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+* plando: 2 placement(s):
+  * `Sky Temple Key 1` -> `The Button`
+  * `Sky Temple Key 2` -> `Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)`
+* companion slots: Filler1 (Clique)
+
+Notes / derived values:
+* Key 1 is plando'd to `Filler1`'s `The Button`; key 2 to `Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)`.
+* Keys 3-7 are wherever fill put them (see the spoiler); keys 8 and 9 start collected.
+* The pillars are the 9 Luminoth scan posts around the gateway's teleporter. Each rewritten text names its key, so which post is which doesn't matter.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt15_sky_temple_key_hints --iso <vanilla.iso> --variant precollected
+2. Host       python MultiServer.py manual_tests/mt15_sky_temple_key_hints_precollected/mt15_sky_temple_key_hints_precollected.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt15_sky_temple_key_hints_precollected/mt15_sky_temple_key_hints_precollected.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Connect the client before scanning anything.
+   **Expect:** Hints for keys 1-7 are already known on connect; none for keys 8 and 9.
+2. **Do:** Scan the Sky Temple Key 1 pillar.
+   **Expect:** Text names `Filler1`'s `The Button`, and no new hint message appears.
+
+Pass if:
+* Every placed key's hint exists before any scan; pillar text still names each key's location.
+
+If it fails, look at:
+* `patch_data.py::_sky_temple_key_string_changes` (wrong or missing text)
+* `hint_scans.py` (`SKY_TEMPLE_KEY_HINT_SCANS` strg/scan table, `newly_completed_hints`)
+* `client/game_interface.py::read_scan_progress` / `client/versions.py::SCAN_STATES_OFFSET`
+* `client/client.py::_handle_hint_scans`
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).

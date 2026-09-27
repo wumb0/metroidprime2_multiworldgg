@@ -97,6 +97,29 @@ class SkyTempleKeys(Choice):
     default = 9
 
 
+class SkyTempleKeyHints(Choice):
+    """Whether the 9 Luminoth pillars in Sky Temple Gateway hint at where
+    each Sky Temple Key really is.
+
+    Scanned (default): scanning a pillar shows where that key is (your own
+    world or another player's) and sends the hint to the server, the same
+    as any other in-game hint.
+    Precollected: every key hint is known from the start (sent to the
+    server as soon as the game begins), without needing to scan anything.
+    Disabled: the pillars' text is replaced with a non-hint
+    ("... is lost somewhere in Aether.") instead -- the vanilla riddles
+    describe vanilla key spots and would mislead once keys are shuffled.
+    """
+
+    display_name = "Sky Temple Key Hints"
+    option_disabled = 0
+    option_scanned = 1
+    option_precollected = 2
+    default = option_scanned
+    alias_false = option_disabled
+    alias_true = option_scanned
+
+
 class ProgressiveSuit(DefaultOnToggle):
     """If enabled, Dark Suit and Light Suit are combined into two copies of
     a single Progressive Suit item (first copy grants Dark Suit, second
@@ -593,6 +616,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     start_inventory_from_pool: StartInventoryPool
 
     sky_temple_keys: SkyTempleKeys
+    sky_temple_key_hints: SkyTempleKeyHints
     progressive_suit: ProgressiveSuit
     progressive_grapple: ProgressiveGrapple
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
@@ -664,7 +688,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
 
 OPTION_GROUPS: list[OptionGroup] = [
-    OptionGroup("Goal", [SkyTempleKeys]),
+    OptionGroup("Goal", [SkyTempleKeys, SkyTempleKeyHints]),
     OptionGroup(
         "Item Pool",
         [

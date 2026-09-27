@@ -15,15 +15,17 @@ import tempfile
 import unittest
 import zipfile
 
-from BaseClasses import Item, ItemClassification
+from BaseClasses import Item, ItemClassification, Location
 from Options import Visibility
 
 from .. import patch_data
 from ..constants import LANDING_SITE_MREA, OPR_MODEL_NAMES, PICKUP_COUNTER_ITEMS, TEMPLE_GROUNDS_MLVL
+from ..hint_scans import SKY_TEMPLE_KEY_HINT_SCANS, sky_temple_key_locations
+from ..item_pool import STK_ITEM_NAMES
 from ..items import ITEM_TABLE
 from ..locations import LOCATION_TABLE
 from ..logic.db_reader import load_game_database
-from ..options import DisplayNonLocalItems, MetroidPrime2Options, RevealMapRemoved
+from ..options import DisplayNonLocalItems, MetroidPrime2Options, RevealMapRemoved, SkyTempleKeyHints
 from ..pickup_encoding import counter_and_amount
 from .bases import MP2TestBase
 
@@ -833,3 +835,181 @@ class TestRevealMapRemovedShim(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual("", reveal_map_option.from_any(value).value)
 
+
+
+class TestSkyTempleKeyHintText(MP2TestBase):
+    """``patch_data._sky_temple_key_hint_text`` (PLAN.md section Q.4),
+    exercised directly against constructed ``BaseClasses.Location`` stand-
+    ins -- MP2TestBase's gen_steps stop before the real fill algorithm runs
+    (test/bases.py), so a location filled by actual generation isn't
+    available here; ``TestSkyTempleKeyStringChanges*`` below cover the
+    fully-generated ``_sky_temple_key_string_changes`` integration instead.
+    """
+
+    def test_own_world_says_your_with_no_possessive(self) -> None:
+        location = Location(self.player, "Torvus Bog: Path of Roots - Pickup (Missile Expansion)", 5033250)
+        text = patch_data._sky_temple_key_hint_text(self.world, 1, location)
+        # "your" is bare (no color markup, no "'s"); the location name is
+        # colorized (_STK_LOCATION_COLOR) but otherwise verbatim.
+        self.assertIn("is in your &push;&main-color=#FF3333;Torvus Bog: Path of Roots - Pickup (Missile Expansion)"
+                      "&pop;.", text)
+        self.assertNotIn("your's", text)
+        self.assertNotIn("your&pop;'s", text)
+
+    def test_other_player_world_uses_possessive_colored_name(self) -> None:
+        self.multiworld.player_name[2] = "OtherPlayer"
+        location = Location(2, "Agon Wastes: Mining Plaza - Pickup (Energy Tank)", 5033260)
+        text = patch_data._sky_temple_key_hint_text(self.world, 2, location)
+        self.assertIn("is in ", text)
+        # The colored player name, then a bare (uncolored) possessive "'s".
+        self.assertIn("&push;&main-color=#d4cc33;OtherPlayer&pop;'s", text)
+        self.assertIn("Agon Wastes: Mining Plaza - Pickup (Energy Tank)", text)
+
+    def test_disabled_mode_always_overwrites_even_with_a_real_location(self) -> None:
+        self.world.options.sky_temple_key_hints.value = SkyTempleKeyHints.option_disabled
+        location = Location(self.player, "Somewhere Vanilla Would Never Mention", 5033201)
+        text = patch_data._sky_temple_key_hint_text(self.world, 3, location)
+        self.assertTrue(text.endswith("is lost somewhere in Aether."), text)
+        self.assertNotIn("Somewhere Vanilla", text)
+
+    def test_none_and_not_precollected_says_lost_in_multiverse(self) -> None:
+        text = patch_data._sky_temple_key_hint_text(self.world, 4, None)
+        self.assertTrue(text.endswith("is lost somewhere in the multiverse."), text)
+
+    def test_sanitizes_unsafe_characters_in_player_and_location_names(self) -> None:
+        self.multiworld.player_name[2] = "Foo&Bar;Baz"
+        location = Location(2, "Region&Area;Node", 5033270)
+        text = patch_data._sky_temple_key_hint_text(self.world, 5, location)
+        self.assertIn("FooBarBaz&pop;'s", text)
+        self.assertIn("RegionAreaNode", text)
+        self.assertNotIn("Foo&Bar;Baz", text)
+        self.assertNotIn("Region&Area;Node", text)
+
+
+class TestSkyTempleKeyStringChanges(MP2TestBase):
+    """``_sky_temple_key_string_changes`` wired into
+    ``make_rando_configuration``'s ``string_changes`` (PLAN.md section
+    Q.4): shape/strg-id coverage, plus the default (no placement yet, none
+    precollected) wording."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_nine_string_changes_with_correct_strg_ids_and_shape(self) -> None:
+        changes = self.config["string_changes"]
+        self.assertEqual(9, len(changes))
+        self.assertEqual([scan.strg_id for scan in SKY_TEMPLE_KEY_HINT_SCANS], [c["strg_id"] for c in changes])
+        for change in changes:
+            self.assertEqual(3, len(change["strings"]))
+            self.assertEqual(change["strings"][0], change["strings"][2])
+            self.assertEqual("", change["strings"][1])
+
+    def test_default_options_no_placement_says_lost_in_multiverse(self) -> None:
+        # Default sky_temple_keys=9 puts every key in the general pool, but
+        # gen_steps stops before fill runs (test/bases.py's MP2TestBase), so
+        # none of them have a real placement yet, and none are precollected
+        # either.
+        for change in self.config["string_changes"]:
+            self.assertTrue(change["strings"][0].endswith("is lost somewhere in the multiverse."), change)
+
+
+class TestSkyTempleKeyStringChangesPrecollectedNumeric(MP2TestBase):
+    """sky_temple_keys=3: keys 4-9 are precollected -- their pillar text
+    must say so, even though (gen_steps stopping before fill) they also
+    have no real placement, same as keys 1-3."""
+
+    options = {"sky_temple_keys": 3}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_precollected_keys_say_already_in_possession(self) -> None:
+        texts = {change["strg_id"]: change["strings"][0] for change in self.config["string_changes"]}
+        for hint_scan in SKY_TEMPLE_KEY_HINT_SCANS[3:]:
+            text = texts[hint_scan.strg_id]
+            self.assertTrue(text.endswith("is already in your possession."), text)
+        for hint_scan in SKY_TEMPLE_KEY_HINT_SCANS[:3]:
+            text = texts[hint_scan.strg_id]
+            self.assertTrue(text.endswith("is lost somewhere in the multiverse."), text)
+
+
+class TestSkyTempleKeyStringChangesDisabled(MP2TestBase):
+    """sky_temple_keys="all_bosses" gives every key a real placement
+    (locked via place_locked_item during create_items, which -- unlike a
+    general-pool placement -- doesn't need the real fill algorithm to have
+    run); sky_temple_key_hints="disabled" must still overwrite all 9 with
+    the non-hint wording rather than describing that real placement."""
+
+    options = {"sky_temple_keys": "all_bosses", "sky_temple_key_hints": "disabled"}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_all_nine_overwritten_regardless_of_real_placement(self) -> None:
+        for change in self.config["string_changes"]:
+            self.assertTrue(change["strings"][0].endswith("is lost somewhere in Aether."), change)
+
+
+class TestHintScansSlotDataScanned(MP2TestBase):
+    """slot_data's ``hint_scans`` (PLAN.md section Q.4/Q.5): one entry per
+    actually-placed key under the default ("scanned") mode."""
+
+    options = {"sky_temple_keys": "all_bosses"}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.slot_data = self.world.fill_slot_data()
+
+    def test_one_entry_per_placed_key_with_right_player_and_address(self) -> None:
+        hint_scans = self.slot_data["hint_scans"]
+        locations = sky_temple_key_locations(self.world)
+        self.assertEqual(9, len(hint_scans))
+        for hint_scan, location in zip(SKY_TEMPLE_KEY_HINT_SCANS, locations, strict=True):
+            assert location is not None
+            self.assertEqual([location.player, location.address], hint_scans[str(hint_scan.scan_id)])
+
+
+class TestHintScansSlotDataDisabled(MP2TestBase):
+    options = {"sky_temple_keys": "all_bosses", "sky_temple_key_hints": "disabled"}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.slot_data = self.world.fill_slot_data()
+
+    def test_empty_hint_scans(self) -> None:
+        self.assertEqual({}, self.slot_data["hint_scans"])
+
+
+class TestHintScansSlotDataPrecollected(MP2TestBase):
+    """precollected mode: no client scan-detection table needed (every key
+    hint already went out via start_hints in post_fill), and every placed
+    key's item name lands in options.start_hints."""
+
+    options = {"sky_temple_keys": "all_bosses", "sky_temple_key_hints": "precollected"}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.world.post_fill()
+        self.slot_data = self.world.fill_slot_data()
+
+    def test_empty_hint_scans(self) -> None:
+        self.assertEqual({}, self.slot_data["hint_scans"])
+
+    def test_placed_keys_added_to_start_hints(self) -> None:
+        for key_name in STK_ITEM_NAMES:
+            self.assertIn(key_name, self.world.options.start_hints.value)

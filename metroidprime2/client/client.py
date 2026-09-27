@@ -16,10 +16,11 @@ from typing import TYPE_CHECKING, Any
 
 import Utils
 from CommonClient import get_base_parser, gui_enabled, logger, server_loop
-from NetUtils import ClientStatus
+from NetUtils import ClientStatus, HintStatus
 from settings import get_settings
 
 from .. import constants
+from ..hint_scans import decode_hint_scans, newly_completed_hints
 from ..pickup_encoding import decode
 from ..utils import get_apworld_version, get_output_path, setup_libs
 from .death_link import death_link_check
@@ -196,6 +197,8 @@ class MetroidPrime2Context(CommonContext):
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
     debug_enabled: bool = False
+    hint_scans: dict[int, tuple[int, int]] = {}  # noqa: RUF012 -- reassigned wholesale in on_package, never mutated in place
+    sent_hint_scans: set[int] = set()  # noqa: RUF012 -- same as hint_scans above
 
     def __init__(
         self,
@@ -244,6 +247,8 @@ class MetroidPrime2Context(CommonContext):
             self.slot_data = args["slot_data"]
             self.expected_uuid = self.slot_data.get("world_uuid")
             self.game_interface.expected_uuid = self.expected_uuid
+            self.hint_scans = decode_hint_scans(self.slot_data.get("hint_scans"))
+            self.sent_hint_scans = set()
 
             if "death_link" in self.slot_data:
                 self.death_link_enabled = bool(self.slot_data["death_link"])
@@ -384,6 +389,7 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
             ctx.notification_manager.handle_notifications()
 
         await _send_mlvl_datastorage(ctx)
+        await _handle_hint_scans(ctx)
 
         if ctx.death_link_enabled:
             await _handle_check_deathlink(ctx)
@@ -538,6 +544,39 @@ async def _send_mlvl_datastorage(ctx: MetroidPrime2Context) -> None:
             }
         ]
     )
+
+
+async def _handle_hint_scans(ctx: MetroidPrime2Context) -> None:
+    """Sky Temple Key hint scans (PLAN.md section Q): a pillar's SCAN is
+    tracked by the game's own save data regardless of anything this world
+    patches, so detecting a completed scan is a plain memory read -- unlike
+    granting items or consuming pickup counters, it never needs to arm or
+    wait on the remote-execution pending-op flag, so it doesn't need any of
+    that protocol's bookkeeping here.
+
+    Skips the Dolphin read entirely once every hint scan this slot knows
+    about (``ctx.hint_scans``, from slot_data -- empty unless
+    ``sky_temple_key_hints="scanned"``) has already been reported, so an
+    idle tick after everything's sent costs nothing.
+    """
+    if set(ctx.hint_scans) <= ctx.sent_hint_scans:
+        return
+
+    scan_progress = ctx.game_interface.read_scan_progress()
+    if scan_progress is None:
+        return
+
+    newly_completed, locations_by_player = newly_completed_hints(scan_progress, ctx.hint_scans, ctx.sent_hint_scans)
+    if not newly_completed:
+        return
+
+    await ctx.send_msgs([
+        {"cmd": "CreateHints", "locations": locations, "player": player, "status": HintStatus.HINT_PRIORITY}
+        for player, locations in locations_by_player.items()
+    ])
+    ctx.sent_hint_scans |= newly_completed
+    for scan_id in sorted(newly_completed):
+        logger.info(f"Hint scan complete (scan {scan_id:#x}); sent the hint to the server.")
 
 
 def get_options_from_apmp2(apmp2_file: str) -> dict[str, Any]:

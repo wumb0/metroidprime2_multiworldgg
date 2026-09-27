@@ -377,6 +377,55 @@ class EchoesInterface:
             inventory[item_id] = (amount, capacity)
         return inventory
 
+    def read_scan_progress(self) -> dict[int, int] | None:
+        """Single read of every SCAN's completion progress out of the
+        current save's scan-state vector (``CPlayerState::SPersistentState::
+        vec`` -- PLAN.md section Q.1/Q.5), as ``{scan_id: progress}``.
+        ``progress`` reaching ``hint_scans.SCAN_COMPLETE`` (255) is what a
+        completed scan looks like; this returns the raw progress value
+        either way and leaves that comparison to the caller (mirrors
+        ``pickup_encoding.decode`` reading the raw counter amount rather
+        than deciding completion itself).
+
+        Returns None if the CPlayerState pointer is currently null, the
+        vector header reads back nonsensical (element count 0 or above its
+        own capacity/``SCAN_STATES_MAX_COUNT``, or a data pointer outside
+        MEM1) -- either means the offsets landed on garbage, not a
+        legitimately-empty save, since even a fresh save already carries
+        the 4 placeholder entries (PLAN.md section Q.1) -- or Dolphin isn't
+        connected. Same conservative "nothing to report" contract as
+        ``read_inventory``.
+        """
+        player_state = self._player_state_pointer()
+        if player_state is None:
+            return None
+
+        try:
+            header = self.dolphin_client.read_address(player_state + versions.SCAN_STATES_OFFSET, 12)
+        except DolphinException:
+            return None
+        if header is None:
+            return None
+        count, capacity, data_ptr = struct.unpack(">III", header)
+
+        if not (0 < count <= min(capacity, versions.SCAN_STATES_MAX_COUNT)):
+            return None
+        if not (0x80000000 <= data_ptr < 0x81800000):
+            return None
+
+        try:
+            data = self.dolphin_client.read_address(data_ptr, count * versions.SCAN_STATE_SIZE)
+        except DolphinException:
+            return None
+        if data is None:
+            return None
+
+        scan_progress: dict[int, int] = {}
+        for index in range(count):
+            scan_id, progress, _flag = struct.unpack_from(">IBBxx", data, index * versions.SCAN_STATE_SIZE)
+            scan_progress[scan_id] = progress
+        return scan_progress
+
     def _player_state_pointer(self) -> int | None:
         if self.version is None:
             return None

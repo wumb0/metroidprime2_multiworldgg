@@ -167,13 +167,13 @@ TEST = ManualTest(
             split_beam_ammo=True,
             unlock_launcher=False,
             unlock_power_bombs=False,
-            config_sha256="491bdb345701d22f36a93959832ab3563f816d2bd3fbe198a55b9bf168311c9e",
+            config_sha256="cbc31d5f2b9203d746d24a4f7081086942f3eb16b5b43705737133a0d23efe6c",
         ),
         "b": _variant(
             split_beam_ammo=False,
             unlock_launcher=True,
             unlock_power_bombs=True,
-            config_sha256="8793936801c97613ad1bc65c0a2a461b0f4202deb9681f92b82bb0acc868bce7",
+            config_sha256="85a3eba06dde9a58fe006f2c201974ee6e9be9ed1d2e081adb4b021024d38f79",
         ),
     },
     pass_criteria=[

@@ -18,7 +18,8 @@ from worlds.LauncherComponents import Component, SuffixIdentifier, Type, compone
 
 from . import constants
 from .container import MetroidPrime2Container
-from .item_pool import create_item_pool
+from .hint_scans import SKY_TEMPLE_KEY_HINT_SCANS, encode_hint_scans, sky_temple_key_locations
+from .item_pool import STK_ITEM_NAMES, create_item_pool
 from .items import ITEM_GROUPS, ITEM_TABLE, MetroidPrime2Item, item_name_to_id
 from .locations import LOCATION_GROUPS, location_name_to_id
 from .logic import regions as logic_regions
@@ -29,6 +30,7 @@ from .options import (
     OPTION_GROUPS,
     MapVisibility,
     MetroidPrime2Options,
+    SkyTempleKeyHints,
     trick_levels_from_options,
 )
 from .patch_data import make_rando_configuration
@@ -210,6 +212,22 @@ class MetroidPrime2World(World):
         # region graph itself.
         pass
 
+    def post_fill(self) -> None:
+        # PLAN.md section Q.4: sky_temple_key_hints="precollected" means
+        # every key hint is already known at the start of the game, which
+        # AP models as start_hints -- Main.py's output-generation phase
+        # reads options.start_hints after post_fill/fill has run (the
+        # precollect_hint loop keyed on `location.item.name in
+        # multiworld.worlds[location.item.player].options.start_hints`,
+        # right after every world's fill_slot_data() has already been
+        # called), so appending here is early enough for a real generation
+        # run to pick it up.
+        if self.options.sky_temple_key_hints.value != SkyTempleKeyHints.option_precollected:
+            return
+        for item_name, location in zip(STK_ITEM_NAMES, sky_temple_key_locations(self), strict=True):
+            if location is not None:
+                self.options.start_hints.value.add(item_name)
+
     def generate_output(self, output_directory: str) -> None:
         # Prime 1 pattern (worlds/metroidprime/__init__.py generate_output):
         # build the patcher-format config dict, write it plus a small
@@ -260,6 +278,22 @@ class MetroidPrime2World(World):
         slot_data["sky_temple_key_locations"] = list(self.sky_temple_key_locations)
         slot_data["starting_region"] = self.origin_region_name
         slot_data["apworld_version"] = get_apworld_version()
+
+        # PLAN.md section Q.4/Q.5: {scan_id: (location_player, location_id)}
+        # for the client's _handle_hint_scans, only when there's actually
+        # something to scan for (sky_temple_key_hints="scanned" -- disabled
+        # replaces the pillar text with a non-hint, and precollected already
+        # sent every hint via start_hints above, so neither needs a client
+        # scan-detection path).
+        hint_scans: dict[int, tuple[int, int]] = {}
+        if self.options.sky_temple_key_hints.value == SkyTempleKeyHints.option_scanned:
+            for hint_scan, location in zip(
+                SKY_TEMPLE_KEY_HINT_SCANS, sky_temple_key_locations(self), strict=True
+            ):
+                if location is not None:
+                    hint_scans[hint_scan.scan_id] = (location.player, location.address)
+        slot_data["hint_scans"] = encode_hint_scans(hint_scans)
+
         return slot_data
 
     @staticmethod

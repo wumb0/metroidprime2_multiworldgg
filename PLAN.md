@@ -1135,3 +1135,214 @@ state with no dependence on an injected script layer activating.
 `test_goal_detection.py` covers the new detector alongside the pickup
 counters, `test_game_interface.py` covers the new offset read, and manual
 MT03 pokes the area field directly.
+
+## Q. Sky Temple Key hint scans (foundation for lore hints)
+
+Goal: the 9 Luminoth pillars in Sky Temple Gateway (Sky Temple Grounds)
+each name where one Sky Temple Key really is -- in whichever player's
+world it landed -- and scanning a pillar sends a real AP hint to the
+server. Parallels `worlds/metroidprime`'s `artifact_hints`
+(`Config.make_artifact_hints` for text, `MetroidPrimeInterface.get_scans`
++ `MetroidPrimeClient.handle_artifact_hints` for detection). **No DOL
+patch**: text goes in through OPR's existing `string_changes`, detection
+is a pure memory read of state the game already keeps.
+
+### Q.1 Facts (verified 2026-09-26, do not re-derive)
+
+* **Scan state lives in `CPlayerState`.** PrimeDecomp/echoes
+  `CPlayerState::SPersistentState::vec` is an `rstl::vector<SScanState>`,
+  `SScanState = {u32 scan_asset_id; u8 progress; u8 flag; pad[2]}` (8
+  bytes), sorted ascending by id (binary-searched by `GetScanTime`/
+  `SetScanTime`). `progress == 255` means scan complete (`SetScanTime`
+  stores `255*t`; loading a save restores complete scans as 255). The
+  first 4 entries are placeholder ids 0..3; the rest is
+  `gpMemoryCard->GetScanStates()`, i.e. every SCAN listed in any SAVW.
+* **Offsets, identical NTSC and PAL** (disassembled from both retail
+  DOLs): `ScanStates__12CPlayerStateFv` is `addi r3,r3,0x59C; blr`
+  (NTSC 0x800851DC, PAL 0x80085318); `GetScanTime` reads the element
+  count from `CPlayerState+0x5A0` and the data pointer from
+  `CPlayerState+0x5A8` (NTSC 0x80085068, PAL 0x800851A4), indexes with
+  `slwi 3` (stride 8) and loads progress as a u8 from element+4. So:
+  count @ +0x5A0, capacity @ +0x5A4, data @ +0x5A8.
+* **Pillar STRG -> SCAN ids** (STRG ids from randovania
+  `games/prime2/exporter/hints.py::_SKY_TEMPLE_KEY_SCAN_ASSETS`, which
+  are actually STRG ids; SCAN ids read from the retail NTSC and PAL
+  ISOs -- identical on both, each SCAN's `ScannableObjectInfo.string`
+  names exactly one of these STRGs, and every one is in the Sky Temple
+  Grounds SAVW so the game tracks it):
+
+      Key 1  STRG 0xD97685FE  SCAN 0x856AD9A4
+      Key 2  STRG 0x32413EFD  SCAN 0x6E5D62A7
+      Key 3  STRG 0xDD8355C3  SCAN 0x819F0999
+      Key 4  STRG 0x3F5F4EBA  SCAN 0x634312E0
+      Key 5  STRG 0xD09D2584  SCAN 0x8C8179DE
+      Key 6  STRG 0x3BAA9E87  SCAN 0x67B6C2DD
+      Key 7  STRG 0xD468F5B9  SCAN 0x8874A9E3
+      Key 8  STRG 0x2563AE34  SCAN 0x797FF26E
+      Key 9  STRG 0xCAA1C50A  SCAN 0x96BD9950
+
+  Key N is `items.py`'s "Sky Temple Key N" (randovania's
+  `echoes_items.SKY_TEMPLE_KEY_ITEMS` order, same as OPR's logbook
+  renames).
+* **Lore/keybearer scans (for the follow-up, recorded now so nobody
+  needs the ISO again).** Every `hint` node in the vendored logic DB
+  with `extra.string_asset_id` maps 1:1 to a SAVW-tracked SCAN, same ids
+  NTSC/PAL (STRG -> SCAN):
+
+      0x24E69725->0xC108FC20  0xA272E58B->0x479C8E8E  0x5324575E->0xB6CA3C5B
+      0x692E362E->0x8CC05D2B  0x150E8DB8->0xF0E0E6BD  0xEFBA4480->0x0A542F85
+      0xDE525E1D->0x3BBC3518  0xC3576EA5->0x26B905A0  0xF2BF7438->0x17511F3D
+      0x62CC4DC3->0x872226C6  0x0405EE3F->0xE1EB853A  0xBF77D533->0x5A99BE36
+      0xA9909E66->0x4C7EF563  0x742B0696->0x91C56D93  0xF5535CEA->0x10BD37EF
+      0x3E0F8F4F->0xDBE1E44A  0xE3B417BF->0x065A7CBA  0x987884FB->0x7D96EFFE
+      0x65206511->0x80CE0E14  0x8E9FCFAE->0x6B71A4AB  0x39E3A79D->0xDC0DCC98
+      0x28E8C41A->0xCD06AF1F  0xCF593D9A->0x2AB7569F  0x58C62CB3->0xBD2847B6
+      0x45C31C0B->0xA02D770E  0x54C87F8C->0xB1261489  0xD25C0D22->0x37B26627
+      0x49CD4F34->0xAC232431  0x9F94AC29->0x7A7AC72C  0x82919C91->0x677FF794
+      0x939AFF16->0x76749413
+
+* **STRG layout.** A pillar STRG has 3 strings (scan popup, then the
+  logbook body twice). randovania writes `[hint, "", hint]`
+  (`create_simple_logbook_hint`); copy that exactly. Markup:
+  `&push;&main-color=#RRGGBB[AA];text&pop;`. randovania's Echoes colors:
+  item `#FF6705B3`, world/player `#d4cc33`, location `#FF3333`.
+* **Server `CreateHints`** (`MultiServer.py` ~2238): `player` = the
+  location's owner, `locations` = that player's location ids.
+  `HINT_PRIORITY` is allowed only when the hinted *item* belongs to the
+  sender (true for our own STKs, in any world). Hinting someone else's
+  item is only allowed in our own world and must use
+  `HINT_UNSPECIFIED` -- matters for lore hints later, not for STKs.
+  `notify_hints(only_new=True)` dedups, so re-sending after a reconnect
+  is harmless.
+
+### Q.2 Option
+
+`options.py`: `SkyTempleKeyHints(Choice)`, display name "Sky Temple Key
+Hints", `option_disabled = 0`, `option_scanned = 1`,
+`option_precollected = 2`, `default = option_scanned`,
+`alias_false = option_disabled`, `alias_true = option_scanned`.
+Docstring: scanning a pillar in Sky Temple Gateway shows where that key
+is and (scanned) sends the hint to the server; precollected gives all
+key hints at start; disabled replaces the pillars' text with a
+non-hint. Field `sky_temple_key_hints` in `MetroidPrime2Options` right
+after `sky_temple_keys`; add to the "Goal" `OptionGroup`. It flows into
+slot_data automatically via `_slot_data_option_names()`.
+
+### Q.3 Shared module `metroidprime2/hint_scans.py`
+
+Pure data + pure functions, no top-level AP imports beyond `TYPE_CHECKING`
+(unit-testable without a multiworld, like `pickup_encoding.py`).
+
+* `@dataclass(frozen=True) class HintScan: strg_id: int; scan_id: int`
+* `SKY_TEMPLE_KEY_HINT_SCANS: tuple[HintScan, ...]` -- the 9 rows
+  above, index `n-1` is key `n`.
+* `LORE_HINT_SCAN_IDS: dict[int, int]` -- the STRG->SCAN table above
+  (unused by runtime code for now; guarded by a test).
+* `SCAN_COMPLETE = 255`
+* `sky_temple_key_locations(world) -> list[Location | None]` -- length
+  9; entry `n-1` is the filled location holding this player's "Sky
+  Temple Key n" (search `world.multiworld.get_filled_locations()` once
+  for `item.player == world.player and item.name in STK_ITEM_NAMES`;
+  ignore locations with `address is None`), or `None` if it is
+  precollected / not placed anywhere (item links). This is the single
+  source of truth for both the pillar text and slot_data, so they can
+  never disagree.
+* `encode_hint_scans(entries: dict[int, tuple[int, int]]) -> dict[str, list[int]]`
+  and `decode_hint_scans(raw) -> dict[int, tuple[int, int]]`:
+  `{scan_id: (location_player, location_id)}` <-> JSON-safe
+  `{str(scan_id): [location_player, location_id]}`. `decode` must
+  tolerate `None`/missing (older slot_data) -> `{}`.
+* `newly_completed_hints(scan_progress: dict[int, int], hint_scans: dict[int, tuple[int, int]], already_sent: set[int]) -> tuple[set[int], dict[int, list[int]]]`
+  -> (scan ids newly completed, `{location_player: sorted location
+  ids}`). Only `progress >= SCAN_COMPLETE`, only ids in `hint_scans`,
+  skip `already_sent`. Pure; the caller updates `already_sent`.
+
+The generic `hint_scans` shape (scan id -> location to hint) is the
+lore-hint foundation: a future lore feature only adds entries (and,
+because of the CreateHints rules above, probably a third per-entry
+field for status); the client path does not change.
+
+### Q.4 Generation side
+
+* `patch_data.py`: new `_sky_temple_key_string_changes(world) -> list[dict]`,
+  wired into `make_rando_configuration`'s `"string_changes"` (currently
+  `[]`). One `{"strg_id": scan.strg_id, "strings": [text, "", text]}`
+  per key. Text, with `key = colorize("#FF6705B3", "Sky Temple Key n")`:
+  - option disabled: `f"{key} is lost somewhere in Aether."` (randovania's
+    `hide_stk_hints` wording) -- always overwrite: the vanilla riddles
+    describe vanilla key spots and would mislead.
+  - location found: `f"{key} is in {owner}'s {loc}."` where `owner` is
+    `"your"` (no "'s") when `location.player == world.player`, else the
+    sanitized `multiworld.player_name[location.player]` in `#d4cc33`
+    plus `'s`; `loc` is the sanitized `location.name` in `#FF3333`. Use
+    `_sanitize` (strips `&`, `;`, newlines -- they'd break STRG markup;
+    no length cap).
+  - `None` and the key is in `multiworld.precollected_items[player]`:
+    `f"{key} is already in your possession."`
+  - otherwise: `f"{key} is lost somewhere in the multiverse."`
+  Put the colorize helper next to `_sanitize`.
+* `__init__.py`:
+  - `post_fill`: if option is `precollected`, add every `STK_ITEM_NAMES`
+    entry whose location is not `None` to `self.options.start_hints.value`
+    (Main.py reads start_hints after post_fill -- same as Prime 1).
+  - `fill_slot_data`: `slot_data["hint_scans"] = encode_hint_scans(...)`
+    containing, only when option is `scanned`, `{SKY_TEMPLE_KEY_HINT_SCANS[n].scan_id: (loc.player, loc.address)}`
+    for each non-`None` location; `{}` otherwise.
+
+### Q.5 Client side
+
+* `client/versions.py`: `SCAN_STATES_OFFSET = 0x5A0` (count; capacity at
+  +4, data pointer at +8), `SCAN_STATE_SIZE = 8`,
+  `SCAN_STATES_MAX_COUNT = 2048` (sanity cap; retail has ~820), with a
+  comment citing the Q.1 disassembly.
+* `client/game_interface.py`: `EchoesInterface.read_scan_progress() -> dict[int, int] | None`.
+  `_player_state_pointer()`; one 12-byte read at
+  `+SCAN_STATES_OFFSET` -> `count, capacity, data_ptr`; return `None`
+  unless `0 < count <= min(capacity, SCAN_STATES_MAX_COUNT)` and
+  `0x80000000 <= data_ptr < 0x81800000`; one `count*8` read; unpack
+  `">IBBxx"` into `{scan_id: progress}`. `DolphinException`/`None` read
+  -> `None`, same as `read_inventory`.
+* `client/client.py`:
+  - Context fields `hint_scans: dict[int, tuple[int, int]]` and
+    `sent_hint_scans: set[int]`; in `on_package("Connected")` set
+    `hint_scans = decode_hint_scans(slot_data.get("hint_scans"))` and
+    reset `sent_hint_scans = set()`.
+  - `async def _handle_hint_scans(ctx)`: return early (no Dolphin read)
+    if `set(ctx.hint_scans) <= ctx.sent_hint_scans`; read progress (None
+    -> return); `newly_completed_hints(...)`; for each player send
+    `{"cmd": "CreateHints", "locations": ids, "player": player, "status": HintStatus.HINT_PRIORITY}`
+    in a single `send_msgs`; then add the ids to `sent_hint_scans`;
+    `logger.info` once per newly scanned hint.
+  - Call it in `_handle_game_ready` right after `_send_mlvl_datastorage`
+    (it's a pure read, independent of the pending-op protocol).
+
+### Q.6 Tests
+
+* `test/test_hint_scans.py`: 9 distinct strg/scan ids in key order;
+  `LORE_HINT_SCAN_IDS` covers every vendored DB `hint` node's
+  `extra.string_asset_id` (so a DB resync that adds one fails loudly)
+  and is disjoint from the STK table; encode/decode round trip and
+  `decode(None) == {}`; `newly_completed_hints` ignores progress < 255,
+  unknown ids, already-sent ids, and groups by player.
+* `test_patch_data.py` (reuse its existing generation bases): 9 STK
+  string changes with the right strg ids and `[t, "", t]` shape; own
+  world says "your"; disabled wording; numeric `sky_temple_keys` mode
+  -> "already in your possession" for precollected keys; a player/
+  location name containing `&`/`;` is sanitized.
+* slot_data: `hint_scans` has one entry per placed key with the right
+  (player, address) under `scanned`, `{}` under `disabled` and
+  `precollected`; `precollected` puts the placed keys into start_hints.
+* `test_game_interface.py`: `read_scan_progress` against its existing
+  fake Dolphin client: happy path, null player state, count 0, count >
+  cap, bad data pointer, `DolphinException`.
+* Client (style of `test_client_grant_message.py`): CreateHints sent
+  once per newly completed scan, grouped by player, not re-sent on the
+  next tick, and no Dolphin read once everything's sent.
+
+### Q.7 Docs / validation
+
+Add the option and a short "Sky Temple Key hints" paragraph to
+`docs/en_Metroid Prime 2 Echoes.md`. Manual validation still needed in
+Dolphin: patch a seed, visit Sky Temple Gateway, confirm pillar text and
+that the server receives the hint after the scan completes (and not
+from a partial scan).
