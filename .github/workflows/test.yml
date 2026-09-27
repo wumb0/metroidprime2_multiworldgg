@@ -1,0 +1,66 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "metroidprime2/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+    paths:
+      - "metroidprime2/**"
+      - ".github/workflows/test.yml"
+  workflow_dispatch: {}
+
+env:
+  # Keep in sync with build-apworld.yml's pin (see PLAN.md) -- both workflows
+  # develop/test this world against the same MultiWorldGG commit.
+  MULTIWORLDGG_REF: b0f2e2dd82bab72e3632c2bc61c00e740fb3ed0b
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout metroidprime2 world
+        uses: actions/checkout@v4
+        with:
+          path: prime2mwgg
+
+      - name: Checkout MultiWorldGG
+        uses: actions/checkout@v4
+        with:
+          repository: MultiWorldGG/MultiWorldGG
+          ref: ${{ env.MULTIWORLDGG_REF }}
+          path: MultiWorldGG
+
+      - name: Link world into MultiWorldGG's worlds/ folder
+        run: ln -s "$GITHUB_WORKSPACE/prime2mwgg/metroidprime2" "$GITHUB_WORKSPACE/MultiWorldGG/worlds/metroidprime2"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install MultiWorldGG's dependencies
+        working-directory: MultiWorldGG
+        run: |
+          # Kivy/KivyMD are the desktop GUI stack -- not imported anywhere
+          # on the test path, and slow/flaky to install (KivyMD pulls from a
+          # git dependency), so skip them in CI (matches build-apworld.yml).
+          uv venv --python 3.12 .venv
+          grep -vi '^kivy' requirements.txt > /tmp/requirements-nogui.txt
+          uv pip install --python .venv -r /tmp/requirements-nogui.txt
+
+      - name: Install metroidprime2's own dependencies
+        working-directory: MultiWorldGG
+        run: |
+          # open-prime-rando/dolphin-memory-engine/ppc-asm -- needed for the
+          # patcher_runner/patch_data tests that validate against the real
+          # open-prime-rando schema (skipped automatically if unavailable,
+          # but installing keeps CI covering the same ground as local dev).
+          uv pip install --python .venv -r worlds/metroidprime2/requirements.txt
+          uv pip install --python .venv pytest
+
+      - name: Run test suite
+        working-directory: MultiWorldGG
+        env:
+          SKIP_REQUIREMENTS_UPDATE: "1"
+        run: .venv/bin/python -m pytest worlds/metroidprime2/test/ -v

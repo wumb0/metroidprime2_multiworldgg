@@ -70,7 +70,7 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `sky_temple_keys` | Choice: `0`-`9`, `all_bosses`, `all_guardians` | `9` | How many of the 9 Sky Temple Keys are shuffled into the general pool vs. pre-placed/pre-collected. `all_bosses` places one key on each of the 9 boss/guardian locations; `all_guardians` places keys on the 3 dark temple guardians and pre-collects the rest. |
+| `sky_temple_keys` | Choice: `0`-`9`, `all_bosses`, `all_guardians`, `all_guardians_plus_6` | `9` | How many of the 9 Sky Temple Keys are shuffled into the general pool vs. pre-placed/pre-collected. `all_bosses` places one key on each of the 9 boss/guardian locations; `all_guardians` places keys 1-3 on the 3 dark temple guardians and pre-collects keys 4-9; `all_guardians_plus_6` places keys 1-3 the same way but shuffles keys 4-9 into the pool instead. |
 | `progressive_suit` | Toggle (on by default) | on | Combine Dark Suit and Light Suit into two copies of a single Progressive Suit item. |
 | `progressive_grapple` | Toggle | off | Combine Grapple Beam and Screw Attack into two copies of a single Progressive Grapple item. |
 | `missile_expansions_unlock_launcher` | Toggle | off | Receiving any Missile Expansion also unlocks the Missile Launcher itself, so expansions are usable before the launcher is found. Off matches Randovania (expansions grant nothing without the launcher); this also affects logic, not just the in-game grant. |
@@ -139,6 +139,8 @@ override just that one. Every trick option shares the same scale: `use_global` (
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `warp_to_start` | Toggle (on by default) | on | Declining to save at a Save Station while holding L+R warps you back to the starting room (Samus' ship in Landing Site, or wherever `starting_room` chose). Declining without L+R held behaves exactly as in vanilla. |
+| `spring_ball` | Toggle | off | Once you have Morph Ball Bombs, pressing `spring_ball_button` in Morph Ball jumps as high as a bomb jump without laying a bomb. Only works on the ground, with a short cooldown between jumps. Mirrors the Prime 1 randomizer's "when bombs acquired" spring ball. Logic never requires it. |
+| `spring_ball_button` | Choice: `c_stick_up`/`c_stick_down`/`c_stick_left`/`c_stick_right`/`d_pad_up`/`l_trigger` | `c_stick_up` | The button that triggers `spring_ball`. None of these do anything in vanilla Morph Ball. `l_trigger` means a full press, past the click. |
 
 Cutscenes are always skippable (press Start) -- this isn't a configurable option because open-prime-rando's `patch_iso` applies it unconditionally to every seed, the same way it always randomizes a couple of small cosmetic puzzle colors (Main Gyro Chamber, the Sanctuary/Temple Grounds "echo lock" panels) from your seed.
 

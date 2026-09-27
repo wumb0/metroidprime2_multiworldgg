@@ -341,6 +341,28 @@ class TestMakeRandoConfigurationWithEntranceRando(MP2TestBase):
     def test_elevators_match_assignment_count(self) -> None:
         self.assertEqual(len(self.world.dock_rando.elevator), len(self._all_elevators()))
 
+    def test_elevator_rooms_renamed_to_their_actual_destination(self) -> None:
+        """Every area with a shuffled elevator gets ``new_name`` set to
+        ``"Transport to <destination region>"``, matching the actual
+        (possibly non-vanilla) target -- not left at the stale vanilla
+        room name, which would otherwise lie about where the elevator
+        leads (e.g. Temple Grounds' "Transport to Agon Wastes" room
+        actually going to Sanctuary Fortress)."""
+        db = load_game_database()
+        renamed_areas: dict[tuple[int, int], str] = {}
+        for world_change in self.config["world_changes"]:
+            mlvl_id = world_change["mlvl_id"]
+            for area_change in world_change["area_changes"]:
+                new_name = area_change.get("new_name")
+                if new_name is not None:
+                    renamed_areas[(mlvl_id, area_change["mrea_id"])] = new_name
+
+        self.assertEqual(len(self.world.dock_rando.elevator), len(renamed_areas))
+        for node_id, target_id in self.world.dock_rando.elevator.items():
+            node = db.node(node_id)
+            mlvl_id, mrea_id = patch_data._area_asset_ids(db, node)
+            self.assertEqual(f"Transport to {target_id.region}", renamed_areas[(mlvl_id, mrea_id)])
+
     @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
     def test_validates_against_installed_rando_configuration(self) -> None:
         from open_prime_rando.echoes.rando_configuration import RandoConfiguration

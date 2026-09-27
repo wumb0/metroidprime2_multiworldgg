@@ -1,9 +1,10 @@
 """MT13 -- re-run the per-build-DOL-address tests on a PAL ISO.
 
 Not a separate build of its own: this section tells the tester to re-run
-MT01, MT03, MT04, and MT07 with ``--pal``. Those are the tests whose
+MT01, MT03, MT04, MT07, and MT14 with ``--pal``. Those are the tests whose
 subjects are per-build DOL addresses (warp hook,
-``powerup_should_persist``/``powerup_max``, the current-area goal offset).
+``powerup_should_persist``/``powerup_max``, the current-area goal offset,
+the spring ball hook and the functions it calls).
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ TEST = ManualTest(
     slug="mt13_pal_parity",
     title="PAL parity: the per-build DOL address tests on a PAL ISO",
     priority="P1",
-    proves="MT01/MT03/MT04/MT07 pass identically on a PAL ISO (different DOL addresses)",
+    proves="MT01/MT03/MT04/MT07/MT14 pass identically on a PAL ISO (different DOL addresses)",
     seed=1_000_013,
     config_sha256="e9102a153c00c17a2e515ddb8935507914ef34b26f30899565484f061a980419",
     build_flags="--pal",
@@ -27,7 +28,8 @@ TEST = ManualTest(
         ),
         (
             "Any difference from the NTSC run means `client/versions.py` (or "
-            "`tools/find_warp_addresses.py`) needs a PAL-specific fix."
+            "`tools/find_warp_addresses.py` / `tools/find_spring_ball_addresses.py`) needs a "
+            "PAL-specific fix."
         ),
     ],
     steps=[
@@ -41,6 +43,7 @@ TEST = ManualTest(
             "It passes exactly as on NTSC.",
         ),
         Step("Run MT07 (`mt07_counter_persistence`) with `--pal`.", "It passes exactly as on NTSC."),
+        Step("Run MT14 (`mt14_spring_ball`) with `--pal`.", "It passes exactly as on NTSC."),
     ],
     pass_criteria=[
         "Every re-run test passes on PAL.",
@@ -50,6 +53,8 @@ TEST = ManualTest(
         "`client/versions.py` (`PAL` address table)",
         "`tools/find_warp_addresses.py` (re-derive the warp hook for PAL)",
         "`client/warp_patch.py`",
+        "`tools/find_spring_ball_addresses.py` (re-derive the spring ball addresses for PAL)",
+        "`client/spring_ball_patch.py`",
     ],
 )
 

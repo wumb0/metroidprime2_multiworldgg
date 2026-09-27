@@ -89,6 +89,40 @@ def detect_iso_version(iso_path: str | os.PathLike[str]) -> str:
     raise ValueError(f"Not a supported Metroid Prime 2: Echoes ISO (game id {game_id!r}).")
 
 
+def _client_version_info(dol_version: Any, feature: str, option: str) -> Any:
+    """The ``client/versions.py`` table for ``dol_version``, or a ValueError
+    naming the feature that needs it."""
+    from open_prime_rando.echoes.version import EchoesVersion
+
+    from . import versions as version_tables
+
+    address_tables = {
+        EchoesVersion.NTSC_U: version_tables.NTSC,
+        EchoesVersion.PAL: version_tables.PAL,
+    }
+    version_info = address_tables.get(dol_version.echoes_version)
+    if version_info is None:
+        raise ValueError(
+            f"{feature} is not supported on {dol_version.description} "
+            f"({dol_version.echoes_version.name}); patch an NTSC-U or PAL ISO, "
+            f"or disable the {option} option."
+        )
+    return version_info
+
+
+def install_spring_ball(editor: Any, dol_version: Any, button: str) -> None:
+    """Requests the spring ball code caves (``client/spring_ball_patch.py``).
+
+    DOL-only, so unlike warp-to-start this needs no hook into
+    ``_apply_patches``: the requests just have to be queued before its
+    ``editor.code_cave.fulfill_requests()``.
+    """
+    from . import spring_ball_patch
+
+    version_info = _client_version_info(dol_version, "Spring Ball", "Spring Ball")
+    spring_ball_patch.apply_dol_patches(editor.code_cave, version_info.spring_ball, button)
+
+
 @contextlib.contextmanager
 def warp_to_start_installed(dol_version: Any, starting_area: Any):
     """Context manager installing both halves of warp-to-start (see
@@ -102,22 +136,10 @@ def warp_to_start_installed(dol_version: Any, starting_area: Any):
     ``editor.code_cave.fulfill_requests()``.
     """
     from open_prime_rando.echoes import patcher as opr_patcher
-    from open_prime_rando.echoes.version import EchoesVersion
 
-    from . import versions as version_tables
     from . import warp_patch
 
-    address_tables = {
-        EchoesVersion.NTSC_U: version_tables.NTSC,
-        EchoesVersion.PAL: version_tables.PAL,
-    }
-    version_info = address_tables.get(dol_version.echoes_version)
-    if version_info is None:
-        raise ValueError(
-            f"Warp to Start is not supported on {dol_version.description} "
-            f"({dol_version.echoes_version.name}); patch an NTSC-U or PAL ISO, "
-            f"or disable the Warp to Start option."
-        )
+    version_info = _client_version_info(dol_version, "Warp to Start", "Warp to Start")
 
     original_register_world_changes = opr_patcher.register_world_changes
 
@@ -307,12 +329,14 @@ def patch_iso_with_ap(
     configuration = _load_configuration(apmp2_file, settings)
     # Patch-time settings that the OPR RandoConfiguration has no field for
     # (config.json is validated with extra="forbid"), so they travel in the
-    # .apmp2's options.json instead. Both .get defaults keep .apmp2 files
+    # .apmp2's options.json instead. The .get defaults keep .apmp2 files
     # produced before the respective option existed working.
     apmp2_options = _read_apmp2_json(apmp2_file, "options.json")
     _check_pickup_encoding_compatibility(apmp2_options)
     warp_to_start = bool(apmp2_options.get("warp_to_start", False))
     show_item_locations = bool(apmp2_options.get("show_item_locations", False))
+    spring_ball = bool(apmp2_options.get("spring_ball", False))
+    spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
 
     _report("Reading input ISO", 0.0)
     provider = IsoFileProvider(input_iso)  # type: ignore[arg-type]
@@ -339,6 +363,8 @@ def patch_iso_with_ap(
         )
 
     try:
+        if spring_ball:
+            install_spring_ball(editor, dol_version, spring_ball_button)
         with contextlib.ExitStack() as patches:
             if warp_to_start:
                 patches.enter_context(

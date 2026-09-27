@@ -109,6 +109,31 @@ class TestSkyTempleKeysAllGuardians(MP2TestBase):
         self.assertEqual(0, len([n for n in pool_names if n.startswith("Sky Temple Key")]))
 
 
+class TestSkyTempleKeysAllGuardiansPlus6(MP2TestBase):
+    """Keys 1-3 are locked onto the 3 dark temple guardians, same as
+    all_guardians; keys 4-9 are shuffled into the pool instead of
+    precollected, so all 119 - 3 = 116 remaining locations need a pool
+    item and none of the 6 pooled keys are precollected."""
+
+    options = {"sky_temple_keys": "all_guardians_plus_6"}
+
+    def test_three_keys_locked_six_in_pool(self) -> None:
+        self.assertEqual(3, len(self.world.sky_temple_key_locations))
+        for location_name in self.world.sky_temple_key_locations:
+            location = self.multiworld.get_location(location_name, self.player)
+            self.assertIsNotNone(location.item)
+            self.assertTrue(location.item.name.startswith("Sky Temple Key"))
+
+        precollected_names = _own_precollected_names(self)
+        self.assertEqual(0, len([n for n in precollected_names if n.startswith("Sky Temple Key")]))
+
+    def test_pool_size(self) -> None:
+        pool_names = _own_pool_names(self)
+        self.assertEqual(116, len(pool_names))
+        stk_in_pool = sorted(n for n in pool_names if n.startswith("Sky Temple Key"))
+        self.assertEqual([f"Sky Temple Key {n}" for n in range(4, 10)], stk_in_pool)
+
+
 class TestProgressiveOn(MP2TestBase):
     options = {"progressive_suit": True, "progressive_grapple": True}
 

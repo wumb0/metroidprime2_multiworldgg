@@ -63,6 +63,42 @@ class WarpToStartAddresses:
 
 
 @dataclass(frozen=True)
+class SpringBallAddresses:
+    """Addresses the spring ball cave needs (``client/spring_ball_patch.py``).
+
+    Names are PrimeDecomp/echoes symbols (``config/G2ME01/symbols.txt``);
+    PAL was located by matching each NTSC function's code with branch
+    targets and r2/r13 offsets masked out. Rerun
+    ``python -m metroidprime2.tools.find_spring_ball_addresses <iso>`` to
+    confirm them against a disc.
+    """
+
+    boost_ball_argument_setup: int
+    """The ``fmr f1, f31`` that starts the argument setup for
+    ``bl ComputeBoostBallMovement`` in ``CMorphBall::ComputeBallMovement``;
+    replaced with a ``bl`` to the cave."""
+
+    compute_boost_ball_movement: int
+    """``CMorphBall::ComputeBoostBallMovement``. Not called by the cave;
+    the hook guard checks the original ``bl`` to it is intact."""
+
+    has_power_up: int
+    """``CPlayerState::HasPowerUp``."""
+
+    is_movement_allowed: int
+    """``CMorphBall::IsMovementAllowed``."""
+
+    bomb_jump: int
+    """``CPlayer::BombJump``."""
+
+    set_velocity_wr: int
+    """``CPhysicsActor::SetVelocityWR``."""
+
+    set_move_state: int
+    """``CPlayer::SetMoveState``."""
+
+
+@dataclass(frozen=True)
 class EchoesVersionInfo:
     name: str
     game_id: bytes
@@ -76,6 +112,7 @@ class EchoesVersionInfo:
     powerup_should_persist: int
     powerup_max: int
     warp_to_start: WarpToStartAddresses
+    spring_ball: SpringBallAddresses
 
 
 # --------------------------------------------------------------------------
@@ -180,6 +217,15 @@ NTSC = EchoesVersionInfo(
         decline_broadcast_call=0x80105ABC,
         send_script_msgs=0x80047FF0,
     ),
+    spring_ball=SpringBallAddresses(
+        boost_ball_argument_setup=0x800CE8BC,
+        compute_boost_ball_movement=0x800C6B78,
+        has_power_up=0x80085480,
+        is_movement_allowed=0x800CE7D0,
+        bomb_jump=0x80186838,
+        set_velocity_wr=0x800EA404,
+        set_move_state=0x80187370,
+    ),
 )
 
 PAL = EchoesVersionInfo(
@@ -208,6 +254,15 @@ PAL = EchoesVersionInfo(
     warp_to_start=WarpToStartAddresses(
         decline_broadcast_call=0x80105C70,
         send_script_msgs=0x80048160,
+    ),
+    spring_ball=SpringBallAddresses(
+        boost_ball_argument_setup=0x800CE994,
+        compute_boost_ball_movement=0x800C6C50,
+        has_power_up=0x800855BC,
+        is_movement_allowed=0x800CE8A8,
+        bomb_jump=0x80186B1C,
+        set_velocity_wr=0x800EA4EC,
+        set_move_state=0x80187658,
     ),
 )
 

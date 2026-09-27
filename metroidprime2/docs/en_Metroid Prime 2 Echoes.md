@@ -89,6 +89,13 @@ A message appears and you are returned to the starting room (Samus' ship in Land
 normal "Game was not saved" message. This works from any of the 18 Save Stations regardless of which room
 `starting_room` actually picked, even if that room has no Save Station of its own.
 
+## Is there a spring ball?
+
+Yes, if the `spring_ball` option is enabled. Once you have Morph Ball Bombs, pressing the button chosen by
+`spring_ball_button` (C-Stick up by default) while rolling on the ground in Morph Ball jumps as high as a bomb jump,
+without laying a bomb. Holding the button keeps jumping each time you land, after a short cooldown. It doesn't work
+in mid-air, on Spider Ball tracks or during Screw Attack. Logic never requires it.
+
 ## What are the known limitations of this randomizer?
 
 - Damage logic is evaluated per damaging edge, independently, rather than as a cumulative trip like Randovania's

@@ -17,13 +17,16 @@ requires:
 
   # How many of the 9 Sky Temple Keys are shuffled into the general item
   # pool vs. pre-placed/pre-collected.
-  # Options: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, all_bosses, all_guardians
+  # Options: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, all_bosses, all_guardians,
+  #          all_guardians_plus_6
   #   0-9: puts keys 1..N into the pool and pre-collects the rest (0 means
   #        all 9 start collected; 9 is a normal fully-shuffled key).
   #   all_bosses: pre-places one key on each of the 9 boss/guardian
   #        pickup locations instead of shuffling them into the pool.
   #   all_guardians: pre-places keys 1-3 on the 3 dark temple guardians
   #        (Amorbis, Chykka, Quadraxis) and pre-collects keys 4-9.
+  #   all_guardians_plus_6: same placement as all_guardians, but keys 4-9
+  #        are shuffled into the general pool instead of pre-collected.
   sky_temple_keys: 9
 
   # Combine Dark Suit and Light Suit into two copies of a single
@@ -311,6 +314,18 @@ requires:
   # in vanilla.
   # Options: true, false
   warp_to_start: true
+
+  # Once you have Morph Ball Bombs, pressing spring_ball_button in Morph
+  # Ball jumps as high as a bomb jump, without laying a bomb. Only works
+  # on the ground. Logic never requires it.
+  # Options: true, false
+  spring_ball: false
+
+  # The button that triggers spring_ball. l_trigger means a full press,
+  # past the click.
+  # Options: c_stick_up, c_stick_down, c_stick_left, c_stick_right,
+  #          d_pad_up, l_trigger
+  spring_ball_button: c_stick_up
 
   # ------------------------------------------------------------------
   # Cosmetic

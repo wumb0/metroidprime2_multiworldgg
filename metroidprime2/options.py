@@ -74,6 +74,10 @@ class SkyTempleKeys(Choice):
 
     All Guardians pre-places keys 1-3 on the 3 dark temple guardians
     (Amorbis, Chykka, Quadraxis) and pre-collects keys 4-9.
+
+    All Guardians Plus 6 also pre-places keys 1-3 on the 3 dark temple
+    guardians, but shuffles keys 4-9 into the general pool instead of
+    pre-collecting them.
     """
 
     display_name = "Sky Temple Keys"
@@ -89,6 +93,7 @@ class SkyTempleKeys(Choice):
     option_9 = 9
     option_all_bosses = 10
     option_all_guardians = 11
+    option_all_guardians_plus_6 = 12
     default = 9
 
 
@@ -419,6 +424,35 @@ class WarpToStart(DefaultOnToggle):
     display_name = "Warp to Start"
 
 
+class SpringBall(Toggle):
+    """If enabled, once you have Morph Ball Bombs you can jump in Morph Ball
+    by pressing a button (see `spring_ball_button`), without laying a bomb.
+    The jump is the same height as a bomb jump, and only works on the
+    ground.
+
+    Mirrors the Metroid Prime 1 randomizer's spring ball "when bombs
+    acquired" setting. Logic never requires it: everything it can reach is
+    already reachable with Morph Ball Bombs."""
+
+    display_name = "Spring Ball"
+
+
+class SpringBallButton(Choice):
+    """The button that triggers `spring_ball` while in Morph Ball. None of
+    these do anything in vanilla Morph Ball. The C-Stick directions trigger
+    at the same deflection the game uses for its own digital stick inputs.
+    L Trigger means pressing it fully, past the click."""
+
+    display_name = "Spring Ball Button"
+    option_c_stick_up = 0
+    option_c_stick_down = 1
+    option_c_stick_left = 2
+    option_c_stick_right = 3
+    option_d_pad_up = 4
+    option_l_trigger = 5
+    default = option_c_stick_up
+
+
 class MissileExpansionsUnlockLauncher(Toggle):
     """If enabled, receiving any Missile Expansion also unlocks the Missile
     Launcher itself, so expansions are usable without finding the launcher.
@@ -612,6 +646,8 @@ class MetroidPrime2Options(PerGameCommonOptions):
     starting_room_light_world_only: StartingRoomLightWorldOnly
 
     warp_to_start: WarpToStart
+    spring_ball: SpringBall
+    spring_ball_button: SpringBallButton
 
     display_nonlocal_items: DisplayNonLocalItems
     map_visibility: MapVisibility
@@ -702,7 +738,7 @@ OPTION_GROUPS: list[OptionGroup] = [
         ],
         start_collapsed=True,
     ),
-    OptionGroup("Quality of Life", [WarpToStart]),
+    OptionGroup("Quality of Life", [WarpToStart, SpringBall, SpringBallButton]),
     OptionGroup(
         "Cosmetic",
         [DisplayNonLocalItems, MapVisibility, UnvisitedRoomNames],

@@ -88,6 +88,8 @@ def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
       precollected or enter the general pool.
     - all_guardians: keys 1-3 are locked onto the 3 dark temple guardian
       locations (pickup_index 43, 79, 115); keys 4-9 are precollected.
+    - all_guardians_plus_6: same placement as all_guardians, but keys 4-9
+      are shuffled into the general pool instead of precollected.
     """
     multiworld = world.multiworld
     world.sky_temple_key_locations = []
@@ -103,15 +105,18 @@ def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
             world.sky_temple_key_locations.append(location_name)
         return
 
-    if mode == SkyTempleKeys.option_all_guardians:
+    if mode in (SkyTempleKeys.option_all_guardians, SkyTempleKeys.option_all_guardians_plus_6):
         guardian_locations = _guardian_location_names()
         assert len(guardian_locations) == 3, f"expected 3 guardian locations, got {len(guardian_locations)}"
         for key_name, location_name in zip(STK_ITEM_NAMES[:3], guardian_locations, strict=False):
             location = world.get_location(location_name)
             location.place_locked_item(world.create_item(key_name))
             world.sky_temple_key_locations.append(location_name)
-        for key_name in STK_ITEM_NAMES[3:]:
-            multiworld.push_precollected(world.create_item(key_name))
+        if mode == SkyTempleKeys.option_all_guardians_plus_6:
+            pool.extend(world.create_item(key_name) for key_name in STK_ITEM_NAMES[3:])
+        else:
+            for key_name in STK_ITEM_NAMES[3:]:
+                multiworld.push_precollected(world.create_item(key_name))
         return
 
     # Numeric mode: 0..9 keys in the pool, the rest precollected.
