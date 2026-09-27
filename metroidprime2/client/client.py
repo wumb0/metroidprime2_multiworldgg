@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     pass
 
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
+MAX_RECEIVE_NOTIFICATIONS = 5
 
 _STATUS_MESSAGES: dict[ConnectionState, str] = {
     ConnectionState.DISCONNECTED: "Not connected to Dolphin, attempting to reconnect...",
@@ -191,6 +192,9 @@ class MetroidPrime2Context(CommonContext):
     slot_data: dict[str, Any] = {}  # noqa: RUF012 -- matches CommonContext.slot_data's own unannotated convention
     expected_uuid: str | None = None
     last_sent_mlvl: int | None = None
+    # items_received index up to which receipts have been announced on the
+    # HUD (None = not yet synced this connection); see _handle_grant_items.
+    last_announced_index: int | None = None
     last_error_message: str | None = None
     apmp2_file: str | None = None
     mp2_iso: str | None = None
@@ -249,6 +253,7 @@ class MetroidPrime2Context(CommonContext):
             self.game_interface.expected_uuid = self.expected_uuid
             self.hint_scans = decode_hint_scans(self.slot_data.get("hint_scans"))
             self.sent_hint_scans = set()
+            self.last_announced_index = None
 
             if "death_link" in self.slot_data:
                 self.death_link_enabled = bool(self.slot_data["death_link"])
@@ -501,31 +506,52 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
         received, first_non_starting, unlock_launcher, unlock_power_bombs
     )
     deltas = plan_grants(desired, inventory)
+    if ctx.last_announced_index is None and not deltas:
+        # First sync this connection and the save already reflects
+        # everything received -- nothing to announce up to here.
+        ctx.last_announced_index = len(received)
+    _announce_received_items(ctx, received, first_non_starting)
     if not deltas:
         return
 
-    last_item_name, last_sender = received[-1]
-    if len(received) <= first_non_starting:
-        # Everything outstanding is still start-inventory catch-up (grant()'s
-        # per-tick remote-execution body budget can take several ticks to
-        # apply a large start_inventory block) -- there's no real "receive"
-        # to announce yet, so re-showing this message every tick would spam
-        # the HUD until catch-up finishes.
-        message = None
-    elif last_sender != ctx.slot:
-        sender_name = ctx.player_names.get(last_sender, "another world")
-        message = f"Received {last_item_name} from {sender_name}"
-    else:
-        # The game already shows its own pickup HUD message when you find
-        # one of your own items in-game; queuing another one here would
-        # double it up.
-        message = None
-
-    leftovers = ctx.game_interface.grant(deltas, message)
+    leftovers = ctx.game_interface.grant(deltas)
     if leftovers:
         logger.debug(
             f"{len(leftovers)} item grant(s) deferred to a later tick (remote-execution body budget)."
         )
+
+
+def _announce_received_items(
+    ctx: MetroidPrime2Context, received: list[tuple[str, int]], first_non_starting: int
+) -> None:
+    """Queues one HUD notification per (sender, item) among the items
+    received since the last announcement, so 3 Missile Expansions from one
+    player show as a single "Received 15 Missiles from X" rather than three
+    messages (NotificationManager also merges into still-queued entries).
+
+    Start-inventory catch-up (indices below ``first_non_starting``) is never
+    announced -- grant()'s per-tick body budget can take several ticks to
+    apply a large start_inventory block. Neither are this slot's own
+    items: the game already shows its own pickup HUD message for those.
+    """
+    start = max(ctx.last_announced_index or 0, first_non_starting)
+    ctx.last_announced_index = len(received)
+
+    groups: dict[tuple[int, str], int] = {}
+    for item_name, sender in received[start:]:
+        if sender == ctx.slot:
+            continue
+        groups[sender, item_name] = groups.get((sender, item_name), 0) + 1
+
+    if len(groups) > MAX_RECEIVE_NOTIFICATIONS:
+        # e.g. reconnecting after a long time offline: don't queue minutes
+        # of back-to-back HUD messages.
+        ctx.notification_manager.queue_notification(f"Received {sum(groups.values())} items")
+        return
+
+    for (sender, item_name), count in groups.items():
+        sender_name = ctx.player_names.get(sender, "another world")
+        ctx.notification_manager.queue_received_items(item_name, sender_name, count)
 
 
 async def _send_mlvl_datastorage(ctx: MetroidPrime2Context) -> None:
