@@ -11,7 +11,7 @@ TEST = ManualTest(
     priority="P1",
     proves="the button jumps on the ground only, keeps rolling momentum, and leaves vanilla bomb jumps alone",
     seed=1_000_014,
-    config_sha256="e34e248933f7342793ae9c7bfec8646fd8d0aabe92acebefcb2c60faf7233349",
+    config_sha256="ff4722ce0a518f4c62ed581af2bd87a7ca37bfbbc655bad95603feb0d5294259",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
         presets.FAST_RETRY_OPTIONS,
@@ -55,7 +55,7 @@ TEST = ManualTest(
     ],
     variants={
         "no_bombs": Variant(
-            config_sha256="064049b3d2ea956dfc6117af621f2368776cb8c8404aeaad83f2c2ca0c671e38",
+            config_sha256="c3107d3cc12db64e6cb5d8a4498628ce6e0ae3eb663613d1bd12ec4b92f9ec12",
             start_inventory={"Morph Ball Bomb": 0},
             steps=[
                 Step(
@@ -65,7 +65,7 @@ TEST = ManualTest(
             ],
         ),
         "off": Variant(
-            config_sha256="6387692b0ede6b47764c4a46e39f073b060d144f3c0d8f2e2e28d2f842b6732b",
+            config_sha256="69cd631fea5d2dd3ee463c388e0febada2a277bdc5133360e8ea93aae00d2f3e",
             options={"spring_ball": False},
             steps=[
                 Step(
@@ -75,7 +75,7 @@ TEST = ManualTest(
             ],
         ),
         "d_pad_up": Variant(
-            config_sha256="ec4e4b455c4cfe136e95bd3918c0f44694465e8183aae97964c6714b76d742c6",
+            config_sha256="b8cbaa8215bd9596c50fc4bc6b5c5556478ee8dce5f4052ebabb6dfc23ae543b",
             options={"spring_ball_button": "d_pad_up"},
             steps=[
                 Step(

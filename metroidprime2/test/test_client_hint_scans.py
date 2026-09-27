@@ -44,7 +44,7 @@ class _FakeGameInterface:
 class _FakeContext:
     def __init__(
         self,
-        hint_scans: dict[int, tuple[int, int]],
+        hint_scans: dict[int, tuple[int, int, int]],
         scan_progress: dict[int, int] | None,
         sent_hint_scans: set[int] | None = None,
     ) -> None:
@@ -63,7 +63,11 @@ def _run(ctx: _FakeContext) -> None:
 
 class TestHandleHintScans(unittest.TestCase):
     def test_sends_one_createhints_batch_grouped_by_player(self) -> None:
-        hint_scans = {0x111: (1, 100), 0x222: (1, 101), 0x333: (2, 200)}
+        hint_scans = {
+            0x111: (1, 100, HintStatus.HINT_PRIORITY),
+            0x222: (1, 101, HintStatus.HINT_PRIORITY),
+            0x333: (2, 200, HintStatus.HINT_PRIORITY),
+        }
         ctx = _FakeContext(hint_scans, scan_progress={0x111: 255, 0x222: 255, 0x333: 255})
 
         _run(ctx)
@@ -77,8 +81,30 @@ class TestHandleHintScans(unittest.TestCase):
             self.assertEqual(HintStatus.HINT_PRIORITY, msg["status"])
         self.assertEqual({0x111, 0x222, 0x333}, ctx.sent_hint_scans)
 
+    def test_mixed_statuses_produce_separate_createhints_messages(self) -> None:
+        # Section R: a translator lore hint naming another player's item is
+        # HINT_UNSPECIFIED, unlike every Sky Temple Key entry
+        # (HINT_PRIORITY) -- even for the very same player, these must go
+        # out as two separate CreateHints messages, never merged.
+        hint_scans = {
+            0x111: (1, 100, HintStatus.HINT_PRIORITY),
+            0x222: (1, 101, HintStatus.HINT_UNSPECIFIED),
+        }
+        ctx = _FakeContext(hint_scans, scan_progress={0x111: 255, 0x222: 255})
+
+        _run(ctx)
+
+        self.assertEqual(1, len(ctx.sent_msgs))
+        messages = ctx.sent_msgs[0]
+        self.assertEqual(2, len(messages))
+        by_status = {msg["status"]: sorted(msg["locations"]) for msg in messages}
+        self.assertEqual({HintStatus.HINT_PRIORITY: [100], HintStatus.HINT_UNSPECIFIED: [101]}, by_status)
+        for msg in messages:
+            self.assertEqual("CreateHints", msg["cmd"])
+            self.assertEqual(1, msg["player"])
+
     def test_partial_scan_progress_is_not_reported(self) -> None:
-        hint_scans = {0x111: (1, 100)}
+        hint_scans = {0x111: (1, 100, HintStatus.HINT_PRIORITY)}
         ctx = _FakeContext(hint_scans, scan_progress={0x111: 254})
 
         _run(ctx)
@@ -87,7 +113,7 @@ class TestHandleHintScans(unittest.TestCase):
         self.assertEqual(set(), ctx.sent_hint_scans)
 
     def test_not_resent_on_the_next_tick(self) -> None:
-        hint_scans = {0x111: (1, 100)}
+        hint_scans = {0x111: (1, 100, HintStatus.HINT_PRIORITY)}
         ctx = _FakeContext(hint_scans, scan_progress={0x111: 255})
 
         _run(ctx)
@@ -101,7 +127,7 @@ class TestHandleHintScans(unittest.TestCase):
         self.assertEqual(1, len(ctx.sent_msgs))
 
     def test_no_dolphin_read_once_everything_is_sent(self) -> None:
-        hint_scans = {0x111: (1, 100)}
+        hint_scans = {0x111: (1, 100, HintStatus.HINT_PRIORITY)}
         ctx = _FakeContext(hint_scans, scan_progress={0x111: 255})
 
         _run(ctx)
@@ -113,7 +139,7 @@ class TestHandleHintScans(unittest.TestCase):
         self.assertEqual(1, ctx.game_interface.read_calls)
 
     def test_none_scan_progress_read_is_treated_as_disconnected(self) -> None:
-        hint_scans = {0x111: (1, 100)}
+        hint_scans = {0x111: (1, 100, HintStatus.HINT_PRIORITY)}
         ctx = _FakeContext(hint_scans, scan_progress=None)
 
         _run(ctx)
@@ -122,7 +148,8 @@ class TestHandleHintScans(unittest.TestCase):
         self.assertEqual(set(), ctx.sent_hint_scans)
 
     def test_no_hint_scans_at_all_skips_the_dolphin_read(self) -> None:
-        # sky_temple_key_hints != "scanned" -> empty hint_scans (Q.4/Q.5).
+        # sky_temple_key_hints != "scanned" and translator_lore_hints ==
+        # "off" -> empty hint_scans (Q.4/Q.5, R.4).
         ctx = _FakeContext(hint_scans={}, scan_progress={0x111: 255})
 
         _run(ctx)

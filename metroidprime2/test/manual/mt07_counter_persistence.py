@@ -23,7 +23,7 @@ TEST = ManualTest(
         "doubled checks"
     ),
     seed=1_000_007,
-    config_sha256="21101b4cb64dc65f9729956108eb9bf92b9cf761667d3af98d3c651621969156",
+    config_sha256="ce491114a150a41df3ab7ab25a6791101ada411e45a98313d6c0f1a467ac4fcb",
     options=presets.merge(presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS),
     start_inventory=dict(presets.ALL_ITEMS_START),
     plando=[

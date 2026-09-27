@@ -120,6 +120,35 @@ class SkyTempleKeyHints(Choice):
     alias_true = option_scanned
 
 
+class TranslatorLoreHints(Choice):
+    """Whether the 22 colored Luminoth lore holograms hint at where a
+    progression item can be found, the same way the Sky Temple Key
+    pillars do (``sky_temple_key_hints``) -- scanning one to completion
+    sends the hint to the server.
+
+    My Items (default): each hologram names where one of YOUR OWN
+    progression items is, in any player's world.
+    Any: the pool also includes other players' progression items that
+    landed in YOUR OWN world (the most a hologram is allowed to hint at
+    someone else's item).
+    Off: holograms keep their vanilla lore text; nothing is hinted.
+
+    Only progression items are ever chosen, excluding bulk ones like
+    expansions, and each item is hinted at most once (one Energy Tank, not
+    four). Your own Sky Temple Keys are
+    left to the pillars above and never duplicated here, unless
+    `sky_temple_key_hints` is Disabled. If there are fewer eligible items
+    than holograms, the extra holograms simply say there's nothing more
+    to tell.
+    """
+
+    display_name = "Translator Lore Hints"
+    option_off = 0
+    option_my_items = 1
+    option_any = 2
+    default = option_my_items
+
+
 class ProgressiveSuit(DefaultOnToggle):
     """If enabled, Dark Suit and Light Suit are combined into two copies of
     a single Progressive Suit item (first copy grants Dark Suit, second
@@ -617,6 +646,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
     sky_temple_keys: SkyTempleKeys
     sky_temple_key_hints: SkyTempleKeyHints
+    translator_lore_hints: TranslatorLoreHints
     progressive_suit: ProgressiveSuit
     progressive_grapple: ProgressiveGrapple
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
@@ -688,7 +718,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
 
 OPTION_GROUPS: list[OptionGroup] = [
-    OptionGroup("Goal", [SkyTempleKeys, SkyTempleKeyHints]),
+    OptionGroup("Goal", [SkyTempleKeys, SkyTempleKeyHints, TranslatorLoreHints]),
     OptionGroup(
         "Item Pool",
         [

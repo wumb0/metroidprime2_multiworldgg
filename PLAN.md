@@ -1346,3 +1346,153 @@ Add the option and a short "Sky Temple Key hints" paragraph to
 Dolphin: patch a seed, visit Sky Temple Gateway, confirm pillar text and
 that the server receives the hint after the scan completes (and not
 from a partial scan).
+
+## R. Translator lore hints
+
+Builds on section Q. The 22 colored Luminoth lore holograms (the `hint`
+nodes with `extra.translator`; NOT translator gates, NOT the 9 Keybearer
+corpses) get their text replaced with a hint about a progression item, and
+scanning one sends that hint to the server through the same `hint_scans`
+path as the Sky Temple Key pillars.
+
+### R.1 Facts (verified 2026-09-26)
+
+* The 22 holograms (region / room, translator, STRG -> SCAN; SCAN ids from
+  the Q.1 lore table):
+
+      Agon Wastes / Mining Plaza                  Amber   0x24E69725 -> 0xC108FC20
+      Agon Wastes / Mining Station B              Amber   0xA272E58B -> 0x479C8E8E
+      Agon Wastes / Mining Station A              Amber   0x5324575E -> 0xB6CA3C5B
+      Agon Wastes / Portal Terminal               Amber   0x692E362E -> 0x8CC05D2B
+      Agon Wastes / Agon Energy Controller        Amber   0xEFBA4480 -> 0x0A542F85
+      Great Temple / Main Energy Controller       Violet  0xC3576EA5 -> 0x26B905A0
+      Sanctuary Fortress / Sanctuary Entrance     Cobalt  0xF2BF7438 -> 0x17511F3D
+      Sanctuary Fortress / Hall of Combat Mastery Cobalt  0x0405EE3F -> 0xE1EB853A
+      Sanctuary Fortress / Main Research          Cobalt  0xBF77D533 -> 0x5A99BE36
+      Sanctuary Fortress / Watch Station          Cobalt  0x742B0696 -> 0x91C56D93
+      Sanctuary Fortress / Main Gyro Chamber      Cobalt  0xF5535CEA -> 0x10BD37EF
+      Sanctuary Fortress / Sanctuary Energy Controller Cobalt 0x3E0F8F4F -> 0xDBE1E44A
+      Temple Grounds / Meeting Grounds            Violet  0x987884FB -> 0x7D96EFFE
+      Temple Grounds / Path of Eyes               Violet  0x8E9FCFAE -> 0x6B71A4AB
+      Temple Grounds / Transport to Agon Wastes   Violet  0x39E3A79D -> 0xDC0DCC98
+      Temple Grounds / Fortress Transport Access  Violet  0xCF593D9A -> 0x2AB7569F
+      Torvus Bog / Path of Roots                  Emerald 0x45C31C0B -> 0xA02D770E
+      Torvus Bog / Underground Tunnel             Emerald 0x54C87F8C -> 0xB1261489
+      Torvus Bog / Torvus Energy Controller       Emerald 0xD25C0D22 -> 0x37B26627
+      Torvus Bog / Gathering Hall                 Emerald 0x49CD4F34 -> 0xAC232431
+      Torvus Bog / Training Chamber               Emerald 0x9F94AC29 -> 0x7A7AC72C
+      Torvus Bog / Catacombs                      Emerald 0x82919C91 -> 0x677FF794
+
+* The tracked SCAN only completes once translated: in Meeting Grounds the
+  SCAN 0x7D96EFFE belongs to the `POIN "Translator Yes"` instance (popup
+  "Luminoth Lore translated."), which is only live with the translator.
+  Lore STRGs have 3 strings (popup, "Data transferred...", body);
+  randovania writes `[hint, "", hint]` for these too -- copy that.
+* `CreateHints` rejects the WHOLE packet if any entry breaks a rule, and
+  another player's item may only be hinted with `HINT_UNSPECIFIED`
+  (`HintStatus` value 0; `HINT_PRIORITY` is 30). So each hint needs its
+  own status and the client must group sends by (player, status).
+* `Main.py` order: fill -> `post_fill` -> progression balancing ->
+  `pre_output` -> `generate_output` (threaded, per world) ->
+  `fill_slot_data`. Balancing can move items after `post_fill`, so hint
+  choice must happen at/after `pre_output`.
+
+### R.2 Option
+
+`options.py`: `TranslatorLoreHints(Choice)`, display name "Translator
+Lore Hints", `option_off = 0`, `option_my_items = 1`, `option_any = 2`,
+`default = option_my_items`. Only progression items (`item.advancement`)
+are ever hinted.
+* `my_items`: each hologram names where one of *your* progression items
+  is, in any player's world.
+* `any`: the pool is your progression items anywhere **plus** other
+  players' progression items placed in *your* world (the most the server
+  allows).
+* `off`: holograms keep their vanilla lore text; no hints.
+Field `translator_lore_hints` right after `sky_temple_key_hints`; add it
+to the "Goal" `OptionGroup` next to `SkyTempleKeyHints` (or a new
+"Hints" group holding both -- pick one, keep it tidy).
+
+### R.3 `hint_scans.py`
+
+* Give `HintScan` a `room: str = ""` field (e.g. `"Temple Grounds -
+  Meeting Grounds"`) and add `TRANSLATOR_LORE_HINT_SCANS:
+  tuple[HintScan, ...]`, the 22 rows above in that order. Test: its STRG
+  set equals exactly the DB `hint` nodes that have `extra.translator`,
+  each row's scan equals `LORE_HINT_SCAN_IDS[strg]`, and `room` matches
+  the node's region/area.
+* slot_data entries grow a status: `{scan_id: (location_player,
+  location_id, status)}` <-> `{str(scan_id): [player, location, status]}`.
+  `decode_hint_scans` accepts old 2-element entries as
+  `HintStatus.HINT_PRIORITY`. STK entries (section Q) are written with
+  `HINT_PRIORITY` explicitly.
+* `newly_completed_hints` returns `{(location_player, status): sorted
+  location ids}` instead of `{player: ids}`.
+* `translator_lore_hint_locations(world) -> list[Location | None]`
+  (length 22, index i is `TRANSLATOR_LORE_HINT_SCANS[i]`), computed once
+  and cached on the world (e.g. `world._translator_lore_hints`):
+  - `off` -> 22 `None`s (and callers don't write anything, see below).
+  - candidates = every filled location in the multiworld with
+    `address is not None`, `item.advancement`, and
+    `item.player == world.player`; under `any` also every location with
+    `location.player == world.player` holding another player's
+    progression item. Exclude this player's Sky Temple Key items unless
+    `sky_temple_key_hints` is `disabled` (the pillars already cover them).
+    Also skip `skip_balancing` items (expansions and other bulk
+    progression). Dedupe, sort by `(location.player, location.address)`.
+  - `rng.shuffle(candidates)`, then take in order skipping any repeat of
+    `(item.player, item.name)` (one Energy Tank hint, not four), up to
+    22; pad with `None`. (Added after the first build: plain
+    `rng.sample` spent most holograms on expansions and Energy Tanks.)
+  - RNG: `random.Random(f"{world.multiworld.seed}:{world.player}:translator_lore_hints")`
+    -- deterministic per seed but NOT drawn from `world.random`, so toggling
+    this option never reshuffles the rest of the patch (the OPR `seed`
+    field etc.). Comment why.
+  - Lazy compute is safe: its first caller is `generate_output` (after
+    balancing). Also call it from `pre_output` so the choice is pinned
+    before the threaded output stage. Initialize the cache attribute
+    where `sky_temple_key_locations` is initialized.
+
+### R.4 Generation side
+
+* `patch_data.py`: rename the three `_STK_*_COLOR` constants to shared
+  `_HINT_ITEM_COLOR` / `_HINT_PLAYER_COLOR` / `_HINT_LOCATION_COLOR`.
+  New `_translator_lore_hint_text(world, location, colored=True) -> str`:
+  - location: `f"{item_owner} {item} can be found in {loc_owner} {loc}."`
+    where `item_owner` is `"Your"` or `"<player>'s"`, `loc_owner` is
+    `"your"` or `"<player>'s"`, names/item/location sanitized with
+    `_sanitize` and colorized (player color on player names only) when
+    `colored`.
+  - `None`: `"The Luminoth have nothing more to tell you."`
+  New `_translator_lore_string_changes(world)`: `[]` when `off`,
+  otherwise one `{"strg_id", "strings": [t, "", t]}` per hologram.
+  `make_rando_configuration`'s `string_changes` = STK changes + these.
+* `__init__.py`:
+  - `pre_output`: call `translator_lore_hint_locations(self)`.
+  - `fill_slot_data`: add each non-`None` hologram hint to `hint_scans`
+    as `(loc.player, loc.address, HINT_PRIORITY if loc.item.player ==
+    self.player else HINT_UNSPECIFIED)`.
+  - `write_spoiler`: when not `off`, a "Translator Lore Hints
+    (<player>):" block, one line per hologram: `f"    {room}: {plain text}"`
+    using `colored=False`.
+
+### R.5 Client
+
+`client.py::_handle_hint_scans` sends one `CreateHints` per
+`(player, status)` group with that status (single `send_msgs` list).
+Nothing else changes.
+
+### R.6 Tests
+
+* `test_hint_scans.py`: table checks above; 3-tuple encode/decode round
+  trip + 2-element backward compat; grouping by (player, status).
+* Selection (use the existing generation test bases, 2 players where
+  needed): `off` -> no lore string changes and no lore slot_data entries;
+  `my_items` -> every chosen location holds this player's progression
+  item, 22 distinct; `any` with a second player -> candidates include
+  foreign progression items in this world, and those entries carry
+  `HINT_UNSPECIFIED`; STK exclusion follows `sky_temple_key_hints`;
+  determinism (same seed -> same choice) and the text/slot_data agree
+  (same locations). Fewer candidates than holograms -> padded with the
+  "nothing more" text and no slot_data entry.
+* Client: mixed statuses produce separate `CreateHints` messages.

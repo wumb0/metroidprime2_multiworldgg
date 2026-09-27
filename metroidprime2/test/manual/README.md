@@ -1224,6 +1224,150 @@ If it fails, look at:
 * `client/game_interface.py::read_scan_progress` / `client/versions.py::SCAN_STATES_OFFSET`
 * `client/client.py::_handle_hint_scans`
 
+### MT16_TRANSLATOR_LORE_HINTS -- `mt16_translator_lore_hints` (P1)
+
+*Proves: each colored lore hologram names a progression item's real location, and only a completed, translated scan sends that hint*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Filler1 (Clique) slot with a text client, so hint messages are visible from both sides.
+* Open the spoiler's **Translator Lore Hints** block: it lists the expected text for every hologram.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Meeting Grounds/Door to Service Access`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=my_items`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+* companion slots: Filler1 (Clique)
+
+Notes / derived values:
+* Violet holograms by distance from the start: Meeting Grounds (start room), Path of Eyes (2 rooms), Great Temple - Main Energy Controller (6), Transport to Agon Wastes and Fortress Transport Access (7).
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt16_translator_lore_hints/mt16_translator_lore_hints.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt16_translator_lore_hints/mt16_translator_lore_hints.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Connect the client and wait a few seconds without scanning anything.
+   **Expect:** No lore hints are sent.
+2. **Do:** Scan the Meeting Grounds hologram about half way, then look away.
+   **Expect:** No hint is sent.
+   *(exercises: Only a finished scan (progress 255) counts.)*
+3. **Do:** Scan the Meeting Grounds hologram to completion.
+   **Expect:** The text matches the spoiler's Meeting Grounds line ("Your <item> can be found in ... .", colored). The client logs `Hint scan complete` and one priority hint for that item appears in both clients.
+4. **Do:** Scan the Path of Eyes hologram and one or two more Violet holograms.
+   **Expect:** Each matches its spoiler line and sends exactly one hint.
+5. **Do:** Open the Logbook entry for one of them.
+   **Expect:** The body shows the same hint text.
+6. **Do:** Scan a Sky Temple Key pillar or any other non-lore scan (e.g. an enemy).
+   **Expect:** No lore hint is sent for it.
+7. **Do:** Restart the MP2 client and reconnect.
+   **Expect:** No duplicate hint messages.
+
+Pass if:
+* Every scanned hologram's text matches its spoiler line and names a progression item.
+* A partial scan sends nothing; a completed scan sends exactly one hint.
+* Client restarts don't duplicate hints.
+
+If it fails, look at:
+* `hint_scans.py` (`TRANSLATOR_LORE_HINT_SCANS`, `translator_lore_hint_locations`)
+* `patch_data.py::_translator_lore_string_changes`
+* `client/client.py::_handle_hint_scans` (per-(player, status) grouping)
+
+### MT16_TRANSLATOR_LORE_HINTS -- `mt16_translator_lore_hints_any` (P1)
+
+*Proves: each colored lore hologram names a progression item's real location, and only a completed, translated scan sends that hint*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Filler1 (Clique) slot with a text client, so hint messages are visible from both sides.
+* Open the spoiler's **Translator Lore Hints** block: it lists the expected text for every hologram.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <vanilla.iso> --variant any
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Meeting Grounds/Door to Service Access`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=any`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+* companion slots: Filler1 (Clique)
+
+Notes / derived values:
+* Temple Grounds - Transport to Agon Wastes names Filler1's Feeling of Satisfaction (in your Agon Wastes: Storage B). Every other line is in the spoiler.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <vanilla.iso> --variant any
+2. Host       python MultiServer.py manual_tests/mt16_translator_lore_hints_any/mt16_translator_lore_hints_any.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt16_translator_lore_hints_any/mt16_translator_lore_hints_any.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Go to Temple Grounds - Transport to Agon Wastes (7 rooms from the start; use the map) and scan its hologram.
+   **Expect:** Text reads "Filler1's Feeling of Satisfaction can be found in your Agon Wastes: Storage B - Pickup (Missile)." The hint appears with an *unspecified* status (not priority), and the client logs no error.
+   *(exercises: The server only accepts HINT_UNSPECIFIED for another player's item.)*
+2. **Do:** Scan the Meeting Grounds hologram (one of your own items).
+   **Expect:** It still arrives as a priority hint.
+
+Pass if:
+* Foreign-item hints arrive as unspecified and own-item hints as priority, with no rejected packet.
+
+If it fails, look at:
+* `hint_scans.py` (`TRANSLATOR_LORE_HINT_SCANS`, `translator_lore_hint_locations`)
+* `patch_data.py::_translator_lore_string_changes`
+* `client/client.py::_handle_hint_scans` (per-(player, status) grouping)
+
+### MT16_TRANSLATOR_LORE_HINTS -- `mt16_translator_lore_hints_off` (P1)
+
+*Proves: each colored lore hologram names a progression item's real location, and only a completed, translated scan sends that hint*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Filler1 (Clique) slot with a text client, so hint messages are visible from both sides.
+* Open the spoiler's **Translator Lore Hints** block: it lists the expected text for every hologram.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <vanilla.iso> --variant off
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Meeting Grounds/Door to Service Access`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=off`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+* companion slots: Filler1 (Clique)
+
+Notes / derived values:
+* Violet holograms by distance from the start: Meeting Grounds (start room), Path of Eyes (2 rooms), Great Temple - Main Energy Controller (6), Transport to Agon Wastes and Fortress Transport Access (7).
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <vanilla.iso> --variant off
+2. Host       python MultiServer.py manual_tests/mt16_translator_lore_hints_off/mt16_translator_lore_hints_off.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt16_translator_lore_hints_off/mt16_translator_lore_hints_off.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Translate the Meeting Grounds hologram.
+   **Expect:** The vanilla Luminoth lore text appears. No hint is sent.
+
+Pass if:
+* Holograms keep vanilla lore and never send hints.
+
+If it fails, look at:
+* `hint_scans.py` (`TRANSLATOR_LORE_HINT_SCANS`, `translator_lore_hint_locations`)
+* `patch_data.py::_translator_lore_string_changes`
+* `client/client.py::_handle_hint_scans` (per-(player, status) grouping)
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).

@@ -10,15 +10,22 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any, ClassVar, TextIO
+from typing import TYPE_CHECKING, Any, ClassVar, TextIO
 
 from BaseClasses import ItemClassification, Tutorial
+from NetUtils import HintStatus
 from worlds.AutoWorld import WebWorld, World
 from worlds.LauncherComponents import Component, SuffixIdentifier, Type, components, icon_paths, launch
 
 from . import constants
 from .container import MetroidPrime2Container
-from .hint_scans import SKY_TEMPLE_KEY_HINT_SCANS, encode_hint_scans, sky_temple_key_locations
+from .hint_scans import (
+    SKY_TEMPLE_KEY_HINT_SCANS,
+    TRANSLATOR_LORE_HINT_SCANS,
+    encode_hint_scans,
+    sky_temple_key_locations,
+    translator_lore_hint_locations,
+)
 from .item_pool import STK_ITEM_NAMES, create_item_pool
 from .items import ITEM_GROUPS, ITEM_TABLE, MetroidPrime2Item, item_name_to_id
 from .locations import LOCATION_GROUPS, location_name_to_id
@@ -31,11 +38,15 @@ from .options import (
     MapVisibility,
     MetroidPrime2Options,
     SkyTempleKeyHints,
+    TranslatorLoreHints,
     trick_levels_from_options,
 )
-from .patch_data import make_rando_configuration
+from .patch_data import _translator_lore_hint_text, make_rando_configuration
 from .settings import MetroidPrime2Settings
 from .utils import get_apworld_version
+
+if TYPE_CHECKING:
+    from BaseClasses import Location
 
 GAME_NAME = "Metroid Prime 2: Echoes"
 
@@ -136,6 +147,12 @@ class MetroidPrime2World(World):
     around (rather than just the derived region-name string) so
     ``patch_data.py`` can resolve its mlvl/mrea without re-deriving which
     node ``origin_region_name`` came from."""
+    _translator_lore_hints: list[Location | None] | None
+    """``hint_scans.translator_lore_hint_locations``'s cache (PLAN.md
+    section R.3) -- ``None`` until first computed, then the 22 chosen
+    locations (or ``None`` entries) for the rest of generation. Cached
+    because that function draws from its own RNG; recomputing it would
+    reshuffle the choice out from under later callers."""
 
     def generate_early(self) -> None:
         multiworld = self.multiworld
@@ -157,6 +174,7 @@ class MetroidPrime2World(World):
             uuid.uuid5(constants.NAMESPACE_UUID, f"{multiworld.seed_name}/{self.player}")
         )
         self.sky_temple_key_locations = []
+        self._translator_lore_hints = None
 
         # Must run before create_regions (logic/regions.py) builds the
         # region graph -- it reads world.origin_region_name to find the BFS
@@ -228,6 +246,14 @@ class MetroidPrime2World(World):
             if location is not None:
                 self.options.start_hints.value.add(item_name)
 
+    def pre_output(self) -> None:
+        # PLAN.md section R.3: pin the translator lore hint choice before
+        # generate_output's threaded stage. translator_lore_hint_locations
+        # caches on self._translator_lore_hints, so this is also safe to
+        # call again from generate_output/fill_slot_data/write_spoiler --
+        # they all see this same result.
+        translator_lore_hint_locations(self)
+
     def generate_output(self, output_directory: str) -> None:
         # Prime 1 pattern (worlds/metroidprime/__init__.py generate_output):
         # build the patcher-format config dict, write it plus a small
@@ -279,19 +305,40 @@ class MetroidPrime2World(World):
         slot_data["starting_region"] = self.origin_region_name
         slot_data["apworld_version"] = get_apworld_version()
 
-        # PLAN.md section Q.4/Q.5: {scan_id: (location_player, location_id)}
-        # for the client's _handle_hint_scans, only when there's actually
-        # something to scan for (sky_temple_key_hints="scanned" -- disabled
-        # replaces the pillar text with a non-hint, and precollected already
-        # sent every hint via start_hints above, so neither needs a client
-        # scan-detection path).
-        hint_scans: dict[int, tuple[int, int]] = {}
+        # PLAN.md section Q.4/Q.5: {scan_id: (location_player, location_id,
+        # status)} for the client's _handle_hint_scans, only when there's
+        # actually something to scan for (sky_temple_key_hints="scanned" --
+        # disabled replaces the pillar text with a non-hint, and
+        # precollected already sent every hint via start_hints above, so
+        # neither needs a client scan-detection path). Sky Temple Key
+        # entries are always our own item, so they're always HINT_PRIORITY.
+        hint_scans: dict[int, tuple[int, int, int]] = {}
         if self.options.sky_temple_key_hints.value == SkyTempleKeyHints.option_scanned:
             for hint_scan, location in zip(
                 SKY_TEMPLE_KEY_HINT_SCANS, sky_temple_key_locations(self), strict=True
             ):
                 if location is not None:
-                    hint_scans[hint_scan.scan_id] = (location.player, location.address)
+                    hint_scans[hint_scan.scan_id] = (location.player, location.address, HintStatus.HINT_PRIORITY)
+
+        # PLAN.md section R.4: translator lore hints, added independent of
+        # sky_temple_key_hints -- translator_lore_hint_locations already
+        # returns all-None (no entries added below) under
+        # translator_lore_hints="off", so no extra option check is needed
+        # here. A hologram naming another player's item (translator_lore_
+        # hints="any") must use HINT_UNSPECIFIED: CreateHints only allows
+        # HINT_PRIORITY when the hinted item belongs to the sender.
+        for hint_scan, location in zip(
+            TRANSLATOR_LORE_HINT_SCANS, translator_lore_hint_locations(self), strict=True
+        ):
+            if location is not None:
+                assert location.item is not None
+                status = (
+                    HintStatus.HINT_PRIORITY
+                    if location.item.player == self.player
+                    else HintStatus.HINT_UNSPECIFIED
+                )
+                hint_scans[hint_scan.scan_id] = (location.player, location.address, status)
+
         slot_data["hint_scans"] = encode_hint_scans(hint_scans)
 
         return slot_data
@@ -307,8 +354,17 @@ class MetroidPrime2World(World):
         if self.options.starting_room.current_key != "vanilla":
             spoiler_handle.write(f"\n\nStarting Region ({self.player_name}): {self.origin_region_name}\n")
 
-        if not self.sky_temple_key_locations:
-            return
-        spoiler_handle.write(f"\n\nSky Temple Keys ({self.player_name}):\n")
-        for location_name in self.sky_temple_key_locations:
-            spoiler_handle.write(f"    {location_name}\n")
+        if self.sky_temple_key_locations:
+            spoiler_handle.write(f"\n\nSky Temple Keys ({self.player_name}):\n")
+            for location_name in self.sky_temple_key_locations:
+                spoiler_handle.write(f"    {location_name}\n")
+
+        # PLAN.md section R.4: one line per hologram, plain text
+        # (colored=False -- the spoiler log has no STRG rich-text markup).
+        if self.options.translator_lore_hints.value != TranslatorLoreHints.option_off:
+            spoiler_handle.write(f"\n\nTranslator Lore Hints ({self.player_name}):\n")
+            for hint_scan, location in zip(
+                TRANSLATOR_LORE_HINT_SCANS, translator_lore_hint_locations(self), strict=True
+            ):
+                text = _translator_lore_hint_text(self, location, colored=False)
+                spoiler_handle.write(f"    {hint_scan.room}: {text}\n")

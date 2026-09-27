@@ -30,7 +30,12 @@ import copy
 from typing import TYPE_CHECKING, Any
 
 from . import constants
-from .hint_scans import SKY_TEMPLE_KEY_HINT_SCANS, sky_temple_key_locations
+from .hint_scans import (
+    SKY_TEMPLE_KEY_HINT_SCANS,
+    TRANSLATOR_LORE_HINT_SCANS,
+    sky_temple_key_locations,
+    translator_lore_hint_locations,
+)
 from .items import ITEM_TABLE, gains_for
 from .locations import LOCATION_TABLE
 from .logic.db_reader import GameDatabase, Node, NodeId, load_game_database
@@ -40,6 +45,7 @@ from .options import (
     DisplayNonLocalItems,
     MapVisibility,
     SkyTempleKeyHints,
+    TranslatorLoreHints,
     dark_damage_per_second,
 )
 from .pickup_encoding import counter_and_amount
@@ -644,15 +650,17 @@ def _translator_gate_modification(world: MetroidPrime2World, node: Node) -> dict
 
 
 # --------------------------------------------------------------------------
-# Sky Temple Key hint scans (PLAN.md section Q)
+# Sky Temple Key / translator lore hint scans (PLAN.md sections Q, R)
 # --------------------------------------------------------------------------
 
 # randovania's Echoes hint colors (games/prime2/exporter/hints.py), reused
 # verbatim: item names, world/player names, and location names each get
-# their own consistent color across every hint in the game.
-_STK_ITEM_COLOR = "#FF6705B3"
-_STK_PLAYER_COLOR = "#d4cc33"
-_STK_LOCATION_COLOR = "#FF3333"
+# their own consistent color across every hint in the game. Shared by both
+# Sky Temple Key pillar text and translator lore hologram text (renamed
+# from _STK_*_COLOR when section R generalized them -- PLAN.md R.4).
+_HINT_ITEM_COLOR = "#FF6705B3"
+_HINT_PLAYER_COLOR = "#d4cc33"
+_HINT_LOCATION_COLOR = "#FF3333"
 
 
 def _sky_temple_key_hint_text(world: MetroidPrime2World, key_number: int, location: Location | None) -> str:
@@ -662,7 +670,7 @@ def _sky_temple_key_hint_text(world: MetroidPrime2World, key_number: int, locati
     ``__init__.py``'s slot_data both read from, so they can never disagree
     about where a key actually is.
     """
-    key = _colorize(_STK_ITEM_COLOR, f"Sky Temple Key {key_number}")
+    key = _colorize(_HINT_ITEM_COLOR, f"Sky Temple Key {key_number}")
 
     if world.options.sky_temple_key_hints.value == SkyTempleKeyHints.option_disabled:
         # Always overwrite, even though this key mode never asked for it:
@@ -674,9 +682,9 @@ def _sky_temple_key_hint_text(world: MetroidPrime2World, key_number: int, locati
         if location.player == world.player:
             owner = "your"
         else:
-            player_name = _colorize(_STK_PLAYER_COLOR, _sanitize(world.multiworld.player_name[location.player]))
+            player_name = _colorize(_HINT_PLAYER_COLOR, _sanitize(world.multiworld.player_name[location.player]))
             owner = f"{player_name}'s"
-        loc = _colorize(_STK_LOCATION_COLOR, _sanitize(location.name))
+        loc = _colorize(_HINT_LOCATION_COLOR, _sanitize(location.name))
         return f"{key} is in {owner} {loc}."
 
     precollected_names = {item.name for item in world.multiworld.precollected_items[world.player]}
@@ -696,6 +704,54 @@ def _sky_temple_key_string_changes(world: MetroidPrime2World) -> list[dict[str, 
     changes: list[dict[str, Any]] = []
     for key_number, (hint_scan, location) in enumerate(zip(SKY_TEMPLE_KEY_HINT_SCANS, locations, strict=True), start=1):
         text = _sky_temple_key_hint_text(world, key_number, location)
+        changes.append({"strg_id": hint_scan.strg_id, "strings": [text, "", text]})
+    return changes
+
+
+def _translator_lore_hint_text(world: MetroidPrime2World, location: Location | None, colored: bool = True) -> str:
+    """The scan popup / "Data transferred..." logbook text for one
+    translator lore hologram (PLAN.md section R.4). ``location`` is
+    ``translator_lore_hint_locations(world)``'s entry for this hologram --
+    the single source of truth this, ``__init__.py``'s slot_data, and
+    ``write_spoiler`` all read from.
+
+    ``colored`` gates every bit of STRG rich-text markup (item/player/
+    location colors alike); ``write_spoiler`` passes ``colored=False`` to
+    get a plain-text line for the spoiler log."""
+    if location is None:
+        return "The Luminoth have nothing more to tell you."
+
+    item = location.item
+    assert item is not None, f"{location.name}: chosen lore-hint location has no item"
+
+    def _player_name(player: int) -> str:
+        name = _sanitize(world.multiworld.player_name[player])
+        return _colorize(_HINT_PLAYER_COLOR, name) if colored else name
+
+    item_text = _sanitize(item.name)
+    if colored:
+        item_text = _colorize(_HINT_ITEM_COLOR, item_text)
+    location_text = _sanitize(location.name)
+    if colored:
+        location_text = _colorize(_HINT_LOCATION_COLOR, location_text)
+
+    item_owner = "Your" if item.player == world.player else f"{_player_name(item.player)}'s"
+    loc_owner = "your" if location.player == world.player else f"{_player_name(location.player)}'s"
+
+    return f"{item_owner} {item_text} can be found in {loc_owner} {location_text}."
+
+
+def _translator_lore_string_changes(world: MetroidPrime2World) -> list[dict[str, Any]]:
+    """One STRG rewrite per translator lore hologram: ``[]`` under ``off``
+    (vanilla lore text stands), otherwise ``[text, "", text]`` per
+    hologram (same randovania ``create_simple_logbook_hint`` shape as the
+    Sky Temple Key pillars -- PLAN.md section R.1)."""
+    if world.options.translator_lore_hints.value == TranslatorLoreHints.option_off:
+        return []
+    locations = translator_lore_hint_locations(world)
+    changes: list[dict[str, Any]] = []
+    for hint_scan, location in zip(TRANSLATOR_LORE_HINT_SCANS, locations, strict=True):
+        text = _translator_lore_hint_text(world, location)
         changes.append({"strg_id": hint_scan.strg_id, "strings": [text, "", text]})
     return changes
 
@@ -916,5 +972,5 @@ def make_rando_configuration(world: MetroidPrime2World) -> dict[str, Any]:
         "beam_configuration": _beam_configuration(world),
         "custom_items": _custom_items(world),
         "world_changes": _world_changes(world, db),
-        "string_changes": _sky_temple_key_string_changes(world),
+        "string_changes": _sky_temple_key_string_changes(world) + _translator_lore_string_changes(world),
     }

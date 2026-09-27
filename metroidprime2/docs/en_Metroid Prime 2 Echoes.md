@@ -54,6 +54,21 @@ The 9 Luminoth pillars in Sky Temple Gateway can tell you where each Sky Temple 
 - **Disabled**: the pillars' text is replaced with a generic "lost somewhere in Aether" message instead of a real
   hint, since the vanilla riddles describe vanilla key locations and would be misleading once keys are shuffled.
 
+### Translator lore hints
+
+The 22 colored Luminoth lore holograms scattered across the light regions can also each point at one progression
+item, controlled by the "Translator Lore Hints" option:
+
+- **My Items** (default): each hologram names where one of your own progression items is, in any player's world.
+- **Any**: the pool also includes other players' progression items that landed in your own world.
+- **Off**: holograms keep their vanilla lore text; nothing is hinted.
+
+You need the hologram's translator to read it. Bulk items such as expansions are never hinted, and each item is
+hinted at most once. Same as the Sky Temple Key pillars, scanning a hologram to completion sends the hint to the
+multiworld server.
+Your own Sky Temple Keys are left to the pillars above and never duplicated here, unless "Sky Temple Key Hints" is
+Disabled. If there are fewer eligible items than holograms, the extras just say there's nothing more to tell.
+
 ## What does the logic that places my items know about?
 
 Reachability is computed from Randovania's Metroid Prime 2: Echoes logic database -- the same data the standalone

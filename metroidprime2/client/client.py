@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import Utils
 from CommonClient import get_base_parser, gui_enabled, logger, server_loop
-from NetUtils import ClientStatus, HintStatus
+from NetUtils import ClientStatus
 from settings import get_settings
 
 from .. import constants
@@ -197,7 +197,7 @@ class MetroidPrime2Context(CommonContext):
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
     debug_enabled: bool = False
-    hint_scans: dict[int, tuple[int, int]] = {}  # noqa: RUF012 -- reassigned wholesale in on_package, never mutated in place
+    hint_scans: dict[int, tuple[int, int, int]] = {}  # noqa: RUF012 -- reassigned wholesale in on_package, never mutated in place
     sent_hint_scans: set[int] = set()  # noqa: RUF012 -- same as hint_scans above
 
     def __init__(
@@ -547,17 +547,19 @@ async def _send_mlvl_datastorage(ctx: MetroidPrime2Context) -> None:
 
 
 async def _handle_hint_scans(ctx: MetroidPrime2Context) -> None:
-    """Sky Temple Key hint scans (PLAN.md section Q): a pillar's SCAN is
-    tracked by the game's own save data regardless of anything this world
-    patches, so detecting a completed scan is a plain memory read -- unlike
-    granting items or consuming pickup counters, it never needs to arm or
-    wait on the remote-execution pending-op flag, so it doesn't need any of
-    that protocol's bookkeeping here.
+    """Sky Temple Key and translator lore hint scans (PLAN.md sections Q,
+    R): a pillar/hologram's SCAN is tracked by the game's own save data
+    regardless of anything this world patches, so detecting a completed
+    scan is a plain memory read -- unlike granting items or consuming
+    pickup counters, it never needs to arm or wait on the remote-execution
+    pending-op flag, so it doesn't need any of that protocol's bookkeeping
+    here.
 
     Skips the Dolphin read entirely once every hint scan this slot knows
     about (``ctx.hint_scans``, from slot_data -- empty unless
-    ``sky_temple_key_hints="scanned"``) has already been reported, so an
-    idle tick after everything's sent costs nothing.
+    ``sky_temple_key_hints="scanned"``/``translator_lore_hints`` is not
+    ``"off"``) has already been reported, so an idle tick after
+    everything's sent costs nothing.
     """
     if set(ctx.hint_scans) <= ctx.sent_hint_scans:
         return
@@ -566,13 +568,19 @@ async def _handle_hint_scans(ctx: MetroidPrime2Context) -> None:
     if scan_progress is None:
         return
 
-    newly_completed, locations_by_player = newly_completed_hints(scan_progress, ctx.hint_scans, ctx.sent_hint_scans)
+    newly_completed, locations_by_group = newly_completed_hints(scan_progress, ctx.hint_scans, ctx.sent_hint_scans)
     if not newly_completed:
         return
 
+    # One CreateHints call per (player, status) group, not just per player:
+    # section R's translator lore hints can name another player's item,
+    # which the server only allows under HINT_UNSPECIFIED, so a tick that
+    # completes both a Sky Temple Key pillar (HINT_PRIORITY) and a lore
+    # hologram naming someone else's item (HINT_UNSPECIFIED) for the same
+    # player needs two separate messages.
     await ctx.send_msgs([
-        {"cmd": "CreateHints", "locations": locations, "player": player, "status": HintStatus.HINT_PRIORITY}
-        for player, locations in locations_by_player.items()
+        {"cmd": "CreateHints", "locations": locations, "player": player, "status": status}
+        for (player, status), locations in locations_by_group.items()
     ])
     ctx.sent_hint_scans |= newly_completed
     for scan_id in sorted(newly_completed):

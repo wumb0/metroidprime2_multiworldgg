@@ -16,16 +16,23 @@ import unittest
 import zipfile
 
 from BaseClasses import Item, ItemClassification, Location
+from NetUtils import HintStatus
 from Options import Visibility
 
 from .. import patch_data
 from ..constants import LANDING_SITE_MREA, OPR_MODEL_NAMES, PICKUP_COUNTER_ITEMS, TEMPLE_GROUNDS_MLVL
-from ..hint_scans import SKY_TEMPLE_KEY_HINT_SCANS, sky_temple_key_locations
+from ..hint_scans import SKY_TEMPLE_KEY_HINT_SCANS, TRANSLATOR_LORE_HINT_SCANS, sky_temple_key_locations
 from ..item_pool import STK_ITEM_NAMES
 from ..items import ITEM_TABLE
 from ..locations import LOCATION_TABLE
 from ..logic.db_reader import load_game_database
-from ..options import DisplayNonLocalItems, MetroidPrime2Options, RevealMapRemoved, SkyTempleKeyHints
+from ..options import (
+    DisplayNonLocalItems,
+    MetroidPrime2Options,
+    RevealMapRemoved,
+    SkyTempleKeyHints,
+    TranslatorLoreHints,
+)
 from ..pickup_encoding import counter_and_amount
 from .bases import MP2TestBase
 
@@ -46,6 +53,18 @@ _TRANSLATOR_COLORS = frozenset({"violet", "amber", "emerald", "cobalt"})
 # The vanilla starting inventory (PLAN.md section F DEFAULT_STARTING_ITEMS
 # / section H's "mandatory six"), by OPR PlayerItemEnum id.
 _MANDATORY_STARTING_ITEM_IDS = (12, 8, 9, 0, 22, 15)
+
+
+_STK_STRG_IDS = frozenset(scan.strg_id for scan in SKY_TEMPLE_KEY_HINT_SCANS)
+
+
+def _stk_string_changes(config: dict) -> list[dict]:
+    """Just the Sky Temple Key pillar entries out of a full
+    ``string_changes`` list -- since section R, that list also carries up
+    to 22 translator lore hologram entries (default
+    ``translator_lore_hints="my_items"``), which most of the STK-focused
+    tests below don't care about."""
+    return [change for change in config["string_changes"] if change["strg_id"] in _STK_STRG_IDS]
 
 
 def _all_pickups(config: dict) -> list[dict]:
@@ -899,7 +918,7 @@ class TestSkyTempleKeyStringChanges(MP2TestBase):
         self.config = patch_data.make_rando_configuration(self.world)
 
     def test_nine_string_changes_with_correct_strg_ids_and_shape(self) -> None:
-        changes = self.config["string_changes"]
+        changes = _stk_string_changes(self.config)
         self.assertEqual(9, len(changes))
         self.assertEqual([scan.strg_id for scan in SKY_TEMPLE_KEY_HINT_SCANS], [c["strg_id"] for c in changes])
         for change in changes:
@@ -912,7 +931,7 @@ class TestSkyTempleKeyStringChanges(MP2TestBase):
         # gen_steps stops before fill runs (test/bases.py's MP2TestBase), so
         # none of them have a real placement yet, and none are precollected
         # either.
-        for change in self.config["string_changes"]:
+        for change in _stk_string_changes(self.config):
             self.assertTrue(change["strings"][0].endswith("is lost somewhere in the multiverse."), change)
 
 
@@ -955,7 +974,7 @@ class TestSkyTempleKeyStringChangesDisabled(MP2TestBase):
         self.config = patch_data.make_rando_configuration(self.world)
 
     def test_all_nine_overwritten_regardless_of_real_placement(self) -> None:
-        for change in self.config["string_changes"]:
+        for change in _stk_string_changes(self.config):
             self.assertTrue(change["strings"][0].endswith("is lost somewhere in Aether."), change)
 
 
@@ -974,14 +993,26 @@ class TestHintScansSlotDataScanned(MP2TestBase):
     def test_one_entry_per_placed_key_with_right_player_and_address(self) -> None:
         hint_scans = self.slot_data["hint_scans"]
         locations = sky_temple_key_locations(self.world)
+        # Only the 9 Sky Temple Key entries: default sky_temple_key_hints=
+        # "scanned" excludes this player's own keys from the translator
+        # lore hint pool too (section R.3's exclude_own_stk), and no other
+        # location is filled yet (gen_steps stops before fill).
         self.assertEqual(9, len(hint_scans))
         for hint_scan, location in zip(SKY_TEMPLE_KEY_HINT_SCANS, locations, strict=True):
             assert location is not None
-            self.assertEqual([location.player, location.address], hint_scans[str(hint_scan.scan_id)])
+            self.assertEqual(
+                [location.player, location.address, HintStatus.HINT_PRIORITY], hint_scans[str(hint_scan.scan_id)]
+            )
 
 
 class TestHintScansSlotDataDisabled(MP2TestBase):
-    options = {"sky_temple_keys": "all_bosses", "sky_temple_key_hints": "disabled"}
+    # translator_lore_hints="off" keeps this test scoped to Q's
+    # sky_temple_key_hints="disabled" behavior -- left at its "my_items"
+    # default, the 9 all_bosses key placements become real translator lore
+    # hint candidates too (section R.3's exclude_own_stk is only true when
+    # sky_temple_key_hints != "disabled"), which is covered separately in
+    # test_translator_lore_hints.py.
+    options = {"sky_temple_keys": "all_bosses", "sky_temple_key_hints": "disabled", "translator_lore_hints": "off"}
 
     def setUp(self) -> None:
         super().setUp()
@@ -1013,3 +1044,103 @@ class TestHintScansSlotDataPrecollected(MP2TestBase):
     def test_placed_keys_added_to_start_hints(self) -> None:
         for key_name in STK_ITEM_NAMES:
             self.assertIn(key_name, self.world.options.start_hints.value)
+
+
+class TestTranslatorLoreHintText(MP2TestBase):
+    """``patch_data._translator_lore_hint_text`` (PLAN.md section R.4),
+    exercised directly against constructed ``BaseClasses.Location``/
+    ``Item`` stand-ins, mirroring ``TestSkyTempleKeyHintText`` above."""
+
+    def _location_with_item(
+        self, location_player: int, location_name: str, address: int, item_player: int, item_name: str
+    ) -> Location:
+        location = Location(location_player, location_name, address)
+        location.item = Item(item_name, ItemClassification.progression, 999, item_player)
+        return location
+
+    def test_own_item_in_own_world_says_your_your(self) -> None:
+        location = self._location_with_item(
+            self.player, "Torvus Bog: Path of Roots - Pickup (Missile Expansion)", 5033250, self.player, "Grapple Beam"
+        )
+        text = patch_data._translator_lore_hint_text(self.world, location)
+        self.assertTrue(text.startswith("Your "), text)
+        self.assertIn(
+            "&push;&main-color=#FF6705B3;Grapple Beam&pop; can be found in your "
+            "&push;&main-color=#FF3333;Torvus Bog: Path of Roots - Pickup (Missile Expansion)&pop;.",
+            text,
+        )
+
+    def test_own_item_in_foreign_world_uses_possessive_location_owner(self) -> None:
+        self.multiworld.player_name[2] = "OtherPlayer"
+        location = self._location_with_item(
+            2, "Agon Wastes: Mining Plaza - Pickup (Energy Tank)", 5033260, self.player, "Boost Ball"
+        )
+        text = patch_data._translator_lore_hint_text(self.world, location)
+        self.assertTrue(text.startswith("Your "), text)
+        self.assertIn("can be found in &push;&main-color=#d4cc33;OtherPlayer&pop;'s", text)
+
+    def test_foreign_item_in_own_world_uses_possessive_item_owner(self) -> None:
+        self.multiworld.player_name[2] = "OtherPlayer"
+        location = self._location_with_item(self.player, "Somewhere In Your World", 5033261, 2, "Spider Ball")
+        text = patch_data._translator_lore_hint_text(self.world, location)
+        self.assertTrue(text.startswith("&push;&main-color=#d4cc33;OtherPlayer&pop;'s"), text)
+        self.assertIn("can be found in your ", text)
+
+    def test_none_says_nothing_more_to_tell(self) -> None:
+        text = patch_data._translator_lore_hint_text(self.world, None)
+        self.assertEqual("The Luminoth have nothing more to tell you.", text)
+
+    def test_uncolored_strips_all_markup(self) -> None:
+        self.multiworld.player_name[2] = "OtherPlayer"
+        location = self._location_with_item(self.player, "Plain Location", 5033262, 2, "Spider Ball")
+        text = patch_data._translator_lore_hint_text(self.world, location, colored=False)
+        self.assertNotIn("&push;", text)
+        self.assertNotIn("&pop;", text)
+        self.assertNotIn("#", text)
+        self.assertEqual("OtherPlayer's Spider Ball can be found in your Plain Location.", text)
+
+    def test_sanitizes_unsafe_characters(self) -> None:
+        self.multiworld.player_name[2] = "Foo&Bar;Baz"
+        location = self._location_with_item(self.player, "Region&Area;Node", 5033263, 2, "Spider Ball")
+        text = patch_data._translator_lore_hint_text(self.world, location)
+        self.assertIn("FooBarBaz&pop;'s", text)
+        self.assertIn("RegionAreaNode", text)
+        self.assertNotIn("Foo&Bar;Baz", text)
+        self.assertNotIn("Region&Area;Node", text)
+
+
+class TestTranslatorLoreStringChanges(MP2TestBase):
+    """``_translator_lore_string_changes`` wired into
+    ``make_rando_configuration``'s ``string_changes`` (PLAN.md section
+    R.4): off produces nothing; otherwise one entry per hologram with the
+    right strg ids and shape."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_off_produces_no_lore_string_changes(self) -> None:
+        self.world.options.translator_lore_hints.value = TranslatorLoreHints.option_off
+        changes = patch_data._translator_lore_string_changes(self.world)
+        self.assertEqual([], changes)
+
+    def test_twenty_two_string_changes_with_correct_strg_ids_and_shape(self) -> None:
+        lore_strg_ids = {scan.strg_id for scan in TRANSLATOR_LORE_HINT_SCANS}
+        changes = [c for c in self.config["string_changes"] if c["strg_id"] in lore_strg_ids]
+        self.assertEqual(22, len(changes))
+        self.assertEqual([scan.strg_id for scan in TRANSLATOR_LORE_HINT_SCANS], [c["strg_id"] for c in changes])
+        for change in changes:
+            self.assertEqual(3, len(change["strings"]))
+            self.assertEqual(change["strings"][0], change["strings"][2])
+            self.assertEqual("", change["strings"][1])
+
+    def test_default_options_no_placement_says_nothing_more_to_tell(self) -> None:
+        # gen_steps stops before fill runs (MP2TestBase), so nothing is
+        # filled yet under default options -- every hologram falls back to
+        # the "nothing more" text.
+        lore_strg_ids = {scan.strg_id for scan in TRANSLATOR_LORE_HINT_SCANS}
+        for change in self.config["string_changes"]:
+            if change["strg_id"] in lore_strg_ids:
+                self.assertEqual("The Luminoth have nothing more to tell you.", change["strings"][0])
