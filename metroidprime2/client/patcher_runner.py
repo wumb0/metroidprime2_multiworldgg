@@ -123,6 +123,23 @@ def install_spring_ball(editor: Any, dol_version: Any, button: str) -> None:
     spring_ball_patch.apply_dol_patches(editor.code_cave, version_info.spring_ball, button)
 
 
+def install_move_while_scanning(editor: Any) -> None:
+    """Flips CTWK-Player's ``ScanFreezesGame`` off, mirroring randomprime's
+    (undocumented) ``moveWhileScan`` -- open-prime-rando has no field for
+    this (config.json is validated with ``extra="forbid"``), so like spring
+    ball it's applied directly here instead of via ``RandoConfiguration``.
+
+    Resource-only (a single tweak field, no DOL asm), so like spring ball
+    this needs no hook into ``_apply_patches``: the mutated tweak instance
+    just has to be on ``editor`` before ``editor.save_modifications`` runs,
+    which ``_apply_patches`` calls at its very end.
+    """
+    from retro_data_structures.properties.echoes.objects import TweakPlayer
+
+    with editor.edit_tweak(TweakPlayer) as tweak:
+        tweak.scan_visor.scan_freezes_game = False
+
+
 @contextlib.contextmanager
 def warp_to_start_installed(dol_version: Any, starting_area: Any):
     """Context manager installing both halves of warp-to-start (see
@@ -362,6 +379,7 @@ def patch_iso_with_ap(
     apmp2_options = _read_apmp2_json(apmp2_file, "options.json")
     _check_pickup_encoding_compatibility(apmp2_options)
     warp_to_start = bool(apmp2_options.get("warp_to_start", False))
+    move_while_scanning = bool(apmp2_options.get("move_while_scanning", False))
     show_item_locations = bool(apmp2_options.get("show_item_locations", False))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
@@ -394,6 +412,8 @@ def patch_iso_with_ap(
     try:
         if spring_ball:
             install_spring_ball(editor, dol_version, spring_ball_button)
+        if move_while_scanning:
+            install_move_while_scanning(editor)
         with contextlib.ExitStack() as patches:
             if warp_to_start:
                 patches.enter_context(

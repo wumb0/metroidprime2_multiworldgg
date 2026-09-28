@@ -284,6 +284,7 @@ class MetroidPrime2World(World):
                 # RandoConfiguration (config.json is validated with
                 # extra="forbid"), so the client reads them from here.
                 "warp_to_start": bool(self.options.warp_to_start),
+                "move_while_scanning": bool(self.options.move_while_scanning),
                 "spring_ball": bool(self.options.spring_ball),
                 "spring_ball_button": self.options.spring_ball_button.current_key,
                 "show_item_locations": bool(

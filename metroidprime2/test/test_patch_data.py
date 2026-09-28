@@ -173,6 +173,9 @@ class TestMakeRandoConfiguration(MP2TestBase):
         self.assertEqual(0.0, custom_items["defense_up_config"]["damage_reduction_multiplier"])
         self.assertEqual(1, custom_items["defense_up_config"]["max_count"])
 
+    def test_auto_enabled_elevators_on_by_default(self) -> None:
+        self.assertTrue(self.config["auto_enabled_elevators"])
+
     def test_starting_area_is_landing_site(self) -> None:
         self.assertEqual(
             {"mlvl_id": TEMPLE_GROUNDS_MLVL, "mrea_id": LANDING_SITE_MREA},
@@ -426,6 +429,29 @@ class TestMakeRandoConfigurationWithPortalRando(MP2TestBase):
             self.assertIsInstance(portal["target_dock_name"], str)
             self.assertIsInstance(portal["target_mrea_id"], int)
             self.assertIsInstance(portal["portal_scan_destination"], str)
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_validates_against_installed_rando_configuration(self) -> None:
+        from open_prime_rando.echoes.rando_configuration import RandoConfiguration
+
+        RandoConfiguration.model_validate(self.config, extra="forbid")
+
+
+class TestMakeRandoConfigurationWithPreScanElevatorsOff(MP2TestBase):
+    """``pre_scan_elevators=False`` must flip the patch-side
+    ``auto_enabled_elevators`` flag off (PLAN.md section H); OPR still
+    accepts the resulting config."""
+
+    options = {"pre_scan_elevators": False}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_auto_enabled_elevators_is_disabled(self) -> None:
+        self.assertFalse(self.config["auto_enabled_elevators"])
 
     @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
     def test_validates_against_installed_rando_configuration(self) -> None:

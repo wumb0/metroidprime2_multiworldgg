@@ -132,6 +132,18 @@ Yes, if the `spring_ball` option is enabled. Once you have Morph Ball Bombs, pre
 without laying a bomb. Holding the button keeps jumping each time you land, after a short cooldown. It doesn't work
 in mid-air, on Spider Ball tracks or during Screw Attack. Logic never requires it.
 
+## Do I have to scan elevators before using them?
+
+Not by default. With `pre_scan_elevators` enabled (the default), every elevator starts pre-scanned so you can step
+onto the platform and go without scanning the hologram pillar first. Disable it to require the scan, as in vanilla.
+This is purely cosmetic -- elevators are never logically gated on Scan Visor either way.
+
+## Can I move while scanning?
+
+Not by default. With `move_while_scanning` enabled, you can move around freely while Scan Visor is locked onto a
+scan point, instead of the game freezing you in place for the duration of the scan. This is purely cosmetic --
+logic never assumes you can move during a scan either way.
+
 ## What are the known limitations of this randomizer?
 
 - Damage logic is evaluated per damaging edge, independently, rather than as a cumulative trip like Randovania's

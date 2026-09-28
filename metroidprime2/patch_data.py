@@ -959,7 +959,7 @@ def make_rando_configuration(world: MetroidPrime2World) -> dict[str, Any]:
             "unvisited_map_icons": False,
         },
         "practice_mod": "disabled",
-        "auto_enabled_elevators": False,
+        "auto_enabled_elevators": bool(world.options.pre_scan_elevators.value),
         "two_way_portals": bool(world.options.portal_rando),
         "inverted_mode": False,
         "damage_changes": {

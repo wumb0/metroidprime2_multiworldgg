@@ -505,6 +505,28 @@ class WarpToStart(DefaultOnToggle):
     display_name = "Warp to Start"
 
 
+class PreScanElevators(DefaultOnToggle):
+    """If enabled, elevators start pre-scanned so you don't need to scan the
+    hologram pillar before using them. Mirrors the same feature in the
+    Metroid Prime 1 randomizer. Purely cosmetic/QoL: Scan Visor is always
+    a starting item and elevators are never logically gated on it, so
+    disabling this only affects whether you have to scan first."""
+
+    display_name = "Pre-Scan Elevators"
+
+
+class MoveWhileScanning(Toggle):
+    """If enabled, you can move while Scan Visor is locked onto a scan
+    point, instead of the game freezing your movement for the duration of
+    the scan.
+
+    Mirrors the Metroid Prime 1 randomizer's (undocumented) "move while
+    scan" setting. Purely cosmetic/QoL: logic never assumes you can move
+    during a scan either way."""
+
+    display_name = "Move While Scanning"
+
+
 class SpringBall(Toggle):
     """If enabled, once you have Morph Ball Bombs you can jump in Morph Ball
     by pressing a button (see `spring_ball_button`), without laying a bomb.
@@ -731,6 +753,8 @@ class MetroidPrime2Options(PerGameCommonOptions):
     starting_room_light_world_only: StartingRoomLightWorldOnly
 
     warp_to_start: WarpToStart
+    pre_scan_elevators: PreScanElevators
+    move_while_scanning: MoveWhileScanning
     spring_ball: SpringBall
     spring_ball_button: SpringBallButton
 
@@ -826,7 +850,10 @@ OPTION_GROUPS: list[OptionGroup] = [
         ],
         start_collapsed=True,
     ),
-    OptionGroup("Quality of Life", [WarpToStart, SpringBall, SpringBallButton]),
+    OptionGroup(
+        "Quality of Life",
+        [WarpToStart, PreScanElevators, MoveWhileScanning, SpringBall, SpringBallButton],
+    ),
     OptionGroup(
         "Cosmetic",
         [DisplayNonLocalItems, MapVisibility, UnvisitedRoomNames],
