@@ -45,12 +45,20 @@ from BaseClasses import ItemClassification
 from NetUtils import HintStatus
 
 from .item_pool import STK_ITEM_NAMES
-from .options import SkyTempleKeyHints, TranslatorLoreHints
+from .options import TranslatorLoreHints
 
 if TYPE_CHECKING:
     from BaseClasses import Location
 
     from . import MetroidPrime2World
+
+# Item names translator_lore_hint_locations never picks as a hologram's
+# hint target: Sky Temple Keys (always -- the 9 pillars are their own
+# dedicated hint mechanism, see sky_temple_key_locations above, regardless
+# of sky_temple_key_hints) and Energy Tank (indistinguishable copies --
+# "one of your 14 tanks is at X" isn't actionable). Expansions are already
+# filtered out via ItemClassification.skip_balancing, not by name.
+_LORE_HINT_EXCLUDED_ITEM_NAMES: frozenset[str] = frozenset(STK_ITEM_NAMES) | {"Energy Tank"}
 
 # --------------------------------------------------------------------------
 # Sky Temple Key pillar STRG -> SCAN table (PLAN.md section Q.1, verified
@@ -290,18 +298,18 @@ def translator_lore_hint_locations(world: MetroidPrime2World) -> list[Location |
     Otherwise, candidates are:
     - every filled location (real address) holding one of this player's
       own progression items, anywhere in the multiworld (``my_items`` and
-      ``any`` both include these) -- except this player's own Sky Temple
-      Key items, which are excluded unless ``sky_temple_key_hints`` is
-      ``disabled`` (the 9 pillars already cover them, section Q);
+      ``any`` both include these);
     - under ``any`` only, also every filled location in this player's OWN
       world holding another player's progression item (the most
       ``CreateHints`` allows a hologram to hint at someone else's item --
       see ``patch_data.py``'s Q.1/R.1 notes).
 
-    "Progression" excludes ``skip_balancing`` items (expansions and other
-    bulk progression), and each ``(item owner, item name)`` is hinted at
-    most once -- a hint about one of 14 Energy Tanks is not worth a
-    hologram.
+    "Progression" excludes ``skip_balancing`` items (Missile/Power Bomb/
+    Dark/Light/Beam Ammo Expansions), Sky Temple Keys (the 9 pillars
+    already cover them, section Q, regardless of ``sky_temple_key_hints``),
+    and Energy Tanks -- all three are indistinguishable-copy bulk items
+    where "one of them is at location X" isn't actionable information, and
+    each ``(item owner, item name)`` is hinted at most once besides.
 
     Candidates are deduped and sorted by ``(location.player,
     location.address)``, shuffled, then taken in order skipping repeated
@@ -325,7 +333,6 @@ def translator_lore_hint_locations(world: MetroidPrime2World) -> list[Location |
         world._translator_lore_hints = [None] * total
         return world._translator_lore_hints
 
-    exclude_own_stk = world.options.sky_temple_key_hints.value != SkyTempleKeyHints.option_disabled
     seen: set[tuple[int, int]] = set()
     candidates: list[Location] = []
     for location in world.multiworld.get_filled_locations():
@@ -334,11 +341,10 @@ def translator_lore_hint_locations(world: MetroidPrime2World) -> list[Location |
             continue
         if ItemClassification.skip_balancing in item.classification:
             continue
+        if item.name in _LORE_HINT_EXCLUDED_ITEM_NAMES:
+            continue
         own_item = item.player == world.player
-        if own_item:
-            if exclude_own_stk and item.name in STK_ITEM_NAMES:
-                continue
-        elif not (mode == TranslatorLoreHints.option_any and location.player == world.player):
+        if not own_item and not (mode == TranslatorLoreHints.option_any and location.player == world.player):
             continue
         key = (location.player, location.address)
         if key in seen:

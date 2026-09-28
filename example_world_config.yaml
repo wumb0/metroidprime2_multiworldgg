@@ -68,6 +68,11 @@ requires:
   #        items is, in any player's world.
   #   any: also includes other players' progression items that landed
   #        in YOUR OWN world.
+  # Only progression items are ever chosen, excluding Missile/Power Bomb/
+  # Dark/Light/Beam Ammo Expansions, Energy Tanks, and Sky Temple Keys
+  # (Sky Temple Keys are left entirely to the pillars above) -- all
+  # indistinguishable-copy bulk items where "one of them is at location X"
+  # isn't useful. Each remaining item is hinted at most once.
   translator_lore_hints: my_items
 
   # Combine Dark Suit and Light Suit into two copies of a single

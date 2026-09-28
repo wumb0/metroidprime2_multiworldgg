@@ -1019,10 +1019,10 @@ class TestHintScansSlotDataScanned(MP2TestBase):
     def test_one_entry_per_placed_key_with_right_player_and_address(self) -> None:
         hint_scans = self.slot_data["hint_scans"]
         locations = sky_temple_key_locations(self.world)
-        # Only the 9 Sky Temple Key entries: default sky_temple_key_hints=
-        # "scanned" excludes this player's own keys from the translator
-        # lore hint pool too (section R.3's exclude_own_stk), and no other
-        # location is filled yet (gen_steps stops before fill).
+        # Only the 9 Sky Temple Key entries: translator lore hints always
+        # exclude Sky Temple Keys regardless of sky_temple_key_hints
+        # (section R.3), and no other location is filled yet (gen_steps
+        # stops before fill).
         self.assertEqual(9, len(hint_scans))
         for hint_scan, location in zip(SKY_TEMPLE_KEY_HINT_SCANS, locations, strict=True):
             assert location is not None
@@ -1033,11 +1033,9 @@ class TestHintScansSlotDataScanned(MP2TestBase):
 
 class TestHintScansSlotDataDisabled(MP2TestBase):
     # translator_lore_hints="off" keeps this test scoped to Q's
-    # sky_temple_key_hints="disabled" behavior -- left at its "my_items"
-    # default, the 9 all_bosses key placements become real translator lore
-    # hint candidates too (section R.3's exclude_own_stk is only true when
-    # sky_temple_key_hints != "disabled"), which is covered separately in
-    # test_translator_lore_hints.py.
+    # sky_temple_key_hints="disabled" behavior -- translator lore hints
+    # always exclude Sky Temple Keys regardless (section R.3), which is
+    # covered separately in test_translator_lore_hints.py.
     options = {
         "sky_temple_keys": 9,
         "sky_temple_keys_locations": "all_bosses",

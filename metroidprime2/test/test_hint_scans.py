@@ -320,12 +320,12 @@ class TestTranslatorLoreHintLocations(unittest.TestCase):
         self.assertEqual([None] * 22, result)
 
     def test_each_item_name_is_hinted_at_most_once(self) -> None:
-        locations = [_FakeLocation(1, 5000 + i, _FakeItem("Energy Tank", 1)) for i in range(14)]
-        locations.append(_FakeLocation(1, 6000, _FakeItem("Energy Tank", 2)))
+        locations = [_FakeLocation(1, 5000 + i, _FakeItem("Dark Suit", 1)) for i in range(14)]
+        locations.append(_FakeLocation(1, 6000, _FakeItem("Dark Suit", 2)))
         world = _FakeWorld(locations, translator_lore_hints=TranslatorLoreHints.option_any)
         result = translator_lore_hint_locations(world)  # type: ignore[arg-type]
         chosen = [loc for loc in result if loc is not None]
-        # One of player 1's 14 tanks, plus player 2's own tank in our world.
+        # One of player 1's 14 Dark Suit copies, plus player 2's own copy in our world.
         self.assertEqual(2, len(chosen))
         self.assertEqual({1, 2}, {loc.item.player for loc in chosen})
 
@@ -335,25 +335,32 @@ class TestTranslatorLoreHintLocations(unittest.TestCase):
         result = translator_lore_hint_locations(world)  # type: ignore[arg-type]
         self.assertEqual([None] * 22, result)
 
-    def test_own_sky_temple_keys_excluded_unless_hints_disabled(self) -> None:
+    def test_own_sky_temple_keys_always_excluded_regardless_of_hints_setting(self) -> None:
         locations = _progression_locations(21)
         locations.append(_FakeLocation(1, 6000, _FakeItem("Sky Temple Key 3", 1)))
 
-        excluded = _FakeWorld(
-            locations,
-            translator_lore_hints=TranslatorLoreHints.option_my_items,
-            sky_temple_key_hints=SkyTempleKeyHints.option_scanned,
-        )
-        result = translator_lore_hint_locations(excluded)  # type: ignore[arg-type]
+        for sky_temple_key_hints in (SkyTempleKeyHints.option_scanned, SkyTempleKeyHints.option_disabled):
+            with self.subTest(sky_temple_key_hints=sky_temple_key_hints):
+                world = _FakeWorld(
+                    locations,
+                    translator_lore_hints=TranslatorLoreHints.option_my_items,
+                    sky_temple_key_hints=sky_temple_key_hints,
+                )
+                result = translator_lore_hint_locations(world)  # type: ignore[arg-type]
+                self.assertNotIn(6000, {loc.address for loc in result if loc is not None})
+
+    def test_foreign_sky_temple_keys_excluded_under_any(self) -> None:
+        locations = _progression_locations(21)
+        locations.append(_FakeLocation(1, 6000, _FakeItem("Sky Temple Key 3", 2)))
+        world = _FakeWorld(locations, translator_lore_hints=TranslatorLoreHints.option_any)
+        result = translator_lore_hint_locations(world)  # type: ignore[arg-type]
         self.assertNotIn(6000, {loc.address for loc in result if loc is not None})
 
-        included = _FakeWorld(
-            locations,
-            translator_lore_hints=TranslatorLoreHints.option_my_items,
-            sky_temple_key_hints=SkyTempleKeyHints.option_disabled,
-        )
-        result = translator_lore_hint_locations(included)  # type: ignore[arg-type]
-        self.assertIn(6000, {loc.address for loc in result if loc is not None})
+    def test_energy_tanks_are_never_candidates(self) -> None:
+        locations = [_FakeLocation(1, 5000 + i, _FakeItem("Energy Tank", 1)) for i in range(14)]
+        world = _FakeWorld(locations, translator_lore_hints=TranslatorLoreHints.option_my_items)
+        result = translator_lore_hint_locations(world)  # type: ignore[arg-type]
+        self.assertEqual([None] * 22, result)
 
     def test_my_items_excludes_foreign_items_in_own_world(self) -> None:
         locations = _progression_locations(10) + _progression_locations(5, player=1, item_player=2, start=6000)

@@ -162,13 +162,13 @@ class TranslatorLoreHints(Choice):
     someone else's item).
     Off: holograms keep their vanilla lore text; nothing is hinted.
 
-    Only progression items are ever chosen, excluding bulk ones like
-    expansions, and each item is hinted at most once (one Energy Tank, not
-    four). Your own Sky Temple Keys are
-    left to the pillars above and never duplicated here, unless
-    `sky_temple_key_hints` is Disabled. If there are fewer eligible items
-    than holograms, the extra holograms simply say there's nothing more
-    to tell.
+    Only progression items are ever chosen, excluding Missile/Power Bomb/
+    Dark/Light/Beam Ammo Expansions, Energy Tanks, and Sky Temple Keys --
+    all indistinguishable-copy bulk items where "one of them is at
+    location X" isn't useful (Sky Temple Keys are left entirely to the
+    pillars above, see `sky_temple_key_hints`). Each remaining item is
+    hinted at most once. If there are fewer eligible items than holograms,
+    the extra holograms simply say there's nothing more to tell.
     """
 
     display_name = "Translator Lore Hints"

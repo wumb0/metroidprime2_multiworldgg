@@ -1497,6 +1497,25 @@ Nothing else changes.
   "nothing more" text and no slot_data entry.
 * Client: mixed statuses produce separate `CreateHints` messages.
 
+### R.7 Excluding bulk/indistinguishable-copy items (2026-09-28)
+
+Originally only `skip_balancing` items (Missile/Power Bomb/Dark/Light/Beam
+Ammo Expansions) were excluded from the candidate pool by classification,
+plus a conditional `exclude_own_stk` that only dropped this player's own
+Sky Temple Keys when `sky_temple_key_hints != disabled` (letting STK
+locations leak into the lore-hint pool as a fallback when the pillars
+themselves were turned off) -- Energy Tank was never excluded at all
+(plain `progression`, not `skip_balancing`), so a hologram could point at
+"an Energy Tank" out of 14 indistinguishable copies, which isn't
+actionable.
+
+`hint_scans.py`'s `_LORE_HINT_EXCLUDED_ITEM_NAMES` (`STK_ITEM_NAMES |
+{"Energy Tank"}`) now excludes both by name, unconditionally -- Sky Temple
+Keys are excluded regardless of `sky_temple_key_hints` (own or foreign,
+under `any`), and Energy Tank is excluded the same way `skip_balancing`
+expansions already were. The `exclude_own_stk`/`SkyTempleKeyHints` import
+this replaced is gone from `hint_scans.py` entirely.
+
 ## S. `sky_temple_keys_required` (MP1-style reduced key requirement)
 
 Ported from `worlds/metroidprime`'s `required_artifacts`/`has_group`
