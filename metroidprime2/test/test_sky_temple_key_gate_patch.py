@@ -221,5 +221,5 @@ class TestSkyTempleKeysRequiredLoweredInOptionsJson(_SkyTempleKeysRequiredOption
 
 
 class TestSkyTempleKeysRequiredClampedInOptionsJson(_SkyTempleKeysRequiredOptionTest):
-    options = {"sky_temple_keys": "all_guardians", "sky_temple_keys_required": 9}
+    options = {"sky_temple_keys": 3, "sky_temple_keys_required": 9}
     expected = 3

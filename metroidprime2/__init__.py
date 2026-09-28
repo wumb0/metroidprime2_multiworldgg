@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, TextIO
 
 from BaseClasses import ItemClassification, Tutorial
 from NetUtils import HintStatus
+from Options import OptionError
 from worlds.AutoWorld import WebWorld, World
 from worlds.LauncherComponents import Component, SuffixIdentifier, Type, components, icon_paths, launch
 
@@ -38,6 +39,7 @@ from .options import (
     MapVisibility,
     MetroidPrime2Options,
     SkyTempleKeyHints,
+    SkyTempleKeysLocations,
     TranslatorLoreHints,
     trick_levels_from_options,
 )
@@ -168,6 +170,19 @@ class MetroidPrime2World(World):
                     option = getattr(self.options, key, None)
                     if option is not None:
                         option.value = value
+
+        locations_mode = self.options.sky_temple_keys_locations.value
+        sky_temple_keys = self.options.sky_temple_keys.value
+        if locations_mode == SkyTempleKeysLocations.option_all_bosses and sky_temple_keys != 9:
+            raise OptionError(
+                f"{self.player_name}'s Metroid Prime 2: Echoes world: sky_temple_keys_locations "
+                f"'all_bosses' requires sky_temple_keys to be 9 (got {sky_temple_keys})."
+            )
+        if locations_mode == SkyTempleKeysLocations.option_all_guardians and sky_temple_keys < 3:
+            raise OptionError(
+                f"{self.player_name}'s Metroid Prime 2: Echoes world: sky_temple_keys_locations "
+                f"'all_guardians' requires sky_temple_keys to be at least 3 (got {sky_temple_keys})."
+            )
 
         self.trick_levels = trick_levels_from_options(self.options)
         self.world_uuid = str(

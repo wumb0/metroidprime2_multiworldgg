@@ -959,13 +959,13 @@ class TestSkyTempleKeyStringChangesPrecollectedNumeric(MP2TestBase):
 
 
 class TestSkyTempleKeyStringChangesDisabled(MP2TestBase):
-    """sky_temple_keys="all_bosses" gives every key a real placement
+    """sky_temple_keys_locations="all_bosses" gives every key a real placement
     (locked via place_locked_item during create_items, which -- unlike a
     general-pool placement -- doesn't need the real fill algorithm to have
     run); sky_temple_key_hints="disabled" must still overwrite all 9 with
     the non-hint wording rather than describing that real placement."""
 
-    options = {"sky_temple_keys": "all_bosses", "sky_temple_key_hints": "disabled"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses", "sky_temple_key_hints": "disabled"}
 
     def setUp(self) -> None:
         super().setUp()
@@ -982,7 +982,7 @@ class TestHintScansSlotDataScanned(MP2TestBase):
     """slot_data's ``hint_scans`` (PLAN.md section Q.4/Q.5): one entry per
     actually-placed key under the default ("scanned") mode."""
 
-    options = {"sky_temple_keys": "all_bosses"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses"}
 
     def setUp(self) -> None:
         super().setUp()
@@ -1012,7 +1012,12 @@ class TestHintScansSlotDataDisabled(MP2TestBase):
     # hint candidates too (section R.3's exclude_own_stk is only true when
     # sky_temple_key_hints != "disabled"), which is covered separately in
     # test_translator_lore_hints.py.
-    options = {"sky_temple_keys": "all_bosses", "sky_temple_key_hints": "disabled", "translator_lore_hints": "off"}
+    options = {
+        "sky_temple_keys": 9,
+        "sky_temple_keys_locations": "all_bosses",
+        "sky_temple_key_hints": "disabled",
+        "translator_lore_hints": "off",
+    }
 
     def setUp(self) -> None:
         super().setUp()
@@ -1029,7 +1034,7 @@ class TestHintScansSlotDataPrecollected(MP2TestBase):
     hint already went out via start_hints in post_fill), and every placed
     key's item name lands in options.start_hints."""
 
-    options = {"sky_temple_keys": "all_bosses", "sky_temple_key_hints": "precollected"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses", "sky_temple_key_hints": "precollected"}
 
     def setUp(self) -> None:
         super().setUp()

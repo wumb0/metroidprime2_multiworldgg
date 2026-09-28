@@ -14,7 +14,8 @@ uses.
 
 - **Done:** item shuffle + logic/tricks, generation, ISO patching, the client receive/connect
   loop, client item granting, server communication, Death Link, door lock / elevator / portal /
-  translator gate / starting room randomization, warp to starting room implementation.
+  translator gate / starting room randomization, warp to starting room implementation, Sky
+  Temple Key gate + hint scans, translator lore hint scans, pre-scanned elevators.
 - **Needs testing**: cross-game item model matching.
 - **In progress:** Universal Tracker support and final docs
 
@@ -56,10 +57,10 @@ cd MultiWorldGG
 python -m pytest worlds/metroidprime2/test/
 ```
 
-The suite (200+ tests across `metroidprime2/test/`) covers the logic-DB reader, requirement
+The suite (400+ tests across `metroidprime2/test/`) covers the logic-DB reader, requirement
 compiler, region/reachability generation, item pool composition, patch data, entrance
-(door lock/elevator/translator gate) randomization, Death Link, and the client's
-item-receive logic.
+(door lock/elevator/translator gate) randomization, Death Link, hint scans (Sky Temple Key
+and translator lore), and the client's item-receive logic.
 
 ## Config options
 
@@ -70,7 +71,11 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `sky_temple_keys` | Choice: `0`-`9`, `all_bosses`, `all_guardians`, `all_guardians_plus_6` | `9` | How many of the 9 Sky Temple Keys are shuffled into the general pool vs. pre-placed/pre-collected. `all_bosses` places one key on each of the 9 boss/guardian locations; `all_guardians` places keys 1-3 on the 3 dark temple guardians and pre-collects keys 4-9; `all_guardians_plus_6` places keys 1-3 the same way but shuffles keys 4-9 into the pool instead. |
+| `sky_temple_keys` | Range 0-9 | `9` | How many of the 9 Sky Temple Keys are real, findable items — shuffled into the general pool, or pre-placed per `sky_temple_keys_locations` — versus starting the game already pre-collected for free. 0 means all 9 keys start pre-collected; 9, the default, makes every key findable. |
+| `sky_temple_keys_locations` | Choice: `off`/`all_bosses`/`all_guardians` | `off` | Where the findable Sky Temple Keys are placed. `off`: shuffled into the general pool like any other item, works with any `sky_temple_keys` value. `all_bosses`: pre-places one key on each of the 9 boss/guardian locations, requires `sky_temple_keys` to be 9. `all_guardians`: pre-places the first 3 keys on the 3 dark temple guardians, any further findable keys (`sky_temple_keys` minus 3) go into the general pool; requires `sky_temple_keys` to be at least 3. |
+| `sky_temple_keys_required` | Range 1-9 | `9` | How many Sky Temple Keys must actually be held to unlock the Sky Temple Gateway's ring of columns, independent of where (or whether) `sky_temple_keys` makes them findable. Must be no higher than `sky_temple_keys` — silently clamped down to it if higher. |
+| `sky_temple_key_hints` | Choice: `disabled`/`scanned`/`precollected` | `scanned` | Whether the 9 Luminoth pillars in Sky Temple Gateway hint at where each Sky Temple Key really is. `scanned`: scanning a pillar reveals that key's location (your own world or another player's) and sends the hint to the server, the same as any other in-game hint. `precollected`: every key hint is known from the start, without needing to scan anything. `disabled`: pillars show a non-hint instead of the vanilla riddles, which would mislead once keys are shuffled. |
+| `translator_lore_hints` | Choice: `off`/`my_items`/`any` | `my_items` | Whether the 22 colored Luminoth lore holograms hint at where a progression item can be found, the same way the Sky Temple Key pillars do above — scanning one to completion sends the hint to the server. `my_items`: each hologram names where one of your own progression items is, in any player's world. `any`: also includes other players' progression items that landed in your own world. `off`: holograms keep their vanilla lore text. Only progression items are chosen (never bulk expansions), each hinted at most once, and your own Sky Temple Keys are left to the pillars above unless `sky_temple_key_hints` is `disabled`. |
 | `progressive_suit` | Toggle (on by default) | on | Combine Dark Suit and Light Suit into two copies of a single Progressive Suit item. |
 | `progressive_grapple` | Toggle | off | Combine Grapple Beam and Screw Attack into two copies of a single Progressive Grapple item. |
 | `missile_expansions_unlock_launcher` | Toggle | off | Receiving any Missile Expansion also unlocks the Missile Launcher itself, so expansions are usable before the launcher is found. Off matches Randovania (expansions grant nothing without the launcher); this also affects logic, not just the in-game grant. |
@@ -139,6 +144,8 @@ override just that one. Every trick option shares the same scale: `use_global` (
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `warp_to_start` | Toggle (on by default) | on | Declining to save at a Save Station while holding L+R warps you back to the starting room (Samus' ship in Landing Site, or wherever `starting_room` chose). Declining without L+R held behaves exactly as in vanilla. |
+| `pre_scan_elevators` | Toggle (on by default) | on | Elevators start pre-scanned so you don't need to scan the hologram pillar before using them. Mirrors the same feature in the Metroid Prime 1 randomizer. Purely cosmetic/QoL: Scan Visor is always a starting item and elevators are never logically gated on it, so disabling this only affects whether you have to scan first. |
+| `move_while_scanning` | Toggle | off | Allow moving while Scan Visor is locked onto a scan point, instead of the game freezing your movement for the duration of the scan. Mirrors the Metroid Prime 1 randomizer's (undocumented) "move while scan" setting. Purely cosmetic/QoL: logic never assumes you can move during a scan either way. |
 | `spring_ball` | Toggle | off | Once you have Morph Ball Bombs, pressing `spring_ball_button` in Morph Ball jumps as high as a bomb jump without laying a bomb. Only works on the ground, with a short cooldown between jumps. Mirrors the Prime 1 randomizer's "when bombs acquired" spring ball. Logic never requires it. |
 | `spring_ball_button` | Choice: `c_stick_up`/`c_stick_down`/`c_stick_left`/`c_stick_right`/`d_pad_up`/`l_trigger` | `c_stick_up` | The button that triggers `spring_ball`. None of these do anything in vanilla Morph Ball. `l_trigger` means a full press, past the click. |
 

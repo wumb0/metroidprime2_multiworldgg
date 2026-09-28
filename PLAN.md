@@ -388,7 +388,7 @@ Both dark-damage options are stored in **tenths of a point per second** and conv
  "starting_area": {"mlvl_id": 1006255871, "mrea_id": 1655756413},          # Temple Grounds / Landing Site
  "starting_items": starting_items_config(world),
  "map_visibility": {"reveal_map_at_start": ..., "unvisited_room_names": ..., "areas_to_never_reveal": [], "unvisited_map_icons": False},
- "practice_mod": "disabled", "auto_enabled_elevators": False, "two_way_portals": False, "inverted_mode": False,
+ "practice_mod": "disabled", "auto_enabled_elevators": bool(world.options.pre_scan_elevators.value), "two_way_portals": bool(world.options.portal_rando), "inverted_mode": False,
  "damage_changes": {"energy_per_tank": E, "safe_zone_heal_per_second": 1.0, "dangerous_energy_tanks": ...,
                     "dark_world_damage": float(dark_aether_damage), "dark_suit_protection": dark_suit_damage / dark_aether_damage},
  "world_changes": [...], "string_changes": [],
@@ -1630,3 +1630,124 @@ values and a malformed room with more than one `Open` connection);
 (including on exception, matching `TestWarpToStartInstalled`'s
 coverage); the resolved value's route into `options.json` (default,
 lowered, clamped) with `assertNotIn` on `config.json`.
+
+---
+
+## T. `move_while_scanning`
+
+A port of randomprime's (undocumented) `moveWhileScan` CtwkConfig field
+(`randomprime/schema/randomprime.schema.json`'s `moveWhileScan`,
+`randomprime/src/patches.rs::patch_ctwk_player` -- `ctwk_player.
+scan_freezes_game = 0` when set): lets the player move while Scan Visor is
+locked onto a scan point, instead of the game freezing movement for the
+scan's duration. Purely a resource-tweak field flip, no DOL asm and no
+SCLY object involved at all -- the simplest of the QoL ports so far.
+
+**Where this lives, and why not in open-prime-rando (same reasoning as
+section S's `sky_temple_keys_required`).** The pinned dependency
+(`open-prime-rando[nod]==0.20.1`) is a released PyPI version; a
+`move_while_scanning: bool` field was added to the fork's
+`RandoConfiguration` (`echoes/rando_configuration.py`) and wired into
+`echoes/patcher.py::apply_dol_patches` (`with editor.edit_tweak(TweakPlayer)
+as tweak: tweak.scan_visor.scan_freezes_game = not configuration.
+move_while_scanning`, mirroring `damage_changes.py`'s existing `edit_tweak
+(TweakPlayer)` usage for `dark_world`/`dark_suit_damage_reduction`) as a
+candidate to upstream later, but the pinned release wouldn't pick it up
+regardless -- confirmed by regenerating the fork's own golden-hash export
+tests (`tests/test_files/echoes/new_patcher.json` gained `"move_while_
+scanning": true`; only `Standard.ntwk`'s hash changed, and the full 251-test
+OPR suite still passes against real NTSC/PAL ISOs). So, like
+`warp_to_start`/`show_item_locations`/`spring_ball`/
+`sky_temple_keys_required` before it, the actual shipped feature lives in
+`client/patcher_runner.py`: `install_move_while_scanning(editor)` calls the
+exact same `editor.edit_tweak(TweakPlayer)` two-liner directly against the
+client's own `PatcherEditor`. Unlike every other patch-time setting so far
+this needs no hook into `_apply_patches` at all (no `register_world_changes`
+wrap, no code-cave request) -- like `install_spring_ball`, it only needs to
+run once on `editor` before `_apply_patches`'s trailing
+`editor.save_modifications(output, ...)`, which `patch_iso_with_ap` already
+guarantees by calling it in the same place spring ball's installer runs,
+right before the `ExitStack` of hook-based patches. Verified directly
+against the pinned 0.20.1 release and a real vanilla ISO (not just the
+fork): `editor.edit_tweak(TweakPlayer)` reads `scan_freezes_game=True`
+before `install_move_while_scanning`, `False` after.
+
+**Config plumbing.** `move_while_scanning` (options.py, `Toggle`, default
+off -- matching randomprime's own default-off `moveWhileScan`, since there
+is no MP1-world precedent either way to mirror) has no home in OPR's
+`RandoConfiguration` for the reason above, so `__init__.py`'s
+`generate_output` writes it into `options.json` alongside `warp_to_start`,
+where `patcher_runner.patch_iso_with_ap` reads it back (default `False` if
+absent, so a `.apmp2` produced before this option existed still patches
+unchanged).
+
+**Tests.** `test_move_while_scanning.py`: the option's route into
+`options.json` with `assertNotIn` on `config.json` (enabled/default-off);
+`install_move_while_scanning` against a fake `PatcherEditor` exposing just
+`edit_tweak`, asserting it flips `scan_visor.scan_freezes_game` and nothing
+else.
+
+---
+
+## U. Splitting `sky_temple_keys` into count + `sky_temple_keys_locations`
+
+Section F's original `sky_temple_keys` was a single `Choice` conflating
+two independent axes: how many of the 9 keys are findable at all
+(`0`-`9`), and where the findable ones are placed (numeric modes leave
+them to the general pool; `all_bosses`/`all_guardians`/
+`all_guardians_plus_6` lock them onto boss/guardian pickups). That made
+the option's own value space redundant -- `all_guardians` and
+`all_guardians_plus_6` differed only in whether keys 4-9 were
+precollected or pooled, a distinction that had nothing to do with
+"guardians" -- and forced anyone wanting, say, 5 findable keys locked
+across the 3 guardians-plus-pool to fall back to a numeric mode and lose
+the guardian placement entirely.
+
+Split into two options (`options.py`): `sky_temple_keys` is now a plain
+`Range(0, 9)`, just the findable-count axis from section F, with the
+exact same semantics as the old numeric modes (`N` findable, `9-N`
+precollected). `sky_temple_keys_locations` is a `Choice` with only the
+placement axis: `off` (default; matches the old numeric modes exactly),
+`all_bosses` (matches the old `all_bosses`, but now requires
+`sky_temple_keys == 9` since there are exactly 9 boss/guardian slots to
+fill), `all_guardians` (locks keys 1-3 onto the 3 guardians, same as
+before, then shuffles keys 4..`sky_temple_keys` into the pool -- which
+subsumes both old `all_guardians` (`sky_temple_keys=3`, nothing left to
+pool) and old `all_guardians_plus_6` (`sky_temple_keys=9`, keys 4-9
+pooled) as special cases of one mechanism, so `all_guardians_plus_6` is
+gone entirely). Requires `sky_temple_keys >= 3` (enough keys to cover the
+3 locked guardian slots).
+
+**`item_pool.py` simplifies too.** `sky_temple_keys_present_count(world)`
+used to special-case each old mode; since "present" (findable, as opposed
+to precollected) is now always exactly `sky_temple_keys` regardless of
+`sky_temple_keys_locations` (the guardian-lock + pool split still sums to
+`sky_temple_keys`), it's now a one-line passthrough.
+`sky_temple_keys_required_count` (section S) is unchanged -- it already
+just clamped the raw `sky_temple_keys_required` value down to
+`sky_temple_keys_present_count(world)`, so "`sky_temple_keys_required`
+must be no higher than `sky_temple_keys`" was already the enforced
+invariant, just against a more roundabout present-count calculation.
+
+**Validation.** The two placement preconditions above
+(`all_bosses` needs `sky_temple_keys == 9`; `all_guardians` needs
+`sky_temple_keys >= 3`) are real constraints, not something to silently
+reinterpret, so `MetroidPrime2World.generate_early` raises
+`Options.OptionError` (imported as `from Options import OptionError`,
+matching the `worlds/paint`/`worlds/lingo` convention -- the first use of
+`OptionError` in this world) when they're violated, right after the
+Universal Tracker passthrough block and before anything else reads
+`self.options`. This is a harder failure mode than
+`sky_temple_keys_required`'s silent clamp deliberately: a clamp has a
+well-defined, always-satisfiable fallback (require fewer keys), but there
+is no sensible auto-correction for "you asked to lock 9 keys onto bosses
+but only made 5 of them findable" short of guessing which 5, so it errors
+instead.
+
+**Migration note.** This is a breaking option-shape change: old YAMLs
+using `sky_temple_keys: all_bosses`/`all_guardians`/`all_guardians_plus_6`
+need `sky_temple_keys: 9` (or `3` for old `all_guardians`) plus the new
+`sky_temple_keys_locations: all_bosses`/`all_guardians` key instead. Old
+numeric values (`sky_temple_keys: 0`-`9`) are unaffected --
+`sky_temple_keys_locations` simply defaults to `off`, reproducing the old
+numeric-mode behavior exactly.

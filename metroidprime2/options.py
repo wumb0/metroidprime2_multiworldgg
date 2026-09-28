@@ -59,64 +59,65 @@ from .options_tricks import (
 # --------------------------------------------------------------------------
 
 
-class SkyTempleKeys(Choice):
-    """How many Sky Temple Keys are shuffled into the general item pool
-    versus pre-placed or pre-collected.
+class SkyTempleKeys(Range):
+    """How many of the 9 Sky Temple Keys are real, findable items --
+    shuffled into the general pool, or pre-placed on a boss/guardian per
+    ``sky_temple_keys_locations`` -- versus starting the game already
+    pre-collected for free.
 
-    A number N puts keys 1..N into the general pool and pre-collects keys
-    N+1..9 (0 means all 9 keys start collected -- an immediate escape to
-    the credits once the Sky Temple Gateway is reached; 9, the default,
-    puts every key into the pool like a normal item).
-
-    All Bosses pre-places one key, in order, on each of the 9 boss/
-    guardian pickup locations (the 6 "sub-guardians" plus the 3 dark
-    temple guardians) instead of shuffling them into the pool.
-
-    All Guardians pre-places keys 1-3 on the 3 dark temple guardians
-    (Amorbis, Chykka, Quadraxis) and pre-collects keys 4-9.
-
-    All Guardians Plus 6 also pre-places keys 1-3 on the 3 dark temple
-    guardians, but shuffles keys 4-9 into the general pool instead of
-    pre-collecting them.
+    0 means all 9 keys start pre-collected -- an immediate escape to the
+    credits once the Sky Temple Gateway is reached. 9, the default, makes
+    every key findable, the same as a normal item.
     """
 
     display_name = "Sky Temple Keys"
-    option_0 = 0
-    option_1 = 1
-    option_2 = 2
-    option_3 = 3
-    option_4 = 4
-    option_5 = 5
-    option_6 = 6
-    option_7 = 7
-    option_8 = 8
-    option_9 = 9
-    option_all_bosses = 10
-    option_all_guardians = 11
-    option_all_guardians_plus_6 = 12
+    range_start = 0
+    range_end = 9
     default = 9
+
+
+class SkyTempleKeysLocations(Choice):
+    """Where the findable Sky Temple Keys (see ``sky_temple_keys``) are
+    placed.
+
+    Off (default): keys are shuffled into the general item pool like any
+    other progression item. Works with any ``sky_temple_keys`` value.
+
+    All Bosses pre-places one key, in order, on each of the 9 boss/
+    guardian pickup locations (the 6 "sub-guardians" plus the 3 dark
+    temple guardians) instead of shuffling them into the pool. Requires
+    ``sky_temple_keys`` to be 9.
+
+    All Guardians pre-places the first 3 keys on the 3 dark temple
+    guardians (Amorbis, Chykka, Quadraxis); any further findable keys
+    (``sky_temple_keys`` minus 3) are shuffled into the general pool, the
+    same as Off. Requires ``sky_temple_keys`` to be at least 3.
+    """
+
+    display_name = "Sky Temple Keys Locations"
+    option_off = 0
+    option_all_bosses = 1
+    option_all_guardians = 2
+    default = option_off
 
 
 class SkyTempleKeysRequired(Range):
     """How many Sky Temple Keys must actually be held to unlock the Sky
     Temple Gateway's ring of columns and proceed to the Dark Samus 3/4
-    fight, independent of how many of the 9 keys ``sky_temple_keys`` makes
-    findable versus pre-collects for free.
+    fight, independent of where (or whether) ``sky_temple_keys`` makes
+    them findable.
 
     Vanilla (and this option's default) requires all 9. A lower value is
     a real difficulty reduction, not just a relocation: with
-    ``sky_temple_keys`` at 9 (every key a normal pickup) and this at, say,
-    6, only 6 of the 9 key locations ever need to be found before the
-    Gateway opens -- the remaining 3 keys still exist and can still be
-    found (nothing is removed from the pool), they simply stop being
-    necessary.
+    ``sky_temple_keys`` at 9 and this at, say, 6, only 6 of the 9 key
+    locations ever need to be found before the Gateway opens -- the
+    remaining 3 keys still exist and can still be found (nothing is
+    removed from the pool), they simply stop being necessary.
 
-    Clamped down to whatever ``sky_temple_keys`` actually makes findable
-    or pre-collected (i.e. never above 9, and never above the count
-    ``sky_temple_keys`` resolves to for `all_guardians`'s 3) -- a value
-    higher than that could never be satisfied, since it's impossible to
-    hold more keys than exist. See ``item_pool.sky_temple_keys_present_
-    count``/``sky_temple_keys_required_count``.
+    Must be no higher than ``sky_temple_keys`` -- a value higher than that
+    could never be satisfied, since it's impossible to hold more keys than
+    are findable. Silently clamped down to ``sky_temple_keys`` if higher.
+    See ``item_pool.sky_temple_keys_required_count``.
     """
 
     display_name = "Sky Temple Keys Required"
@@ -673,6 +674,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     start_inventory_from_pool: StartInventoryPool
 
     sky_temple_keys: SkyTempleKeys
+    sky_temple_keys_locations: SkyTempleKeysLocations
     sky_temple_keys_required: SkyTempleKeysRequired
     sky_temple_key_hints: SkyTempleKeyHints
     translator_lore_hints: TranslatorLoreHints
@@ -747,7 +749,10 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
 
 OPTION_GROUPS: list[OptionGroup] = [
-    OptionGroup("Goal", [SkyTempleKeys, SkyTempleKeysRequired, SkyTempleKeyHints, TranslatorLoreHints]),
+    OptionGroup(
+        "Goal",
+        [SkyTempleKeys, SkyTempleKeysLocations, SkyTempleKeysRequired, SkyTempleKeyHints, TranslatorLoreHints],
+    ),
     OptionGroup(
         "Item Pool",
         [

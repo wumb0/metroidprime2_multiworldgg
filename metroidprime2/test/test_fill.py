@@ -125,17 +125,17 @@ class TestSkyTempleKeysNine(_FillMatrixCase):
 
 
 class TestSkyTempleKeysAllBosses(_FillMatrixCase):
-    options = {"sky_temple_keys": "all_bosses"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses"}
     seeds = (1, 2)
 
 
 class TestSkyTempleKeysAllGuardians(_FillMatrixCase):
-    options = {"sky_temple_keys": "all_guardians"}
+    options = {"sky_temple_keys": 3, "sky_temple_keys_locations": "all_guardians"}
     seeds = (1, 2)
 
 
 class TestSkyTempleKeysAllGuardiansPlus6(_FillMatrixCase):
-    options = {"sky_temple_keys": "all_guardians_plus_6"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_guardians"}
     seeds = (1, 2)
 
 

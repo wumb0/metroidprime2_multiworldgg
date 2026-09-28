@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from collections import Counter
 
+from Options import OptionError
+
 from ..item_pool import sky_temple_keys_present_count, sky_temple_keys_required_count
 from .bases import MP2TestBase
 
@@ -19,9 +21,9 @@ def _own_precollected_names(test: MP2TestBase) -> list[str]:
 
 
 class TestSkyTempleKeysNumeric(MP2TestBase):
-    """Numeric N: keys 1..N enter the general pool, keys N+1..9 are
-    precollected; no locations are locked, so the pool always pads/trims
-    back up to all 119 locations."""
+    """locations=off (default): keys 1..N enter the general pool, keys
+    N+1..9 are precollected; no locations are locked, so the pool always
+    pads/trims back up to all 119 locations."""
 
     options = {"sky_temple_keys": 0}
 
@@ -66,8 +68,8 @@ class TestSkyTempleKeysNumericNine(MP2TestBase):
 
 class TestSkyTempleKeysRequiredDefault(MP2TestBase):
     """Default sky_temple_keys_required (9) is an unclamped no-op
-    regardless of sky_temple_keys mode -- present_count/required_count
-    agree with the pool-shape tests above."""
+    regardless of sky_temple_keys -- present_count/required_count agree
+    with the pool-shape tests above."""
 
     options = {"sky_temple_keys": 3}
 
@@ -90,10 +92,10 @@ class TestSkyTempleKeysRequiredBelowPresent(MP2TestBase):
 class TestSkyTempleKeysRequiredAbovePresentIsClamped(MP2TestBase):
     """A required value above present_count is clamped down to it (a seed
     can never require more keys than could possibly be held) --
-    all_guardians precollects 6 keys and only shuffles 3, so present_count
-    is 3 even though sky_temple_keys_required's own range allows up to 9."""
+    sky_temple_keys=3 makes present_count 3 even though
+    sky_temple_keys_required's own range allows up to 9."""
 
-    options = {"sky_temple_keys": "all_guardians", "sky_temple_keys_required": 9}
+    options = {"sky_temple_keys": 3, "sky_temple_keys_required": 9}
 
     def test_required_count_clamped_to_present_count(self) -> None:
         self.assertEqual(3, sky_temple_keys_present_count(self.world))
@@ -105,7 +107,7 @@ class TestSkyTempleKeysAllBosses(MP2TestBase):
     locations; none enter the pool or start precollected, so only the
     remaining 119 - 9 = 110 locations need a pool item."""
 
-    options = {"sky_temple_keys": "all_bosses"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses"}
 
     def test_nine_keys_locked_on_boss_locations(self) -> None:
         self.assertEqual(9, len(self.world.sky_temple_key_locations))
@@ -124,10 +126,11 @@ class TestSkyTempleKeysAllBosses(MP2TestBase):
 
 
 class TestSkyTempleKeysAllGuardians(MP2TestBase):
-    """Keys 1-3 are locked onto the 3 dark temple guardians; keys 4-9 are
-    precollected; only 119 - 3 = 116 locations need a pool item."""
+    """sky_temple_keys=3: keys 1-3 are locked onto the 3 dark temple
+    guardians; keys 4-9 are precollected; only 119 - 3 = 116 locations
+    need a pool item."""
 
-    options = {"sky_temple_keys": "all_guardians"}
+    options = {"sky_temple_keys": 3, "sky_temple_keys_locations": "all_guardians"}
 
     def test_three_keys_locked_six_precollected(self) -> None:
         self.assertEqual(3, len(self.world.sky_temple_key_locations))
@@ -147,12 +150,13 @@ class TestSkyTempleKeysAllGuardians(MP2TestBase):
 
 
 class TestSkyTempleKeysAllGuardiansPlus6(MP2TestBase):
-    """Keys 1-3 are locked onto the 3 dark temple guardians, same as
-    all_guardians; keys 4-9 are shuffled into the pool instead of
-    precollected, so all 119 - 3 = 116 remaining locations need a pool
-    item and none of the 6 pooled keys are precollected."""
+    """sky_temple_keys=9: keys 1-3 are locked onto the 3 dark temple
+    guardians, same as sky_temple_keys=3 above; keys 4-9 are shuffled into
+    the pool instead of precollected, so all 119 - 3 = 116 remaining
+    locations need a pool item and none of the 6 pooled keys are
+    precollected."""
 
-    options = {"sky_temple_keys": "all_guardians_plus_6"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_guardians"}
 
     def test_three_keys_locked_six_in_pool(self) -> None:
         self.assertEqual(3, len(self.world.sky_temple_key_locations))
@@ -169,6 +173,33 @@ class TestSkyTempleKeysAllGuardiansPlus6(MP2TestBase):
         self.assertEqual(116, len(pool_names))
         stk_in_pool = sorted(n for n in pool_names if n.startswith("Sky Temple Key"))
         self.assertEqual([f"Sky Temple Key {n}" for n in range(4, 10)], stk_in_pool)
+
+
+class TestSkyTempleKeysAllBossesRequiresNine(MP2TestBase):
+    """sky_temple_keys_locations=all_bosses needs all 9 keys findable (one
+    per boss/guardian location) -- anything else raises during
+    generate_early instead of silently doing something else with the
+    missing/extra keys."""
+
+    auto_construct = False
+    options = {"sky_temple_keys": 8, "sky_temple_keys_locations": "all_bosses"}
+
+    def test_raises_option_error(self) -> None:
+        with self.assertRaises(OptionError):
+            self.world_setup()
+
+
+class TestSkyTempleKeysAllGuardiansRequiresAtLeastThree(MP2TestBase):
+    """sky_temple_keys_locations=all_guardians needs at least the 3 keys
+    it locks onto the guardians -- fewer than that raises during
+    generate_early."""
+
+    auto_construct = False
+    options = {"sky_temple_keys": 2, "sky_temple_keys_locations": "all_guardians"}
+
+    def test_raises_option_error(self) -> None:
+        with self.assertRaises(OptionError):
+            self.world_setup()
 
 
 class TestProgressiveOn(MP2TestBase):
