@@ -55,7 +55,6 @@ if TYPE_CHECKING:
     pass
 
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
-MAX_RECEIVE_NOTIFICATIONS = 5
 
 _STATUS_MESSAGES: dict[ConnectionState, str] = {
     ConnectionState.DISCONNECTED: "Not connected to Dolphin, attempting to reconnect...",
@@ -323,8 +322,18 @@ async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
                 logger.error(str(e))
             else:
                 logger.error(traceback.format_exc())
-            await asyncio.sleep(3)
+            await _sleep_unless_exiting(ctx, 3)
             continue
+
+
+async def _sleep_unless_exiting(ctx: MetroidPrime2Context, seconds: float) -> None:
+    """``asyncio.sleep`` that returns early once the client is closing, so
+    the sync loop notices ``exit_event`` right away instead of after its
+    current tick delay."""
+    try:
+        await asyncio.wait_for(ctx.exit_event.wait(), seconds)
+    except TimeoutError:
+        pass
 
 
 async def _handle_game_not_ready(ctx: MetroidPrime2Context) -> None:
@@ -341,7 +350,7 @@ async def _handle_game_not_ready(ctx: MetroidPrime2Context) -> None:
         # here never recovers.
         ctx.game_interface.disconnect_from_game()
         ctx.game_interface.connect_to_game()
-    await asyncio.sleep(1)
+    await _sleep_unless_exiting(ctx, 1)
 
 
 _DEFAULT_TICK_DELAY = 0.5
@@ -399,7 +408,7 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
         if ctx.death_link_enabled:
             await _handle_check_deathlink(ctx)
     finally:
-        await asyncio.sleep(delay)
+        await _sleep_unless_exiting(ctx, delay)
 
 
 async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
@@ -524,10 +533,11 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
 def _announce_received_items(
     ctx: MetroidPrime2Context, received: list[tuple[str, int]], first_non_starting: int
 ) -> None:
-    """Queues one HUD notification per (sender, item) among the items
-    received since the last announcement, so 3 Missile Expansions from one
-    player show as a single "Received 15 Missiles from X" rather than three
-    messages (NotificationManager also merges into still-queued entries).
+    """Queues HUD notifications for the items received since the last
+    announcement, grouped per sender and item, so 3 Missile Expansions from
+    one player show as a single "Received 15 Missiles from X" rather than
+    three messages (NotificationManager packs each sender's items into as
+    few HUD messages as fit, merging into ones still queued).
 
     Start-inventory catch-up (indices below ``first_non_starting``) is never
     announced -- grant()'s per-tick body budget can take several ticks to
@@ -542,12 +552,6 @@ def _announce_received_items(
         if sender == ctx.slot:
             continue
         groups[sender, item_name] = groups.get((sender, item_name), 0) + 1
-
-    if len(groups) > MAX_RECEIVE_NOTIFICATIONS:
-        # e.g. reconnecting after a long time offline: don't queue minutes
-        # of back-to-back HUD messages.
-        ctx.notification_manager.queue_notification(f"Received {sum(groups.values())} items")
-        return
 
     for (sender, item_name), count in groups.items():
         sender_name = ctx.player_names.get(sender, "another world")
@@ -665,9 +669,17 @@ async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> Non
             logger.info(f"Output ISO Path: {output_path}")
             logger.info("Patching ISO...")
             cosmetics = cosmetics_dict(mp2_settings)
-            output_path = await asyncio.to_thread(
-                patch_iso_with_ap, apmp2_file, input_iso_path, cosmetics, _progress
-            )
+            try:
+                output_path = await asyncio.to_thread(
+                    patch_iso_with_ap, apmp2_file, input_iso_path, cosmetics, _progress
+                )
+            except asyncio.CancelledError:
+                # The patch thread itself can't be interrupted, and asyncio.run
+                # waits for it before the process exits -- which is what we
+                # want (killing it mid-write would leave a partial output ISO
+                # that the os.path.exists check above would then trust).
+                logger.info("Client closing; waiting for ISO patching to finish first...")
+                raise
             logger.info("Patching Complete")
         except BaseException as e:
             logger.error(f"Failed to patch ISO: {e}")
@@ -675,6 +687,38 @@ async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> Non
         logger.info("--------------")
 
     Utils.async_start(run_game(output_path, mp2_settings))
+
+
+_SHUTDOWN_TIMEOUT = 5.0
+
+
+async def _shutdown(ctx: MetroidPrime2Context) -> None:
+    """Bounded version of worlds/metroidprime's shutdown sequence (which
+    also unconditionally slept 3s before joining the sync task).
+
+    ``CommonContext.shutdown()`` awaits ``server_task``, which can sit in a
+    pending websocket connect (a connect/auto-reconnect attempt to an
+    unreachable server: websockets' 10s open timeout) or close handshake
+    (a dead connection: 10s close timeout) -- the client window closes but
+    the process hangs around, and a connect that then fails tries to open
+    a connection-loss message box on the already-stopped UI and throws.
+    """
+    if ctx.dolphin_sync_task:
+        try:
+            await asyncio.wait_for(ctx.dolphin_sync_task, _SHUTDOWN_TIMEOUT)
+        except TimeoutError:
+            logger.warning("Dolphin sync task didn't stop in time; cancelled it.")
+
+    if ctx.server_task and not ctx.server_task.done() and ctx.server is None:
+        # Still connecting: there's no connection to close gracefully.
+        ctx.server_task.cancel()
+        await asyncio.gather(ctx.server_task, return_exceptions=True)
+        ctx.server_task = None
+
+    try:
+        await asyncio.wait_for(ctx.shutdown(), _SHUTDOWN_TIMEOUT)
+    except TimeoutError:
+        logger.warning("Server connection didn't close in time; exiting anyway.")
 
 
 def main(*args: str) -> None:
@@ -718,11 +762,7 @@ def main(*args: str) -> None:
         ctx.watcher_event.set()
         ctx.server_address = None
 
-        await ctx.shutdown()
-
-        if ctx.dolphin_sync_task:
-            await asyncio.sleep(3)
-            await ctx.dolphin_sync_task
+        await _shutdown(ctx)
 
     parser = get_base_parser()
     parser.add_argument("apmp2_file", default="", type=str, nargs="?", help="Path to an apmp2 file")

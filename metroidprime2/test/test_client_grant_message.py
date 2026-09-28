@@ -27,7 +27,7 @@ if "network_data_package" not in worlds.__dict__:
 from NetUtils import NetworkItem
 
 from ..client.client import MetroidPrime2Context, _handle_grant_items
-from ..client.notification_manager import NotificationManager
+from ..client.notification_manager import HUD_MAX_CHARS, NotificationManager
 
 
 class _FakeGameInterface:
@@ -139,12 +139,30 @@ class TestGrantItemsHudMessage(unittest.TestCase):
 
         self.assertEqual(
             [
-                "Received 15 Missiles from OtherPlayer",
-                "Received Energy Tank x2 from OtherPlayer",
+                "Received 15 Missiles, Energy Tank x2 from OtherPlayer",
                 "Received Missile Expansion from ThirdPlayer",
             ],
             _queued(ctx),
         )
+
+    def test_large_backlog_is_listed_not_collapsed(self) -> None:
+        # e.g. reconnecting after a long break: every item is still named,
+        # split across as many HUD-sized messages as needed.
+        names = {100 + i: f"Test Item Number {i}" for i in range(12)}
+        items = [NetworkItem(item=item_id, location=item_id, player=2) for item_id in names]
+        ctx = _bare_context(items_received=items, first_non_starting=0)
+        ctx.item_names = _FakeItemNames(names)
+
+        asyncio.run(_handle_grant_items(ctx, {}))
+
+        queued = _queued(ctx)
+        self.assertGreater(len(queued), 1)
+        for message in queued:
+            self.assertLessEqual(len(message), HUD_MAX_CHARS)
+            self.assertTrue(message.endswith(" from OtherPlayer"))
+        joined = " ".join(queued)
+        for name in names.values():
+            self.assertIn(name, joined)
 
     def test_later_copies_merge_into_still_queued_message(self) -> None:
         items = [NetworkItem(item=_MISSILE_EXPANSION_NETWORK_ID, location=10, player=2)]

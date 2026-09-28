@@ -1,13 +1,14 @@
 """Based on ``worlds/metroidprime/NotificationManager.py`` (PLAN.md section
 J deliverable 2). Pure queue/cooldown logic with no Dolphin dependency.
 
-Beyond the MP1 original, received-item notifications are queued as
-``ReceivedItemsNotification`` entries rather than plain strings, so more
-copies of the same item from the same sender merge into the still-queued
-entry ("Received 15 Missiles from X") instead of each getting its own HUD
-message. A new entry is held for ``RECEIVE_GROUP_WINDOW`` seconds before
-it can be shown, so copies arriving over a few consecutive ticks still
-land in one message.
+Beyond the MP1 original, received items are queued as
+``ReceivedItemsNotification`` entries rather than plain strings: one entry
+per sender listing everything received from them ("Received 15 Missiles,
+Energy Tank x2 from X"), which later receipts merge into while it's still
+queued. An entry only starts a second message for the same sender once the
+first would no longer fit on the HUD. A new entry is held for
+``RECEIVE_GROUP_WINDOW`` seconds before it can be shown, so items arriving
+over a few consecutive ticks still land in one message.
 """
 
 from __future__ import annotations
@@ -20,6 +21,11 @@ from ..items import ITEM_TABLE
 
 RECEIVE_GROUP_WINDOW = 1.0
 
+# The HUD message buffer holds (max_message_size - 6) / 2 = 97 UTF-16 code
+# units on both NTSC and PAL (versions.py); leave some slack for a merged
+# count gaining a digit after the entry was packed.
+HUD_MAX_CHARS = 90
+
 # Ammo expansions are announced as the total ammo received when grouped
 # (the per-copy amount comes from items.py so the two can't drift apart).
 _AMMO_LABELS = {
@@ -31,25 +37,28 @@ _AMMO_LABELS = {
 }
 
 
-def format_received_items(item_name: str, count: int, sender_name: str) -> str:
+def format_item_count(item_name: str, count: int) -> str:
     if count == 1:
-        return f"Received {item_name} from {sender_name}"
+        return item_name
     label = _AMMO_LABELS.get(item_name)
     if label is not None:
-        amount = ITEM_TABLE[item_name].gains[0][1] * count
-        return f"Received {amount} {label} from {sender_name}"
-    return f"Received {item_name} x{count} from {sender_name}"
+        return f"{ITEM_TABLE[item_name].gains[0][1] * count} {label}"
+    return f"{item_name} x{count}"
+
+
+def format_received_items(items: dict[str, int], sender_name: str) -> str:
+    listed = ", ".join(format_item_count(name, count) for name, count in items.items())
+    return f"Received {listed} from {sender_name}"
 
 
 @dataclass
 class ReceivedItemsNotification:
-    item_name: str
     sender_name: str
-    count: int
+    items: dict[str, int]
     ready_at: float = field(default_factory=lambda: time.time() + RECEIVE_GROUP_WINDOW)
 
     def __str__(self) -> str:
-        return format_received_items(self.item_name, self.count, self.sender_name)
+        return format_received_items(self.items, self.sender_name)
 
 
 class NotificationManager:
@@ -69,15 +78,21 @@ class NotificationManager:
             self.notification_queue.append(message)
 
     def queue_received_items(self, item_name: str, sender_name: str, count: int = 1):
-        for entry in self.notification_queue:
-            if (
-                isinstance(entry, ReceivedItemsNotification)
-                and entry.item_name == item_name
-                and entry.sender_name == sender_name
-            ):
-                entry.count += count
+        entries = [
+            entry
+            for entry in self.notification_queue
+            if isinstance(entry, ReceivedItemsNotification) and entry.sender_name == sender_name
+        ]
+        for entry in entries:
+            if item_name in entry.items:
+                entry.items[item_name] += count
                 return
-        self.notification_queue.append(ReceivedItemsNotification(item_name, sender_name, count))
+        if entries:
+            last = entries[-1]
+            if len(format_received_items({**last.items, item_name: count}, sender_name)) <= HUD_MAX_CHARS:
+                last.items[item_name] = count
+                return
+        self.notification_queue.append(ReceivedItemsNotification(sender_name, {item_name: count}))
 
     def handle_notifications(self):
         now = time.time()
