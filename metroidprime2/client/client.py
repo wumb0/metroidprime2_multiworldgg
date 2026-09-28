@@ -202,6 +202,14 @@ class MetroidPrime2Context(CommonContext):
     debug_enabled: bool = False
     hint_scans: dict[int, tuple[int, int, int]] = {}  # noqa: RUF012 -- reassigned wholesale in on_package, never mutated in place
     sent_hint_scans: set[int] = set()  # noqa: RUF012 -- same as hint_scans above
+    # Emperor Ing goal detection (see _handle_check_goal): was_in_sky_temple_sanctum
+    # latches on entry to his arena; emperor_ing_defeated latches once the
+    # area changes again, which can only happen once he's dead (the arena
+    # seals shut like every other Guardian boss room). Both are one-way for
+    # the life of the client process -- see _handle_check_goal's docstring
+    # for the accepted edge case (a client restart mid-escape-sequence).
+    was_in_sky_temple_sanctum: bool = False
+    emperor_ing_defeated: bool = False
 
     def __init__(
         self,
@@ -419,19 +427,65 @@ async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
 
 
 async def _handle_check_goal(ctx: MetroidPrime2Context) -> None:
-    """Declares the goal once the player's current area is one of the ending
-    areas (``constants.GAME_END_AREA_INDICES``). Mirrors
-    ``worlds/metroidprime``'s "current level == End_of_Game" check: a raw
-    memory read of the current MLVL plus ``CStateManager::m_nextAreaId``,
+    """Declares the goal once the player's current area satisfies
+    ``slot_data["goal"]`` (``options.py``'s ``Goal`` choice, defaulting to
+    ``constants.GOAL_BOTH_BOSSES`` for slot_data predating this option).
+    Mirrors ``worlds/metroidprime``'s "current level == End_of_Game" check:
+    a raw memory read of the current MLVL plus ``CStateManager::m_nextAreaId``,
     with nothing the ISO has to be patched to produce (the old in-ISO
     magic-item sentinel never fired in practice). Either read returns None
-    while disconnected or at the menu, which simply won't match."""
+    while disconnected or at the menu, which simply won't match.
+
+    All three goal conditions are plain memory reads; none of them change
+    what's patched into the ISO, so every level -- including the escape
+    sequence and Dark Samus 3 & 4 fight -- always plays out exactly as in
+    vanilla regardless of this setting.
+
+    * ``GOAL_BOTH_BOSSES`` (vanilla): current area is one of the five
+      post-Dark-Samus ``!!game_end_part*`` areas
+      (``constants.GAME_END_AREA_INDICES``).
+    * ``GOAL_EMPEROR_ING``: also accepts ``ctx.emperor_ing_defeated``, a
+      latch set below the first time the current area leaves Sky Temple's
+      Sanctum (``constants.SKY_TEMPLE_SANCTUM_AREA_INDEX``) after having
+      been there -- his arena seals shut on entry like every other
+      Guardian boss room in this game, so that transition can only happen
+      once he's dead. This is a proxy, not a read of his health/state (no
+      such offset is known); the one accepted gap is a client restart
+      during the few-second window between his death and the area actually
+      changing, which would require playing all the way to the Credits
+      that one session instead.
+    * ``GOAL_KEYS``: also accepts reaching Sky Temple Energy Controller
+      (``constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX``), reachable
+      only once the Sky Temple Gateway's key gate
+      (``sky_temple_keys_required``) has opened.
+
+    A harder condition always satisfies an easier one too (reaching the
+    Credits implies Emperor Ing is dead implies the keys were held), so
+    continuing to play past your goal still ends the slot correctly."""
     if ctx.finished_game or not ctx.slot:
         return
-    if ctx.game_interface.current_mlvl() != constants.TEMPLE_GROUNDS_MLVL:
+
+    mlvl = ctx.game_interface.current_mlvl()
+    area = ctx.game_interface.current_area_id()
+
+    if mlvl == constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL:
+        if area == constants.SKY_TEMPLE_SANCTUM_AREA_INDEX:
+            ctx.was_in_sky_temple_sanctum = True
+        elif ctx.was_in_sky_temple_sanctum:
+            ctx.emperor_ing_defeated = True
+
+    goal = ctx.slot_data.get("goal", constants.GOAL_BOTH_BOSSES)
+
+    reached_credits = mlvl == constants.TEMPLE_GROUNDS_MLVL and area in constants.GAME_END_AREA_INDICES
+    reached_emperor_ing = goal in (constants.GOAL_EMPEROR_ING, constants.GOAL_KEYS) and ctx.emperor_ing_defeated
+    reached_keys = (
+        goal == constants.GOAL_KEYS
+        and mlvl == constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL
+        and area == constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX
+    )
+    if not (reached_credits or reached_emperor_ing or reached_keys):
         return
-    if ctx.game_interface.current_area_id() not in constants.GAME_END_AREA_INDICES:
-        return
+
     logger.info("Reached the ending areas; reporting goal.")
     await ctx.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
     ctx.finished_game = True

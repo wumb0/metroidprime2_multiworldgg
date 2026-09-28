@@ -83,12 +83,16 @@ class _FakeContext:
         mlvl: int | None = None,
         area: int | None = None,
         slot: int | None = 1,
+        goal: int | None = None,
     ) -> None:
         self.sent_msgs: list[list[dict[str, Any]]] = []
         self.finished_game = False
         self.game_interface = _FakeGameInterface(mlvl=mlvl, area=area)
         self.missing_locations: set[int] = missing_locations if missing_locations is not None else set()
         self.slot = slot
+        self.slot_data: dict[str, Any] = {} if goal is None else {"goal": goal}
+        self.was_in_sky_temple_sanctum = False
+        self.emperor_ing_defeated = False
 
     async def send_msgs(self, msgs: list[dict[str, Any]]) -> None:
         self.sent_msgs.append(msgs)
@@ -161,6 +165,91 @@ class TestMemoryGoalDetection(unittest.TestCase):
         _run_goal(ctx)
         self.assertFalse(ctx.finished_game)
         self.assertEqual([], ctx.sent_msgs)
+
+
+class TestBossSkipGoals(unittest.TestCase):
+    """``options.py``'s ``Goal`` choice (PLAN.md boss-skip addition): all
+    three conditions are still plain memory reads of the current area, nothing
+    patched into the ISO. See ``_handle_check_goal``'s docstring."""
+
+    def test_keys_goal_fires_on_energy_controller(self) -> None:
+        ctx = _FakeContext(
+            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
+            area=constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX,
+            goal=constants.GOAL_KEYS,
+        )
+        _run_goal(ctx)
+        self.assertTrue(ctx.finished_game)
+
+    def test_energy_controller_does_not_satisfy_emperor_ing_goal(self) -> None:
+        ctx = _FakeContext(
+            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
+            area=constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX,
+            goal=constants.GOAL_EMPEROR_ING,
+        )
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game)
+
+    def test_energy_controller_does_not_satisfy_default_goal(self) -> None:
+        # goal=None -> slot_data has no "goal" key, defaulting to both_bosses
+        # the same way an older slot_data (predating this option) would.
+        ctx = _FakeContext(
+            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
+            area=constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX,
+        )
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game)
+
+    def test_emperor_ing_goal_fires_after_leaving_sanctum(self) -> None:
+        ctx = _FakeContext(
+            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
+            area=constants.SKY_TEMPLE_SANCTUM_AREA_INDEX,
+            goal=constants.GOAL_EMPEROR_ING,
+        )
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game, "entering the arena alone must not fire the goal")
+
+        ctx.game_interface.area = constants.SKY_TEMPLE_SANCTUM_AREA_INDEX - 1  # Sanctum Access
+        _run_goal(ctx)
+        self.assertTrue(ctx.finished_game, "leaving the arena after having been inside it should fire the goal")
+
+    def test_emperor_ing_goal_does_not_fire_without_ever_entering_sanctum(self) -> None:
+        # Just walking around Sky Temple's other rooms must not look like
+        # "left the arena" -- the latch requires having actually been inside.
+        ctx = _FakeContext(
+            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
+            area=constants.SKY_TEMPLE_SANCTUM_AREA_INDEX - 1,  # Sanctum Access
+            goal=constants.GOAL_EMPEROR_ING,
+        )
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game)
+
+    def test_emperor_ing_sanctum_entry_in_a_different_mlvl_does_not_latch(self) -> None:
+        # Same numeric area index, wrong MLVL -- must not arm the latch.
+        ctx = _FakeContext(
+            mlvl=constants.TEMPLE_GROUNDS_MLVL,
+            area=constants.SKY_TEMPLE_SANCTUM_AREA_INDEX,
+            goal=constants.GOAL_EMPEROR_ING,
+        )
+        _run_goal(ctx)
+        ctx.game_interface.mlvl = constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL
+        ctx.game_interface.area = constants.SKY_TEMPLE_SANCTUM_AREA_INDEX - 1
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game)
+
+    def test_emperor_ing_goal_does_not_fire_for_default_goal(self) -> None:
+        ctx = _FakeContext(mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL, area=constants.SKY_TEMPLE_SANCTUM_AREA_INDEX)
+        _run_goal(ctx)
+        ctx.game_interface.area = constants.SKY_TEMPLE_SANCTUM_AREA_INDEX - 1
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game)
+
+    def test_credits_still_satisfies_emperor_ing_and_keys_goals(self) -> None:
+        for goal in (constants.GOAL_EMPEROR_ING, constants.GOAL_KEYS):
+            ctx = _goal_ctx()
+            ctx.slot_data = {"goal": goal}
+            _run_goal(ctx)
+            self.assertTrue(ctx.finished_game, f"goal {goal} did not accept reaching the Credits")
 
 
 class TestPickupBitmaskCounters(unittest.TestCase):

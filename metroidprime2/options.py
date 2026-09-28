@@ -53,10 +53,40 @@ from .options_tricks import (
     TrickUnderwaterDash,
     TrickWallBoost,
 )
+from . import constants
 
 # --------------------------------------------------------------------------
 # Goal / item pool options
 # --------------------------------------------------------------------------
+
+
+class Goal(Choice):
+    """Which boss(es) must fall before the multiworld considers this slot's
+    game complete.
+
+    This only changes when the goal is reported -- nothing about the level
+    itself is patched or skipped, so the escape sequence and the Dark
+    Samus 3 & 4 fight always play out normally regardless of this setting
+    if you keep playing past your goal condition.
+
+    Both Bosses (default, vanilla): complete once the Credits are reached,
+    which requires defeating both Emperor Ing (Sky Temple/Sanctum) and
+    Dark Samus 3 & 4 (Sky Temple Gateway), exactly like an unmodified
+    playthrough.
+
+    Emperor Ing: complete as soon as Emperor Ing is defeated, without also
+    requiring the Dark Samus 3 & 4 fight or the Credits.
+
+    Keys: complete as soon as Sky Temple Energy Controller is reached --
+    which only requires opening the Sky Temple Gateway's key gate (see
+    ``sky_temple_keys_required``) -- without fighting either boss.
+    """
+
+    display_name = "Goal"
+    option_both_bosses = constants.GOAL_BOTH_BOSSES
+    option_emperor_ing = constants.GOAL_EMPEROR_ING
+    option_keys = constants.GOAL_KEYS
+    default = option_both_bosses
 
 
 class SkyTempleKeys(Range):
@@ -695,6 +725,7 @@ class DefenseUpDamageReduction(Range):
 class MetroidPrime2Options(PerGameCommonOptions):
     start_inventory_from_pool: StartInventoryPool
 
+    goal: Goal
     sky_temple_keys: SkyTempleKeys
     sky_temple_keys_locations: SkyTempleKeysLocations
     sky_temple_keys_required: SkyTempleKeysRequired
@@ -775,7 +806,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
 OPTION_GROUPS: list[OptionGroup] = [
     OptionGroup(
         "Goal",
-        [SkyTempleKeys, SkyTempleKeysLocations, SkyTempleKeysRequired, SkyTempleKeyHints, TranslatorLoreHints],
+        [Goal, SkyTempleKeys, SkyTempleKeysLocations, SkyTempleKeysRequired, SkyTempleKeyHints, TranslatorLoreHints],
     ),
     OptionGroup(
         "Item Pool",

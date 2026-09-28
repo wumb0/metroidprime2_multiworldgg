@@ -1368,6 +1368,142 @@ If it fails, look at:
 * `patch_data.py::_translator_lore_string_changes`
 * `client/client.py::_handle_hint_scans` (per-(player, status) grouping)
 
+### MT17_GOAL_BOSS_SKIP -- `mt17_goal_boss_skip` (P0)
+
+*Proves: options.py's Goal choice controls which of the three memory-read conditions in client.py's _handle_check_goal reports the multiworld goal, and none of them change what's patched into the ISO -- the escape sequence and Dark Samus 3 & 4 fight always play out exactly as in vanilla regardless of the setting*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt17_goal_boss_skip --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Notes / derived values:
+* All three conditions are plain memory reads (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) -- no ISO patch is involved for any of them, so the escape sequence and Dark Samus 3 & 4 fight are identical across every variant of this test.
+* emperor_ing's detection is a proxy, not a read of his health/state: constants.SKY_TEMPLE_SANCTUM_AREA_INDEX (his arena, which -- like every other Guardian boss room in this game -- seals shut on entry and only opens once he's dead) is latched on entry, and the goal fires the first time the area changes again.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt17_goal_boss_skip --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt17_goal_boss_skip/mt17_goal_boss_skip.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt17_goal_boss_skip/mt17_goal_boss_skip.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game.
+   **Expect:** You spawn at Sky Temple Gateway, facing the teleporter with its ring of columns already lowered (all 9 keys are precollected).
+2. **Do:** Walk into the teleporter and through Sky Temple Energy Controller.
+   **Expect:** No goal is reported yet -- `goal` defaults to both_bosses, which only accepts the Credits.
+3. **Do:** Continue to the Sanctum and kill Emperor Ing.
+   **Expect:** No goal is reported yet; the escape sequence begins.
+4. **Do:** Complete the escape sequence and the Dark Samus 3 & 4 fight back at Sky Temple Gateway.
+   **Expect:** The Credits area loads. After at least one client tick (0.5s), the client logs the goal, sends StatusUpdate(GOAL), and the server marks the slot finished (`!status` shows goal) -- the same behavior as MT02, reached from a different spawn point.
+
+Pass if:
+* The goal is reported exactly once, only once the Credits are reached.
+* No spurious location checks are sent around any of the transitions above.
+* No client traceback.
+
+If it fails, look at:
+* `constants.GOAL_BOTH_BOSSES` / `GOAL_EMPEROR_ING` / `GOAL_KEYS` / `GREAT_TEMPLE_SKY_TEMPLE_MLVL` / `SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX` / `SKY_TEMPLE_SANCTUM_AREA_INDEX`
+* `options.py::Goal`
+* `client/client.py::_handle_check_goal`
+* `test/test_goal_detection.py::TestBossSkipGoals`
+
+### MT17_GOAL_BOSS_SKIP -- `mt17_goal_boss_skip_emperor_ing` (P0)
+
+*Proves: options.py's Goal choice controls which of the three memory-read conditions in client.py's _handle_check_goal reports the multiworld goal, and none of them change what's patched into the ISO -- the escape sequence and Dark Samus 3 & 4 fight always play out exactly as in vanilla regardless of the setting*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt17_goal_boss_skip --iso <vanilla.iso> --variant emperor_ing
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `goal=emperor_ing`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Notes / derived values:
+* All three conditions are plain memory reads (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) -- no ISO patch is involved for any of them, so the escape sequence and Dark Samus 3 & 4 fight are identical across every variant of this test.
+* emperor_ing's detection is a proxy, not a read of his health/state: constants.SKY_TEMPLE_SANCTUM_AREA_INDEX (his arena, which -- like every other Guardian boss room in this game -- seals shut on entry and only opens once he's dead) is latched on entry, and the goal fires the first time the area changes again.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt17_goal_boss_skip --iso <vanilla.iso> --variant emperor_ing
+2. Host       python MultiServer.py manual_tests/mt17_goal_boss_skip_emperor_ing/mt17_goal_boss_skip_emperor_ing.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt17_goal_boss_skip_emperor_ing/mt17_goal_boss_skip_emperor_ing.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, then walk into Sky Temple Energy Controller.
+   **Expect:** No goal is reported: entering that room alone does not satisfy emperor_ing.
+2. **Do:** Continue to the Sanctum and kill Emperor Ing.
+   **Expect:** No goal is reported yet -- the escape sequence's forced camera run starts as normal.
+3. **Do:** Let the escape run carry you out of the Sanctum into Sanctum Access (the very first room transition after his death).
+   **Expect:** Within one client tick of that transition, the client logs the goal, sends StatusUpdate(GOAL), and the server marks the slot finished -- well before reaching Sky Temple Gateway or fighting Dark Samus 3 & 4.
+4. **Do:** Keep playing through the rest of the escape sequence and the Dark Samus 3 & 4 fight to the Credits.
+   **Expect:** Everything plays out exactly like vanilla (nothing was skipped or patched); the goal is not reported a second time.
+
+Pass if:
+* The goal fires immediately after leaving the Sanctum post-kill, not merely on entering Sky Temple Energy Controller and not only at the Credits.
+* The escape sequence and Dark Samus 3 & 4 fight are unaffected and still playable.
+* The goal is reported exactly once, with no spurious location checks.
+
+If it fails, look at:
+* `constants.GOAL_BOTH_BOSSES` / `GOAL_EMPEROR_ING` / `GOAL_KEYS` / `GREAT_TEMPLE_SKY_TEMPLE_MLVL` / `SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX` / `SKY_TEMPLE_SANCTUM_AREA_INDEX`
+* `options.py::Goal`
+* `client/client.py::_handle_check_goal`
+* `test/test_goal_detection.py::TestBossSkipGoals`
+
+### MT17_GOAL_BOSS_SKIP -- `mt17_goal_boss_skip_keys` (P0)
+
+*Proves: options.py's Goal choice controls which of the three memory-read conditions in client.py's _handle_check_goal reports the multiworld goal, and none of them change what's patched into the ISO -- the escape sequence and Dark Samus 3 & 4 fight always play out exactly as in vanilla regardless of the setting*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt17_goal_boss_skip --iso <vanilla.iso> --variant keys
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `goal=keys`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Notes / derived values:
+* All three conditions are plain memory reads (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) -- no ISO patch is involved for any of them, so the escape sequence and Dark Samus 3 & 4 fight are identical across every variant of this test.
+* emperor_ing's detection is a proxy, not a read of his health/state: constants.SKY_TEMPLE_SANCTUM_AREA_INDEX (his arena, which -- like every other Guardian boss room in this game -- seals shut on entry and only opens once he's dead) is latched on entry, and the goal fires the first time the area changes again.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt17_goal_boss_skip --iso <vanilla.iso> --variant keys
+2. Host       python MultiServer.py manual_tests/mt17_goal_boss_skip_keys/mt17_goal_boss_skip_keys.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt17_goal_boss_skip_keys/mt17_goal_boss_skip_keys.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, then walk into the teleporter and through to Sky Temple Energy Controller.
+   **Expect:** Within one client tick of entering that room, the client logs the goal, sends StatusUpdate(GOAL), and the server marks the slot finished -- before reaching the Sanctum, fighting either boss, or seeing the Credits.
+2. **Do:** Keep playing through the Sanctum, Emperor Ing, the escape sequence, and Dark Samus 3 & 4 to the Credits.
+   **Expect:** Everything plays out exactly like vanilla; the goal is not reported again.
+
+Pass if:
+* The goal fires on entering Sky Temple Energy Controller, before either boss.
+* The goal is reported exactly once, with no spurious location checks.
+
+If it fails, look at:
+* `constants.GOAL_BOTH_BOSSES` / `GOAL_EMPEROR_ING` / `GOAL_KEYS` / `GREAT_TEMPLE_SKY_TEMPLE_MLVL` / `SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX` / `SKY_TEMPLE_SANCTUM_AREA_INDEX`
+* `options.py::Goal`
+* `client/client.py::_handle_check_goal`
+* `test/test_goal_detection.py::TestBossSkipGoals`
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).
