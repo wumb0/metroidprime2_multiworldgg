@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 from BaseClasses import ItemClassification, Region
 
 from .. import constants
+from ..item_pool import sky_temple_keys_required_count
 from ..items import MetroidPrime2Item
 from ..locations import LOCATION_TABLE, MetroidPrime2Location
 from ..options import damage_strictness_multiplier, dark_damage_per_second
@@ -48,6 +49,18 @@ CREDITS_EVENT_NODE = NodeId("Temple Grounds", "Credits", "Event - Dark Samus 3 a
 VICTORY_EVENT_ITEM = "Event - Dark Samus 3 and 4"
 
 TRANSLATOR_COLORS = ("Violet", "Amber", "Emerald", "Cobalt")
+
+# The one edge in the whole logic database whose requirement mentions a
+# Sky Temple Key (verified by grepping every "Sky Temple Grounds.json"
+# connection for "TempleKey": exactly one hit). Its requirement is a flat
+# `and` of the 9 TempleKeyN resources (each amount 1) plus a DarkWorld1
+# damage check -- see `_sky_temple_key_gate_override` below, which
+# replaces the 9 key resources with a count-based rule so
+# `sky_temple_keys_required` can require fewer than all 9.
+SKY_TEMPLE_GATEWAY_KEY_NODE = NodeId("Sky Temple Grounds", "Sky Temple Gateway", "Spawn Point/Front of Teleporter")
+SKY_TEMPLE_GATEWAY_KEY_TARGET = "Elevator to Sky Temple"
+
+SKY_TEMPLE_KEY_ITEM_NAMES = tuple(f"Sky Temple Key {n}" for n in range(1, 10))
 
 
 # --------------------------------------------------------------------------
@@ -149,6 +162,45 @@ def translator_gate_requirement(world: MetroidPrime2World, node: Node) -> dict:
     return {"type": "and", "data": {"comment": None, "items": items}}
 
 
+def _strip_sky_temple_key_items(req: dict) -> dict:
+    """Removes the flat ``and``'s 9 individual ``TempleKeyN`` resource
+    requirements, leaving any sibling requirement (the vanilla DarkWorld1
+    damage check) intact. Only ever called on
+    ``SKY_TEMPLE_GATEWAY_KEY_NODE``'s edge, where this requirement shape
+    (a flat ``and`` of exactly the 9 key resources plus that damage check)
+    is verified against the logic database (see the constant's comment
+    above) -- never applied generically."""
+    items = req["data"]["items"]
+    remaining = [
+        item
+        for item in items
+        if not (
+            item["type"] == "resource"
+            and item["data"]["type"] == "items"
+            and item["data"]["name"].startswith("TempleKey")
+        )
+    ]
+    return {"type": "and", "data": {"comment": None, "items": remaining}}
+
+
+def _sky_temple_key_count_rule(world: MetroidPrime2World) -> Rule:
+    """True iff the player holds at least ``sky_temple_keys_required_count``
+    of the 9 Sky Temple Keys -- the count-based replacement for the DB's
+    flat "all 9" requirement on ``SKY_TEMPLE_GATEWAY_KEY_NODE``'s edge (see
+    ``_strip_sky_temple_key_items``). Counts every key the player holds
+    regardless of how it was obtained (found, or precollected under a
+    ``sky_temple_keys`` mode that doesn't shuffle all 9), matching the
+    in-game gate patched by ``client/sky_temple_key_gate_patch.py``, which
+    re-tests every key's actual PlayerItem amount the same way."""
+    player = world.player
+    required = sky_temple_keys_required_count(world)
+
+    def rule(state, _names=SKY_TEMPLE_KEY_ITEM_NAMES, _p=player, _required=required) -> bool:
+        return sum(1 for name in _names if state.has(name, _p)) >= _required
+
+    return rule
+
+
 def can_warp_to_start(db: GameDatabase, player: int) -> Rule:
     """True iff any of the 18 save-station regions
     (``GameDatabase.starting_location_candidates("save_stations")``) is
@@ -223,10 +275,15 @@ def _intra_area_edges(
         target_id = NodeId(node.id.region, node.id.area, target_name)
         if target_id == CREDITS_EVENT_NODE:
             continue
+        extra_rule = None
+        if node.id == SKY_TEMPLE_GATEWAY_KEY_NODE and target_name == SKY_TEMPLE_GATEWAY_KEY_TARGET:
+            req = _strip_sky_temple_key_items(req)
+            extra_rule = _sky_temple_key_count_rule(world)
         try:
             rule = compiler.compile_all([req, leave_req])
         except Impossible:
             continue
+        rule = combine_and([rule, extra_rule])
         edges.append((target_id, rule, f"{node.ap_name} -> {target_id.ap_name}"))
     return edges
 

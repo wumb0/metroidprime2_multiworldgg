@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+from ..item_pool import sky_temple_keys_present_count, sky_temple_keys_required_count
 from .bases import MP2TestBase
 
 
@@ -61,6 +62,42 @@ class TestSkyTempleKeysNumericNine(MP2TestBase):
         self.assertEqual(9, len(stk_in_pool))
         self.assertEqual(0, len(stk_precollected))
         self.assertEqual(0, len(self.world.sky_temple_key_locations))
+
+
+class TestSkyTempleKeysRequiredDefault(MP2TestBase):
+    """Default sky_temple_keys_required (9) is an unclamped no-op
+    regardless of sky_temple_keys mode -- present_count/required_count
+    agree with the pool-shape tests above."""
+
+    options = {"sky_temple_keys": 3}
+
+    def test_present_and_required_counts(self) -> None:
+        self.assertEqual(3, sky_temple_keys_present_count(self.world))
+        self.assertEqual(3, sky_temple_keys_required_count(self.world))
+
+
+class TestSkyTempleKeysRequiredBelowPresent(MP2TestBase):
+    """A required value at or below present_count passes through
+    unclamped."""
+
+    options = {"sky_temple_keys": 9, "sky_temple_keys_required": 6}
+
+    def test_present_and_required_counts(self) -> None:
+        self.assertEqual(9, sky_temple_keys_present_count(self.world))
+        self.assertEqual(6, sky_temple_keys_required_count(self.world))
+
+
+class TestSkyTempleKeysRequiredAbovePresentIsClamped(MP2TestBase):
+    """A required value above present_count is clamped down to it (a seed
+    can never require more keys than could possibly be held) --
+    all_guardians precollects 6 keys and only shuffles 3, so present_count
+    is 3 even though sky_temple_keys_required's own range allows up to 9."""
+
+    options = {"sky_temple_keys": "all_guardians", "sky_temple_keys_required": 9}
+
+    def test_required_count_clamped_to_present_count(self) -> None:
+        self.assertEqual(3, sky_temple_keys_present_count(self.world))
+        self.assertEqual(3, sky_temple_keys_required_count(self.world))
 
 
 class TestSkyTempleKeysAllBosses(MP2TestBase):

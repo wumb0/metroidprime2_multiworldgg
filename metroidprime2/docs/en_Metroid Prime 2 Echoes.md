@@ -41,6 +41,14 @@ The "Sky Temple Keys" option controls how the 9 keys are handled:
 
 Keys placed this way (All Bosses / All Guardians) are recorded in the spoiler log.
 
+The "Sky Temple Keys Required" option separately controls how many of the 9 keys must actually be held to unlock
+the Sky Temple Gateway's ring of columns and proceed to Dark Samus -- a real difficulty reduction, not just a
+relocation. With the default "Sky Temple Keys" of 9 (every key a normal pickup) and "Sky Temple Keys Required" at,
+say, 6, only 6 of the 9 key locations ever need to be found before the Gateway opens; the other 3 keys still exist
+and can still be found, they simply stop being necessary. Vanilla (and this option's default) requires all 9. A
+value higher than however many keys "Sky Temple Keys" actually makes obtainable is clamped down to that count,
+since it's impossible to hold more keys than exist.
+
 ### Sky Temple Key hints
 
 The 9 Luminoth pillars in Sky Temple Gateway can tell you where each Sky Temple Key actually is, controlled by the

@@ -78,6 +78,31 @@ def _guardian_location_names() -> list[str]:
     return [LOCATION_TABLE[index].name for index in _GUARDIAN_PICKUP_INDICES]
 
 
+def sky_temple_keys_present_count(world: MetroidPrime2World) -> int:
+    """Number of Sky Temple Keys that enter the pool as real, collectible
+    items under the current ``sky_temple_keys`` mode -- the rest are
+    precollected for free. Shared with ``logic/regions.py`` (the Sky
+    Temple Gateway gate rule) and ``patch_data.py``/``__init__.py`` (the
+    physical gate patch, ``sky_temple_keys_required``) so "present" means
+    the same thing in the pool, the logic, and the patched ISO.
+    """
+    mode = world.options.sky_temple_keys.value
+    if mode == SkyTempleKeys.option_all_bosses:
+        return 9
+    if mode == SkyTempleKeys.option_all_guardians:
+        return 3
+    if mode == SkyTempleKeys.option_all_guardians_plus_6:
+        return 9
+    return int(mode)
+
+
+def sky_temple_keys_required_count(world: MetroidPrime2World) -> int:
+    """Resolved ``sky_temple_keys_required`` value: the option's raw value
+    clamped to ``sky_temple_keys_present_count`` (a seed can never require
+    more keys than could possibly be held)."""
+    return min(world.options.sky_temple_keys_required.value, sky_temple_keys_present_count(world))
+
+
 def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
     """Implements the sky_temple_keys option modes (PLAN.md section F):
 
@@ -120,7 +145,7 @@ def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
         return
 
     # Numeric mode: 0..9 keys in the pool, the rest precollected.
-    n = int(mode)
+    n = sky_temple_keys_present_count(world)
     pool.extend(world.create_item(key_name) for key_name in STK_ITEM_NAMES[:n])
     for key_name in STK_ITEM_NAMES[n:]:
         multiworld.push_precollected(world.create_item(key_name))

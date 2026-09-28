@@ -1496,3 +1496,137 @@ Nothing else changes.
   (same locations). Fewer candidates than holograms -> padded with the
   "nothing more" text and no slot_data entry.
 * Client: mixed statuses produce separate `CreateHints` messages.
+
+## S. `sky_temple_keys_required` (MP1-style reduced key requirement)
+
+Ported from `worlds/metroidprime`'s `required_artifacts`/`has_group`
+pattern: a separate knob from `sky_temple_keys` (section F) that lets
+fewer than all 9 Sky Temple Keys actually be *required* to finish the
+game, independent of how many of the 9 `sky_temple_keys` shuffles into
+the pool as findable pickups versus pre-collects for free. Requested
+directly (MP1 has this; MP2 vanilla and every prior tool checked --
+randovania's `prime2`/`prime2_opr` games, open-prime-rando -- did not).
+
+**Why this is a real difficulty reduction, not just relocation.**
+Randovania's own `LayoutSkyTempleKeyMode.num_keys` looks similar but
+isn't: it only controls how many of the 9 are shuffled-vs-precollected,
+and the *physical* Sky Temple Gateway door still hardcodes "all 9" no
+matter the mode, so the player ends up holding all 9 regardless (some
+found, some free) -- confirmed by reading
+`randovania/games/prime2/generator/pickup_pool/sky_temple_keys.py` and
+grepping open-prime-rando for any "gateway"/counter patch (none exists).
+This project's own `sky_temple_keys` option (section F) already matches
+that same present-vs-precollected shape. `sky_temple_keys_required`
+instead patches the in-game gate itself, so a lower value genuinely means
+fewer key *locations* ever need to be found before Dark Samus 3/4 is
+reachable -- the other keys still exist and can still be collected
+(nothing is removed from the pool), they simply stop being necessary.
+
+**The in-game mechanism (verified against a retail NTSC-U ISO via
+`retro_data_structures`/open-prime-rando's `PatcherEditor`, Temple
+Grounds/Sky Temple Gateway MREA).** An `AdvancedCounter` named "Count Keys
+Returned" (`Default` layer) increments once per Sky Temple Key whose
+`PlayerItem` amount reads 1: 9 "\[IN\] Query Key Return" `ConditionalRelay`
+objects (one per key) are re-evaluated from scratch whenever "Initiate
+Returned Key Tests" (a `SequenceTimer` in the `All columns` layer) pulses
+them with `SetToZero` -- on room load and after a key is inserted -- so
+this naturally also covers keys the player already held on first arrival,
+not just ones inserted in front of the player. The counter's `Open`
+message to a `Switch` named "Got All Keys ?" -- which starts the
+"Returned All Keys" `SequenceTimer` that lowers the ring of columns and
+unlocks everything downstream (elevator to Sky Temple, Dark Samus 3/4) --
+is wired from the counter's 9th internal state (`InternalState08`; state
+N corresponds to N+1 keys held, confirmed by state 2, the 3rd, driving
+the "Returned 3 Keys" HUD message via a separate connection on the same
+counter). Moving that one connection to an earlier internal state
+(`InternalState{required-1:02d}`) is the entire patch: every query relay,
+the per-key column-raising visuals (`All columns` layer), and the
+"Returned N Keys" HUD messages are all untouched and still track every
+key the player actually holds, up to 9 -- they just no longer gate
+progress past `required`. (The room also has several unrelated "\[OUT\]
+Has 8 Keys" `Counter`s fed by a `Temporary keys` layer's "Check Key N"
+relays, one set per key excluded -- an 8-of-9 "final key" detector for
+cinematic purposes, confirmed unrelated by tracing incoming/outgoing
+connections; not touched.)
+
+**Where this lives, and why not in open-prime-rando.** The user maintains
+a fork of open-prime-rando (already carrying an unreleased
+`feature/warp-to-start` branch) and the pinned dependency
+(`open-prime-rando[nod]==0.20.1` in `pyproject.toml`) is a released PyPI
+version, not a local/path install of either checkout on disk -- so a
+change made only in the fork's source wouldn't actually run until a new
+release is cut and the pin bumped. This project already has a precedent
+for exactly this situation: `client/warp_patch.py`'s "open-prime-rando has
+no equivalent" docstring, which reimplements warp-to-start's SCLY half
+directly against the client's own `PatcherEditor` instance and hooks it
+into `open_prime_rando.echoes.patcher._apply_patches` via a monkeypatched
+`register_world_changes` (`client/patcher_runner.py`'s
+`warp_to_start_installed` context manager) rather than waiting on an OPR
+release. `client/sky_temple_key_gate_patch.py` follows the identical
+shape (`set_sky_temple_key_requirement`/`register`,
+`patcher_runner.sky_temple_keys_required_installed` wrapping
+`register_world_changes` the same way) -- simpler than warp-to-start
+since this feature needs no DOL patch at all, only one more registered
+SCLY function, so there is no "DOL half" to this module. Like
+`warp_to_start`, this is a candidate to upstream into the OPR fork later;
+not done here since the pinned release wouldn't pick it up regardless.
+
+**Config plumbing.** `sky_temple_keys_required` (options.py, `Range`
+1-9, default 9) is resolved (and clamped -- see below) by
+`item_pool.sky_temple_keys_required_count`, which is also where
+`item_pool.sky_temple_keys_present_count` now lives (a small refactor:
+the existing numeric-mode branch of `_apply_sky_temple_keys` calls it
+too, instead of duplicating `int(mode)`). Like `warp_to_start`/
+`show_item_locations`/`spring_ball` before it, the resolved value has no
+home in OPR's `RandoConfiguration` (`config.json` is validated with
+`extra="forbid"`), so `__init__.py`'s `generate_output` writes it into
+`options.json` instead, where `patcher_runner.patch_iso_with_ap` reads it
+back (default 9 if absent, so a `.apmp2` produced before this option
+existed still patches unchanged).
+
+**Clamping.** `sky_temple_keys_required_count` clamps the raw option
+value down to `sky_temple_keys_present_count(world)` -- the same
+present-vs-precollected count `_apply_sky_temple_keys` uses -- so a seed
+can never require more keys than could possibly be held (e.g.
+`sky_temple_keys=all_guardians` only ever makes 3 keys distinguishable
+from "already held for free"; requiring 9 there would be trivially
+satisfied by the 6 precollected keys alone regardless, since
+`CollectionState.__init__` processes precollected items unconditionally
+-- clamping to 3 instead keeps the option's stated number meaningful).
+
+**Logic side.** The generated logic database (from randovania's
+`prime2_opr` data, section C) has exactly one edge anywhere that mentions
+a `TempleKeyN` resource -- verified by grepping every region JSON's
+connections for the substring -- Sky Temple Grounds/Sky Temple Gateway's
+"Spawn Point/Front of Teleporter" -> "Elevator to Sky Temple", whose
+requirement is a flat `and` of the 9 `TempleKeyN` resources (each amount
+1) plus a `DarkWorld1` damage check. `logic/regions.py`'s
+`_intra_area_edges` special-cases this one edge (`SKY_TEMPLE_GATEWAY_KEY_
+NODE`/`_TARGET`, alongside the file's existing `translator_gate_
+requirement` override for `configurable_node`s): `_strip_sky_temple_key_
+items` removes the 9 key resources from the requirement tree before
+compiling (leaving the damage check to compile normally), and the result
+is ANDed with `_sky_temple_key_count_rule` -- a `Rule` closure counting
+`state.has("Sky Temple Key N", player)` across all 9 and comparing
+against `sky_temple_keys_required_count(world)`, matching in state-space
+exactly what the ISO patch above checks in the actual game (every key
+currently held, regardless of how it was obtained).
+
+**Tests.** `test_regions.py` (region graph, via `can_reach_location` on
+the real victory event location -- *not* `multiworld.can_beat_game`,
+which sweeps for reachable-but-uncollected advancement items first and
+would auto-collect a deliberately-excluded key, defeating the point):
+required=6 beatable holding exactly 6 of 9 keys, still unbeatable holding
+5; default (9) still needs every key; `sky_temple_keys=3` with
+`required=9` clamped down to 3 is satisfiable via the 6 precollected keys
+alone, without ever collecting the 3 findable ones (the case that would
+fail unclamped). `test_pool.py`: present/required count helper values
+across modes, including the `all_guardians` clamp. `test_sky_temple_key_
+gate_patch.py`: the connection-rewiring logic against a fake `Area`/
+`ScriptInstance` (moves the `Open` connection to the right internal
+state, preserves unrelated connections, no-ops at 9, rejects out-of-range
+values and a malformed room with more than one `Open` connection);
+`register`'s wiring; `sky_temple_keys_required_installed`'s wrap/restore
+(including on exception, matching `TestWarpToStartInstalled`'s
+coverage); the resolved value's route into `options.json` (default,
+lowered, clamped) with `assertNotIn` on `config.json`.

@@ -97,6 +97,34 @@ class SkyTempleKeys(Choice):
     default = 9
 
 
+class SkyTempleKeysRequired(Range):
+    """How many Sky Temple Keys must actually be held to unlock the Sky
+    Temple Gateway's ring of columns and proceed to the Dark Samus 3/4
+    fight, independent of how many of the 9 keys ``sky_temple_keys`` makes
+    findable versus pre-collects for free.
+
+    Vanilla (and this option's default) requires all 9. A lower value is
+    a real difficulty reduction, not just a relocation: with
+    ``sky_temple_keys`` at 9 (every key a normal pickup) and this at, say,
+    6, only 6 of the 9 key locations ever need to be found before the
+    Gateway opens -- the remaining 3 keys still exist and can still be
+    found (nothing is removed from the pool), they simply stop being
+    necessary.
+
+    Clamped down to whatever ``sky_temple_keys`` actually makes findable
+    or pre-collected (i.e. never above 9, and never above the count
+    ``sky_temple_keys`` resolves to for `all_guardians`'s 3) -- a value
+    higher than that could never be satisfied, since it's impossible to
+    hold more keys than exist. See ``item_pool.sky_temple_keys_present_
+    count``/``sky_temple_keys_required_count``.
+    """
+
+    display_name = "Sky Temple Keys Required"
+    range_start = 1
+    range_end = 9
+    default = 9
+
+
 class SkyTempleKeyHints(Choice):
     """Whether the 9 Luminoth pillars in Sky Temple Gateway hint at where
     each Sky Temple Key really is.
@@ -645,6 +673,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     start_inventory_from_pool: StartInventoryPool
 
     sky_temple_keys: SkyTempleKeys
+    sky_temple_keys_required: SkyTempleKeysRequired
     sky_temple_key_hints: SkyTempleKeyHints
     translator_lore_hints: TranslatorLoreHints
     progressive_suit: ProgressiveSuit
@@ -718,7 +747,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
 
 OPTION_GROUPS: list[OptionGroup] = [
-    OptionGroup("Goal", [SkyTempleKeys, SkyTempleKeyHints, TranslatorLoreHints]),
+    OptionGroup("Goal", [SkyTempleKeys, SkyTempleKeysRequired, SkyTempleKeyHints, TranslatorLoreHints]),
     OptionGroup(
         "Item Pool",
         [

@@ -26,7 +26,7 @@ from .hint_scans import (
     sky_temple_key_locations,
     translator_lore_hint_locations,
 )
-from .item_pool import STK_ITEM_NAMES, create_item_pool
+from .item_pool import STK_ITEM_NAMES, create_item_pool, sky_temple_keys_required_count
 from .items import ITEM_GROUPS, ITEM_TABLE, MetroidPrime2Item, item_name_to_id
 from .locations import LOCATION_GROUPS, location_name_to_id
 from .logic import regions as logic_regions
@@ -274,6 +274,12 @@ class MetroidPrime2World(World):
                 "show_item_locations": bool(
                     self.options.map_visibility.value == MapVisibility.option_full_map_and_items
                 ),
+                # PLAN.md section S: physically rewires the Sky Temple
+                # Gateway's key-count gate (client/sky_temple_key_gate_
+                # patch.py) -- open-prime-rando has no field for this, so
+                # like the settings above it travels here rather than in
+                # config.json.
+                "sky_temple_keys_required": sky_temple_keys_required_count(self),
                 # PLAN.md section P's compatibility gate: client/patcher_runner.py
                 # refuses to patch a .apmp2 whose pickup encoding it doesn't
                 # recognize, since the per-pickup resource mapping baked into

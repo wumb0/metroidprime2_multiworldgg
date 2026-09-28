@@ -158,6 +158,34 @@ def warp_to_start_installed(dol_version: Any, starting_area: Any):
 
 
 @contextlib.contextmanager
+def sky_temple_keys_required_installed(required: int):
+    """Context manager installing the Sky Temple Key gate rewrite
+    (``client/sky_temple_key_gate_patch.py``) for the duration of one
+    ``_apply_patches`` call.
+
+    Uses the same ``register_world_changes`` hook point as
+    ``warp_to_start_installed`` above (see its docstring) -- the DOL-free
+    equivalent of that mechanism, since this feature needs no DOL patch at
+    all, only one more registered SCLY function.
+    """
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import sky_temple_key_gate_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_gate(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        sky_temple_key_gate_patch.register(area_patcher, required)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_gate
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
 def item_map_icons_always_visible():
     """Context manager: for its duration, every pickup's map icon is
     explicitly set to ``ObjectVisibility.AreaVisitOrMapStation``, matching
@@ -337,6 +365,7 @@ def patch_iso_with_ap(
     show_item_locations = bool(apmp2_options.get("show_item_locations", False))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
+    sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
 
     _report("Reading input ISO", 0.0)
     provider = IsoFileProvider(input_iso)  # type: ignore[arg-type]
@@ -372,6 +401,8 @@ def patch_iso_with_ap(
                 )
             if show_item_locations:
                 patches.enter_context(item_map_icons_always_visible())
+            if sky_temple_keys_required != 9:
+                patches.enter_context(sky_temple_keys_required_installed(sky_temple_keys_required))
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)
 
         def _write_callback(bytes_written: int, total_bytes: int) -> None:
