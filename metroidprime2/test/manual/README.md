@@ -1326,6 +1326,50 @@ If it fails, look at:
 * `patch_data.py::_translator_lore_string_changes`
 * `client/client.py::_handle_hint_scans` (per-(player, status) grouping)
 
+### MT16_TRANSLATOR_LORE_HINTS -- `mt16_translator_lore_hints_lore_colors` (P1)
+
+*Proves: each colored lore hologram names a progression item's real location, and only a completed, translated scan sends that hint*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Filler1 (Clique) slot with a text client, so hint messages are visible from both sides.
+* Open the spoiler's **Translator Lore Hints** block: it lists the expected text for every hologram.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <vanilla.iso> --variant lore_colors
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Meeting Grounds/Door to Service Access`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=my_items`, `translator_lore_rando=full_random`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+* companion slots: Filler1 (Clique)
+
+Notes / derived values:
+* The spoiler's **Translator Lore Colors** block lists each hologram's color. In this seed Meeting Grounds and Path of Eyes (vanilla Violet) are both Amber.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <vanilla.iso> --variant lore_colors
+2. Host       python MultiServer.py manual_tests/mt16_translator_lore_hints_lore_colors/mt16_translator_lore_hints_lore_colors.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt16_translator_lore_hints_lore_colors/mt16_translator_lore_hints_lore_colors.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Look at the Meeting Grounds hologram before scanning it.
+   **Expect:** The hologram and its glow are Amber, not Violet.
+2. **Do:** Scan it to completion, then do the same in Path of Eyes.
+   **Expect:** Each translates, shows its hint, and sends it (every translator is in the starting inventory).
+
+Pass if:
+* Every checked hologram looks like, and opens with, its spoiler color.
+
+If it fails, look at:
+* `hint_scans.py` (`TRANSLATOR_LORE_HINT_SCANS`, `translator_lore_hint_locations`)
+* `patch_data.py::_translator_lore_string_changes`
+* `client/client.py::_handle_hint_scans` (per-(player, status) grouping)
+
 ### MT16_TRANSLATOR_LORE_HINTS -- `mt16_translator_lore_hints_off` (P1)
 
 *Proves: each colored lore hologram names a progression item's real location, and only a completed, translated scan sends that hint*

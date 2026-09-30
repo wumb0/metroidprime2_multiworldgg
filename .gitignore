@@ -10,3 +10,7 @@ manual_tests/
 *.iso
 .DS_Store
 .venv/
+Dockerfile
+decomp/
+randomprime/
+tools/

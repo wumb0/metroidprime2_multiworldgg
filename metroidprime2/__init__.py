@@ -33,7 +33,12 @@ from .locations import LOCATION_GROUPS, location_name_to_id
 from .logic import regions as logic_regions
 from .logic.db_reader import NodeId, load_game_database
 from .logic.dock_rando import DockRandoAssignment, build_dock_rando_assignment
-from .logic.translator_gate_rando import TranslatorGateAssignment, build_translator_gate_assignment
+from .logic.translator_gate_rando import (
+    TranslatorGateAssignment,
+    TranslatorLoreAssignment,
+    build_translator_gate_assignment,
+    build_translator_lore_assignment,
+)
 from .options import (
     OPTION_GROUPS,
     MapVisibility,
@@ -142,6 +147,7 @@ class MetroidPrime2World(World):
     sky_temple_key_locations: list[str]
     dock_rando: DockRandoAssignment
     translator_gate_assignment: TranslatorGateAssignment
+    translator_lore_assignment: TranslatorLoreAssignment
     starting_location: NodeId
     """The node ``origin_region_name`` was set to for this player -- one of
     ``options.starting_room``'s selected pool (the DB's own vanilla
@@ -212,12 +218,12 @@ class MetroidPrime2World(World):
             self.starting_location = self.random.choice(candidates)
         self.origin_region_name = self.starting_location.ap_name
 
-        # translator_gate_assignment must be built first: dock_rando's own
-        # reject-and-retry reachability probe (logic/dock_rando.py's
-        # _meets_progression_bar) evaluates translator gate requirements
-        # through logic/regions.py's translator_gate_requirement, which
-        # reads world.translator_gate_assignment.
+        # translator_gate_assignment and translator_lore_assignment must be
+        # built first: dock_rando's own reject-and-retry reachability probe
+        # (logic/dock_rando.py's _meets_progression_bar) evaluates both
+        # through logic/regions.py's _leave_requirement.
         self.translator_gate_assignment = build_translator_gate_assignment(self)
+        self.translator_lore_assignment = build_translator_lore_assignment(self)
         self.dock_rando = build_dock_rando_assignment(self)
 
     def create_regions(self) -> None:
@@ -296,6 +302,12 @@ class MetroidPrime2World(World):
                 # like the settings above it travels here rather than in
                 # config.json.
                 "sky_temple_keys_required": sky_temple_keys_required_count(self),
+                # translator_lore_rando: {str(strg_id): color} for each
+                # recolored lore hologram (client/lore_translator_patch.py);
+                # empty under "vanilla".
+                "translator_lore_colors": {
+                    str(strg_id): color.lower() for strg_id, color in self.translator_lore_assignment.items()
+                },
                 # PLAN.md section P's compatibility gate: client/patcher_runner.py
                 # refuses to patch a .apmp2 whose pickup encoding it doesn't
                 # recognize, since the per-pickup resource mapping baked into
@@ -390,3 +402,9 @@ class MetroidPrime2World(World):
             ):
                 text = _translator_lore_hint_text(self, location, colored=False)
                 spoiler_handle.write(f"    {hint_scan.room}: {text}\n")
+
+        if self.translator_lore_assignment:
+            spoiler_handle.write(f"\n\nTranslator Lore Colors ({self.player_name}):\n")
+            for hint_scan in TRANSLATOR_LORE_HINT_SCANS:
+                color = self.translator_lore_assignment[hint_scan.strg_id]
+                spoiler_handle.write(f"    {hint_scan.room}: {color}\n")

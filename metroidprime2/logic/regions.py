@@ -146,6 +146,13 @@ def translator_gate_requirement(world: MetroidPrime2World, node: Node) -> dict:
             f"{node.ap_name}: unexpected translator color {color!r}"
         )
 
+    return _translator_requirement(color)
+
+
+def _translator_requirement(color: str | None) -> dict:
+    """Scan Visor, plus ``color``'s translator unless ``color`` is None --
+    the shape of both a translator gate's requirement and a lore
+    hologram's ``requirement_to_collect`` in the vendored DB."""
     items = [
         {
             "type": "resource",
@@ -248,6 +255,11 @@ def _leave_requirement(world: MetroidPrime2World, node: Node) -> dict | None:
     if node.node_type == "configurable_node":
         return translator_gate_requirement(world, node)
     if node.node_type == "hint":
+        # translator_lore_rando: a reassigned lore hologram needs its new
+        # color, not the DB's vanilla one (logic/translator_gate_rando.py's
+        # build_translator_lore_assignment).
+        if node.string_asset_id in world.translator_lore_assignment:
+            return _translator_requirement(world.translator_lore_assignment[node.string_asset_id])
         return node.requirement_to_collect
     return None
 

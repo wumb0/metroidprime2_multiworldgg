@@ -77,6 +77,9 @@ multiworld server.
 Your own Sky Temple Keys are left to the pillars above and never duplicated here, unless "Sky Temple Key Hints" is
 Disabled. If there are fewer eligible items than holograms, the extras just say there's nothing more to tell.
 
+The "Translator Lore Randomization" option can also give each hologram a random translator color instead of its
+region's usual one. The hologram and its glow are recolored to match, so you can still see which translator you need.
+
 ## What does the logic that places my items know about?
 
 Reachability is computed from Randovania's Metroid Prime 2: Echoes logic database -- the same data the standalone

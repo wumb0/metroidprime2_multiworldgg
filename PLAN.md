@@ -1770,3 +1770,43 @@ need `sky_temple_keys: 9` (or `3` for old `all_guardians`) plus the new
 numeric values (`sky_temple_keys: 0`-`9`) are unaffected --
 `sky_temple_keys_locations` simply defaults to `off`, reproducing the old
 numeric-mode behavior exactly.
+
+## V. `translator_lore_rando` (lore hologram colors)
+
+Option `TranslatorLoreRando(Choice)`, `vanilla` (default) / `full_random`,
+right after `translator_lore_hints` in the "Goal" group. No "unlocked"
+outcome: a hologram with no translator would need a new hologram look, and
+the point of the option is colored hints.
+
+### V.1 Facts (verified 2026-09-30 against retail NTSC and PAL, identical)
+
+* Each of the 22 lore rooms wires its hologram like a translator gate: CRLY
+  "Does Player Have Correct Translator?" (`conditional1.player_item` =
+  translator) -> Open: deactivate POIN "Translator No", activate POIN
+  "Translator Yes" (the tracked lore SCAN). ACTR "Lore Hologram" is
+  ScanSource for both POIs; its model is unique per hologram, 1 material
+  set, 1 texture = the per-color lore texture (violet 0x4BE5342E, amber
+  0xF5308558, emerald 0xA9640FDF, cobalt 0x2C56D2D4). ACTR "Glow For Holo 1"
+  uses the same 4 glow models as OPR's `TRANSLATOR_DATA`. The projector
+  (0x34BAA476, "Active/Inactive Lore Object") is shared and color-neutral.
+* The "Translator No" SCAN 0x0D16CCEE (STRG 0xF11AD0F9) is shared by all 22
+  and names no color, so no string change is needed.
+* Several of these rooms also have a translator gate with its own
+  "Glow For Holo 1", so the patch uses instance ids
+  (`client/lore_translator_patch.py`'s `LORE_HOLOGRAMS`), not names.
+
+### V.2 Implementation
+
+* `logic/translator_gate_rando.py`'s `build_translator_lore_assignment` ->
+  `world.translator_lore_assignment` (`{strg_id: color}`, `{}` under
+  vanilla, no RNG draw then), built in `generate_early` before dock rando
+  (its probe goes through `_leave_requirement`).
+* `logic/regions.py`'s `_leave_requirement` gives a reassigned hint node
+  Scan + its new color (`Node.string_asset_id` added to find it).
+* options.json `translator_lore_colors` (`{str(strg_id): "amber", ...}`) ->
+  `patcher_runner.translator_lore_colors_installed` ->
+  `lore_translator_patch.register`, which skips unchanged holograms and
+  for the rest retargets the CRLY, swaps the glow model, and duplicates the
+  hologram model with the new texture (OPR's gate technique; area
+  dependency rebuild pulls the texture into the pak).
+* Spoiler: "Translator Lore Colors" block when randomized.

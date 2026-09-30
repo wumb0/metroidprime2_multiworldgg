@@ -203,6 +203,29 @@ def sky_temple_keys_required_installed(required: int):
 
 
 @contextlib.contextmanager
+def translator_lore_colors_installed(colors: dict[int, str]):
+    """Context manager installing the translator lore hologram recoloring
+    (``client/lore_translator_patch.py``) for the duration of one
+    ``_apply_patches`` call, through the same ``register_world_changes``
+    hook as ``sky_temple_keys_required_installed`` above."""
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import lore_translator_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_lore(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        lore_translator_patch.register(area_patcher, colors)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_lore
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
 def item_map_icons_always_visible():
     """Context manager: for its duration, every pickup's map icon is
     explicitly set to ``ObjectVisibility.AreaVisitOrMapStation``, matching
@@ -384,6 +407,9 @@ def patch_iso_with_ap(
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
     sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
+    translator_lore_colors = {
+        int(strg_id): str(color) for strg_id, color in apmp2_options.get("translator_lore_colors", {}).items()
+    }
 
     _report("Reading input ISO", 0.0)
     provider = IsoFileProvider(input_iso)  # type: ignore[arg-type]
@@ -423,6 +449,8 @@ def patch_iso_with_ap(
                 patches.enter_context(item_map_icons_always_visible())
             if sky_temple_keys_required != 9:
                 patches.enter_context(sky_temple_keys_required_installed(sky_temple_keys_required))
+            if translator_lore_colors:
+                patches.enter_context(translator_lore_colors_installed(translator_lore_colors))
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)
 
         def _write_callback(bytes_written: int, total_bytes: int) -> None:

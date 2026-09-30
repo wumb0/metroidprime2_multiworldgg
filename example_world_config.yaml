@@ -93,6 +93,13 @@ requires:
   # isn't useful. Each remaining item is hinted at most once.
   translator_lore_hints: my_items
 
+  # Which translator each of the 22 Luminoth lore holograms needs.
+  # Options: vanilla, full_random
+  #   vanilla: every hologram requires its region's vanilla translator.
+  #   full_random: every hologram independently requires a random one of
+  #        the four translator colors, and is recolored to match.
+  translator_lore_rando: vanilla
+
   # Combine Dark Suit and Light Suit into two copies of a single
   # Progressive Suit item (first copy grants Dark Suit, second grants
   # Light Suit).

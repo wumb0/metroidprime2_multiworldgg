@@ -17,7 +17,7 @@ TEST = ManualTest(
         "translated scan sends that hint"
     ),
     seed=1_000_016,
-    config_sha256="1e05c515643bd1e4a341bde16cd120ad94fe548bd8668f629ac3bfcf9d80af23",
+    config_sha256="995ce7020bae1b49091e7878a8297feec23c6ff42dc99fd422b2a5b46989b922",
     starting_room="Temple Grounds/Meeting Grounds/Door to Service Access",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
@@ -111,6 +111,27 @@ TEST = ManualTest(
             pass_criteria=[
                 "Foreign-item hints arrive as unspecified and own-item hints as priority, with no rejected packet."
             ],
+        ),
+        "lore_colors": Variant(
+            config_sha256="9d618e0f8dd694be580433b9c696c74d7c20851c8c73276b205ed86d325dac79",
+            options={"translator_lore_rando": "full_random"},
+            notes=[
+                (
+                    "The spoiler's **Translator Lore Colors** block lists each hologram's color. In this seed "
+                    "Meeting Grounds and Path of Eyes (vanilla Violet) are both Amber."
+                ),
+            ],
+            steps=[
+                Step(
+                    "Look at the Meeting Grounds hologram before scanning it.",
+                    "The hologram and its glow are Amber, not Violet.",
+                ),
+                Step(
+                    "Scan it to completion, then do the same in Path of Eyes.",
+                    "Each translates, shows its hint, and sends it (every translator is in the starting inventory).",
+                ),
+            ],
+            pass_criteria=["Every checked hologram looks like, and opens with, its spoiler color."],
         ),
         "off": Variant(
             config_sha256="4b074402645f12886755691e1faca639ec2ddbb5548527a43943f29b9255667a",

@@ -83,6 +83,14 @@ class HintScan:
     ``write_spoiler`` -- left at its default for the Sky Temple Key
     pillars, which are all in the same room and don't need it."""
 
+    translator: str = ""
+    """Vanilla translator color (``"Violet"``/``"Amber"``/``"Emerald"``/
+    ``"Cobalt"``, the vendored DB's ``extra.translator``) a translator lore
+    hologram requires -- what ``translator_lore_rando`` reassigns (see
+    ``logic/translator_gate_rando.py``'s
+    ``build_translator_lore_assignment``). Left at its default for the Sky
+    Temple Key pillars, which need no translator."""
+
 
 # Index n-1 is Sky Temple Key n (items.py's "Sky Temple Key 1".."Sky Temple
 # Key 9", same order as randovania's echoes_items.SKY_TEMPLE_KEY_ITEMS and
@@ -149,28 +157,138 @@ LORE_HINT_SCAN_IDS: dict[int, int] = {
 # relationship and that this set is exactly the vendored DB's hint nodes
 # with an extra.translator field.
 TRANSLATOR_LORE_HINT_SCANS: tuple[HintScan, ...] = (
-    HintScan(strg_id=0x24E69725, scan_id=0xC108FC20, room="Agon Wastes - Mining Plaza"),
-    HintScan(strg_id=0xA272E58B, scan_id=0x479C8E8E, room="Agon Wastes - Mining Station B"),
-    HintScan(strg_id=0x5324575E, scan_id=0xB6CA3C5B, room="Agon Wastes - Mining Station A"),
-    HintScan(strg_id=0x692E362E, scan_id=0x8CC05D2B, room="Agon Wastes - Portal Terminal"),
-    HintScan(strg_id=0xEFBA4480, scan_id=0x0A542F85, room="Agon Wastes - Agon Energy Controller"),
-    HintScan(strg_id=0xC3576EA5, scan_id=0x26B905A0, room="Great Temple - Main Energy Controller"),
-    HintScan(strg_id=0xF2BF7438, scan_id=0x17511F3D, room="Sanctuary Fortress - Sanctuary Entrance"),
-    HintScan(strg_id=0x0405EE3F, scan_id=0xE1EB853A, room="Sanctuary Fortress - Hall of Combat Mastery"),
-    HintScan(strg_id=0xBF77D533, scan_id=0x5A99BE36, room="Sanctuary Fortress - Main Research"),
-    HintScan(strg_id=0x742B0696, scan_id=0x91C56D93, room="Sanctuary Fortress - Watch Station"),
-    HintScan(strg_id=0xF5535CEA, scan_id=0x10BD37EF, room="Sanctuary Fortress - Main Gyro Chamber"),
-    HintScan(strg_id=0x3E0F8F4F, scan_id=0xDBE1E44A, room="Sanctuary Fortress - Sanctuary Energy Controller"),
-    HintScan(strg_id=0x987884FB, scan_id=0x7D96EFFE, room="Temple Grounds - Meeting Grounds"),
-    HintScan(strg_id=0x8E9FCFAE, scan_id=0x6B71A4AB, room="Temple Grounds - Path of Eyes"),
-    HintScan(strg_id=0x39E3A79D, scan_id=0xDC0DCC98, room="Temple Grounds - Transport to Agon Wastes"),
-    HintScan(strg_id=0xCF593D9A, scan_id=0x2AB7569F, room="Temple Grounds - Fortress Transport Access"),
-    HintScan(strg_id=0x45C31C0B, scan_id=0xA02D770E, room="Torvus Bog - Path of Roots"),
-    HintScan(strg_id=0x54C87F8C, scan_id=0xB1261489, room="Torvus Bog - Underground Tunnel"),
-    HintScan(strg_id=0xD25C0D22, scan_id=0x37B26627, room="Torvus Bog - Torvus Energy Controller"),
-    HintScan(strg_id=0x49CD4F34, scan_id=0xAC232431, room="Torvus Bog - Gathering Hall"),
-    HintScan(strg_id=0x9F94AC29, scan_id=0x7A7AC72C, room="Torvus Bog - Training Chamber"),
-    HintScan(strg_id=0x82919C91, scan_id=0x677FF794, room="Torvus Bog - Catacombs"),
+    HintScan(
+        strg_id=0x24E69725,
+        scan_id=0xC108FC20,
+        room="Agon Wastes - Mining Plaza",
+        translator="Amber",
+    ),
+    HintScan(
+        strg_id=0xA272E58B,
+        scan_id=0x479C8E8E,
+        room="Agon Wastes - Mining Station B",
+        translator="Amber",
+    ),
+    HintScan(
+        strg_id=0x5324575E,
+        scan_id=0xB6CA3C5B,
+        room="Agon Wastes - Mining Station A",
+        translator="Amber",
+    ),
+    HintScan(
+        strg_id=0x692E362E,
+        scan_id=0x8CC05D2B,
+        room="Agon Wastes - Portal Terminal",
+        translator="Amber",
+    ),
+    HintScan(
+        strg_id=0xEFBA4480,
+        scan_id=0x0A542F85,
+        room="Agon Wastes - Agon Energy Controller",
+        translator="Amber",
+    ),
+    HintScan(
+        strg_id=0xC3576EA5,
+        scan_id=0x26B905A0,
+        room="Great Temple - Main Energy Controller",
+        translator="Violet",
+    ),
+    HintScan(
+        strg_id=0xF2BF7438,
+        scan_id=0x17511F3D,
+        room="Sanctuary Fortress - Sanctuary Entrance",
+        translator="Cobalt",
+    ),
+    HintScan(
+        strg_id=0x0405EE3F,
+        scan_id=0xE1EB853A,
+        room="Sanctuary Fortress - Hall of Combat Mastery",
+        translator="Cobalt",
+    ),
+    HintScan(
+        strg_id=0xBF77D533,
+        scan_id=0x5A99BE36,
+        room="Sanctuary Fortress - Main Research",
+        translator="Cobalt",
+    ),
+    HintScan(
+        strg_id=0x742B0696,
+        scan_id=0x91C56D93,
+        room="Sanctuary Fortress - Watch Station",
+        translator="Cobalt",
+    ),
+    HintScan(
+        strg_id=0xF5535CEA,
+        scan_id=0x10BD37EF,
+        room="Sanctuary Fortress - Main Gyro Chamber",
+        translator="Cobalt",
+    ),
+    HintScan(
+        strg_id=0x3E0F8F4F,
+        scan_id=0xDBE1E44A,
+        room="Sanctuary Fortress - Sanctuary Energy Controller",
+        translator="Cobalt",
+    ),
+    HintScan(
+        strg_id=0x987884FB,
+        scan_id=0x7D96EFFE,
+        room="Temple Grounds - Meeting Grounds",
+        translator="Violet",
+    ),
+    HintScan(
+        strg_id=0x8E9FCFAE,
+        scan_id=0x6B71A4AB,
+        room="Temple Grounds - Path of Eyes",
+        translator="Violet",
+    ),
+    HintScan(
+        strg_id=0x39E3A79D,
+        scan_id=0xDC0DCC98,
+        room="Temple Grounds - Transport to Agon Wastes",
+        translator="Violet",
+    ),
+    HintScan(
+        strg_id=0xCF593D9A,
+        scan_id=0x2AB7569F,
+        room="Temple Grounds - Fortress Transport Access",
+        translator="Violet",
+    ),
+    HintScan(
+        strg_id=0x45C31C0B,
+        scan_id=0xA02D770E,
+        room="Torvus Bog - Path of Roots",
+        translator="Emerald",
+    ),
+    HintScan(
+        strg_id=0x54C87F8C,
+        scan_id=0xB1261489,
+        room="Torvus Bog - Underground Tunnel",
+        translator="Emerald",
+    ),
+    HintScan(
+        strg_id=0xD25C0D22,
+        scan_id=0x37B26627,
+        room="Torvus Bog - Torvus Energy Controller",
+        translator="Emerald",
+    ),
+    HintScan(
+        strg_id=0x49CD4F34,
+        scan_id=0xAC232431,
+        room="Torvus Bog - Gathering Hall",
+        translator="Emerald",
+    ),
+    HintScan(
+        strg_id=0x9F94AC29,
+        scan_id=0x7A7AC72C,
+        room="Torvus Bog - Training Chamber",
+        translator="Emerald",
+    ),
+    HintScan(
+        strg_id=0x82919C91,
+        scan_id=0x677FF794,
+        room="Torvus Bog - Catacombs",
+        translator="Emerald",
+    ),
 )
 
 # CPlayerState's SScanState.progress is a u8; SetScanTime stores 255*t for

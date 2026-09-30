@@ -208,6 +208,26 @@ class TranslatorLoreHints(Choice):
     default = option_my_items
 
 
+class TranslatorLoreRando(Choice):
+    """How each of the 22 Luminoth lore holograms' required translator
+    color is chosen. The hologram (and its glow) is recolored to match, so
+    you can still tell at a glance which translator reads it.
+
+    Vanilla: every hologram requires its vanilla translator (Violet in
+    Temple Grounds/Great Temple, Amber in Agon Wastes, Emerald in Torvus
+    Bog, Cobalt in Sanctuary Fortress).
+    Random: every hologram independently requires a random one of the four
+    translator colors.
+
+    Only changes which translator a hologram needs; what it says is still
+    controlled by `translator_lore_hints`."""
+
+    display_name = "Translator Lore Randomization"
+    option_vanilla = 0
+    option_full_random = 1
+    default = option_vanilla
+
+
 class ProgressiveSuit(DefaultOnToggle):
     """If enabled, Dark Suit and Light Suit are combined into two copies of
     a single Progressive Suit item (first copy grants Dark Suit, second
@@ -731,6 +751,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     sky_temple_keys_required: SkyTempleKeysRequired
     sky_temple_key_hints: SkyTempleKeyHints
     translator_lore_hints: TranslatorLoreHints
+    translator_lore_rando: TranslatorLoreRando
     progressive_suit: ProgressiveSuit
     progressive_grapple: ProgressiveGrapple
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
@@ -806,7 +827,15 @@ class MetroidPrime2Options(PerGameCommonOptions):
 OPTION_GROUPS: list[OptionGroup] = [
     OptionGroup(
         "Goal",
-        [Goal, SkyTempleKeys, SkyTempleKeysLocations, SkyTempleKeysRequired, SkyTempleKeyHints, TranslatorLoreHints],
+        [
+            Goal,
+            SkyTempleKeys,
+            SkyTempleKeysLocations,
+            SkyTempleKeysRequired,
+            SkyTempleKeyHints,
+            TranslatorLoreHints,
+            TranslatorLoreRando,
+        ],
     ),
     OptionGroup(
         "Item Pool",
