@@ -1,0 +1,2396 @@
+[
+  {
+    "name": "Temple Grounds",
+    "children": [
+      {
+        "name": "Hive Chamber A",
+        "children": [
+          {
+            "name": "Temple Grounds: Hive Chamber A - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Hive Chamber A - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 640,
+                "y": 1052
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hall of Honored Dead",
+        "children": [
+          {
+            "name": "Temple Grounds: Hall of Honored Dead - Pickup (Seeker Launcher)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Hall of Honored Dead - Pickup (Seeker Launcher)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 594,
+                "y": 648
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hive Chamber B",
+        "children": [
+          {
+            "name": "Temple Grounds: Hive Chamber B - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Hive Chamber B - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 809,
+                "y": 1024
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Windchamber Gateway",
+        "children": [
+          {
+            "name": "Temple Grounds: Windchamber Gateway - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Windchamber Gateway - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 302,
+                "y": 358
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Transport to Agon Wastes",
+        "children": [
+          {
+            "name": "Temple Grounds: Transport to Agon Wastes - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Transport to Agon Wastes - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 1026,
+                "y": 1125
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Temple Assembly Site",
+        "children": [
+          {
+            "name": "Temple Grounds: Temple Assembly Site - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Temple Assembly Site - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 893,
+                "y": 725
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Grand Windchamber",
+        "children": [
+          {
+            "name": "Temple Grounds: Grand Windchamber - Pickup (Sunburst)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Grand Windchamber - Pickup (Sunburst)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 448,
+                "y": 424
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Dynamo Chamber",
+        "children": [
+          {
+            "name": "Temple Grounds: Dynamo Chamber - Pickup (Power Bomb)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Dynamo Chamber - Pickup (Power Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 886,
+                "y": 663
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Storage Cavern B",
+        "children": [
+          {
+            "name": "Temple Grounds: Storage Cavern B - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Storage Cavern B - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 880,
+                "y": 838
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Communication Area",
+        "children": [
+          {
+            "name": "Temple Grounds: Communication Area - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Communication Area - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 854,
+                "y": 567
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "GFMC Compound",
+        "children": [
+          {
+            "name": "Temple Grounds: GFMC Compound - Pickup (Missile Launcher)",
+            "sections": [
+              {
+                "name": "Temple Grounds: GFMC Compound - Pickup (Missile Launcher)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 662,
+                "y": 280
+              }
+            ]
+          },
+          {
+            "name": "Temple Grounds: GFMC Compound - Pickup 2 (Missile On Ship)",
+            "sections": [
+              {
+                "name": "Temple Grounds: GFMC Compound - Pickup 2 (Missile On Ship)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 694,
+                "y": 200
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Fortress Transport Access",
+        "children": [
+          {
+            "name": "Temple Grounds: Fortress Transport Access - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Temple Grounds: Fortress Transport Access - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Temple Grounds",
+                "x": 501,
+                "y": 174
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Great Temple",
+    "children": [
+      {
+        "name": "Transport A Access",
+        "children": [
+          {
+            "name": "Great Temple: Transport A Access - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Great Temple: Transport A Access - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Great Temple",
+                "x": 1074,
+                "y": 596
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Temple Sanctuary",
+        "children": [
+          {
+            "name": "Great Temple: Temple Sanctuary - Pickup (Energy Transfer Module)",
+            "sections": [
+              {
+                "name": "Great Temple: Temple Sanctuary - Pickup (Energy Transfer Module)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Great Temple",
+                "x": 964,
+                "y": 973
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Transport B Access",
+        "children": [
+          {
+            "name": "Great Temple: Transport B Access - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Great Temple: Transport B Access - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Great Temple",
+                "x": 1363,
+                "y": 1019
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main Energy Controller",
+        "children": [
+          {
+            "name": "Great Temple: Main Energy Controller - Pickup (Violet Translator)",
+            "sections": [
+              {
+                "name": "Great Temple: Main Energy Controller - Pickup (Violet Translator)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Great Temple",
+                "x": 935,
+                "y": 1020
+              }
+            ]
+          },
+          {
+            "name": "Great Temple: Main Energy Controller - Pickup (Light Suit)",
+            "sections": [
+              {
+                "name": "Great Temple: Main Energy Controller - Pickup (Light Suit)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Great Temple",
+                "x": 965,
+                "y": 970
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Agon Wastes",
+    "children": [
+      {
+        "name": "Mining Plaza",
+        "children": [
+          {
+            "name": "Agon Wastes: Mining Plaza - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Mining Plaza - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 283,
+                "y": 720
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Mining Station Access",
+        "children": [
+          {
+            "name": "Agon Wastes: Mining Station Access - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Mining Station Access - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 648,
+                "y": 766
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Mining Station B",
+        "children": [
+          {
+            "name": "Agon Wastes: Mining Station B - Pickup (Darkburst)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Mining Station B - Pickup (Darkburst)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 489,
+                "y": 458
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Transport Center",
+        "children": [
+          {
+            "name": "Agon Wastes: Transport Center - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Transport Center - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 621,
+                "y": 1003
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Mining Station A",
+        "children": [
+          {
+            "name": "Agon Wastes: Mining Station A - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Mining Station A - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 840,
+                "y": 870
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Storage A",
+        "children": [
+          {
+            "name": "Agon Wastes: Storage A - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Storage A - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 542,
+                "y": 553
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Mine Shaft",
+        "children": [
+          {
+            "name": "Agon Wastes: Mine Shaft - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Mine Shaft - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 689,
+                "y": 485
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Sand Cache",
+        "children": [
+          {
+            "name": "Agon Wastes: Sand Cache - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Sand Cache - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 872,
+                "y": 946
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Portal Access A",
+        "children": [
+          {
+            "name": "Agon Wastes: Portal Access A - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Portal Access A - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 771,
+                "y": 944
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Agon Temple",
+        "children": [
+          {
+            "name": "Agon Wastes: Agon Temple - Pickup (Morph Ball Bomb)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Agon Temple - Pickup (Morph Ball Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 854,
+                "y": 485
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Central Mining Station",
+        "children": [
+          {
+            "name": "Agon Wastes: Central Mining Station - Pickup (Dark Ammo)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Central Mining Station - Pickup (Dark Ammo)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1121,
+                "y": 803
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Sandcanyon",
+        "children": [
+          {
+            "name": "Agon Wastes: Sandcanyon - Pickup (Power Bomb)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Sandcanyon - Pickup (Power Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1161,
+                "y": 511
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Agon Energy Controller",
+        "children": [
+          {
+            "name": "Agon Wastes: Agon Energy Controller - Pickup (Amber Translator)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Agon Energy Controller - Pickup (Amber Translator)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 826,
+                "y": 106
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Ventilation Area A",
+        "children": [
+          {
+            "name": "Agon Wastes: Ventilation Area A - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Ventilation Area A - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1425,
+                "y": 489
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Command Center",
+        "children": [
+          {
+            "name": "Agon Wastes: Command Center - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Command Center - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1516,
+                "y": 855
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main Reactor",
+        "children": [
+          {
+            "name": "Agon Wastes: Main Reactor - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Main Reactor - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1627,
+                "y": 492
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Sand Processing",
+        "children": [
+          {
+            "name": "Agon Wastes: Sand Processing - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Sand Processing - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1756,
+                "y": 569
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Storage D",
+        "children": [
+          {
+            "name": "Agon Wastes: Storage D - Pickup (Dark Beam)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Storage D - Pickup (Dark Beam)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1498,
+                "y": 547
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Storage B",
+        "children": [
+          {
+            "name": "Agon Wastes: Storage B - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Storage B - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1426,
+                "y": 1138
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Bioenergy Production",
+        "children": [
+          {
+            "name": "Agon Wastes: Bioenergy Production - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Bioenergy Production - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1733,
+                "y": 975
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Storage C",
+        "children": [
+          {
+            "name": "Agon Wastes: Storage C - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Agon Wastes: Storage C - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Agon Wastes",
+                "x": 1840,
+                "y": 883
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Torvus Bog",
+    "children": [
+      {
+        "name": "Torvus Lagoon",
+        "children": [
+          {
+            "name": "Torvus Bog: Torvus Lagoon - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Torvus Lagoon - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 1533,
+                "y": 944
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Portal Chamber (Light)",
+        "children": [
+          {
+            "name": "Torvus Bog: Portal Chamber (Light) - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Portal Chamber (Light) - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 1239,
+                "y": 933
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Path of Roots",
+        "children": [
+          {
+            "name": "Torvus Bog: Path of Roots - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Path of Roots - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 1317,
+                "y": 1043
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Forgotten Bridge",
+        "children": [
+          {
+            "name": "Torvus Bog: Forgotten Bridge - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Forgotten Bridge - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 1116,
+                "y": 783
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Great Bridge",
+        "children": [
+          {
+            "name": "Torvus Bog: Great Bridge - Pickup (Power Bomb)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Great Bridge - Pickup (Power Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 1192,
+                "y": 953
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Plaza Access",
+        "children": [
+          {
+            "name": "Torvus Bog: Plaza Access - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Plaza Access - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 1154,
+                "y": 352
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Abandoned Worksite",
+        "children": [
+          {
+            "name": "Torvus Bog: Abandoned Worksite - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Abandoned Worksite - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 1123,
+                "y": 858
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Temple Access",
+        "children": [
+          {
+            "name": "Torvus Bog: Temple Access - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Temple Access - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 926,
+                "y": 1016
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Torvus Plaza",
+        "children": [
+          {
+            "name": "Torvus Bog: Torvus Plaza - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Torvus Plaza - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 1077,
+                "y": 82
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Torvus Grove",
+        "children": [
+          {
+            "name": "Torvus Bog: Torvus Grove - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Torvus Grove - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 581,
+                "y": 543
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Torvus Temple",
+        "children": [
+          {
+            "name": "Torvus Bog: Torvus Temple - Pickup (Super Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Torvus Temple - Pickup (Super Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 539,
+                "y": 1016
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Underground Tunnel",
+        "children": [
+          {
+            "name": "Torvus Bog: Underground Tunnel - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Underground Tunnel - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 601,
+                "y": 875
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Meditation Vista",
+        "children": [
+          {
+            "name": "Torvus Bog: Meditation Vista - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Meditation Vista - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 776,
+                "y": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hydrodynamo Station",
+        "children": [
+          {
+            "name": "Torvus Bog: Hydrodynamo Station - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Hydrodynamo Station - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 661,
+                "y": 963
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Torvus Energy Controller",
+        "children": [
+          {
+            "name": "Torvus Bog: Torvus Energy Controller - Pickup (Emerald Translator)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Torvus Energy Controller - Pickup (Emerald Translator)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 188,
+                "y": 991
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Gathering Hall",
+        "children": [
+          {
+            "name": "Torvus Bog: Gathering Hall - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Gathering Hall - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 300,
+                "y": 1225
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Training Chamber",
+        "children": [
+          {
+            "name": "Torvus Bog: Training Chamber - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Training Chamber - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 661,
+                "y": 582
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Transit Tunnel South",
+        "children": [
+          {
+            "name": "Torvus Bog: Transit Tunnel South - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Transit Tunnel South - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 635,
+                "y": 1377
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Transit Tunnel East",
+        "children": [
+          {
+            "name": "Torvus Bog: Transit Tunnel East - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Transit Tunnel East - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 960,
+                "y": 809
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hydrochamber Storage",
+        "children": [
+          {
+            "name": "Torvus Bog: Hydrochamber Storage - Pickup (Gravity Boost)",
+            "sections": [
+              {
+                "name": "Torvus Bog: Hydrochamber Storage - Pickup (Gravity Boost)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Torvus Bog",
+                "x": 677,
+                "y": 1166
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Sanctuary Fortress",
+    "children": [
+      {
+        "name": "Sanctuary Entrance",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Sanctuary Entrance - Pickup (Power Bomb)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Sanctuary Entrance - Pickup (Power Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1117,
+                "y": 1493
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Reactor Core",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Reactor Core - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Reactor Core - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1074,
+                "y": 833
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Transit Station",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Transit Station - Pickup (Power Bomb)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Transit Station - Pickup (Power Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 982,
+                "y": 834
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Sanctuary Map Station",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Sanctuary Map Station - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Sanctuary Map Station - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1054,
+                "y": 749
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hall of Combat Mastery",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Hall of Combat Mastery - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Hall of Combat Mastery - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1429,
+                "y": 717
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main Research",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Main Research - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Main Research - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 864,
+                "y": 815
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Central Area Transport West",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Central Area Transport West - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Central Area Transport West - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 743,
+                "y": 834
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Dynamo Works",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Dynamo Works - Pickup (Spider Ball)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Dynamo Works - Pickup (Spider Ball)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1491,
+                "y": 770
+              }
+            ]
+          },
+          {
+            "name": "Sanctuary Fortress: Dynamo Works - Pickup 2 (Missile)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Dynamo Works - Pickup 2 (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1408,
+                "y": 731
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Watch Station",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Watch Station - Pickup (Dark Ammo)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Watch Station - Pickup (Dark Ammo)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 836,
+                "y": 642
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Sentinel's Path",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Sentinel's Path - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Sentinel's Path - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 931,
+                "y": 970
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Watch Station Access",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Watch Station Access - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Watch Station Access - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 930,
+                "y": 723
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main Gyro Chamber",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Main Gyro Chamber - Pickup (Power Bomb)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Main Gyro Chamber - Pickup (Power Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1116,
+                "y": 622
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Vault",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Vault - Pickup (Screw Attack)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Vault - Pickup (Screw Attack)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 351,
+                "y": 586
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Temple Access",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Temple Access - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Temple Access - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1126,
+                "y": 845
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Sanctuary Energy Controller",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Sanctuary Energy Controller - Pickup (Cobalt Translator)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Sanctuary Energy Controller - Pickup (Cobalt Translator)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1147,
+                "y": 1304
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Aerie",
+        "children": [
+          {
+            "name": "Sanctuary Fortress: Aerie - Pickup (Echo Visor)",
+            "sections": [
+              {
+                "name": "Sanctuary Fortress: Aerie - Pickup (Echo Visor)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sanctuary Fortress",
+                "x": 1174,
+                "y": 376
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Sky Temple Grounds",
+    "children": [
+      {
+        "name": "War Ritual Grounds",
+        "children": [
+          {
+            "name": "Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sky Temple Grounds",
+                "x": 577,
+                "y": 1333
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Plain of Dark Worship",
+        "children": [
+          {
+            "name": "Sky Temple Grounds: Plain of Dark Worship - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Sky Temple Grounds: Plain of Dark Worship - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sky Temple Grounds",
+                "x": 1186,
+                "y": 1330
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Defiled Shrine",
+        "children": [
+          {
+            "name": "Sky Temple Grounds: Defiled Shrine - Pickup (Sky Temple Key 8)",
+            "sections": [
+              {
+                "name": "Sky Temple Grounds: Defiled Shrine - Pickup (Sky Temple Key 8)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sky Temple Grounds",
+                "x": 562,
+                "y": 1787
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Accursed Lake",
+        "children": [
+          {
+            "name": "Sky Temple Grounds: Accursed Lake - Pickup (Sky Temple Key 9)",
+            "sections": [
+              {
+                "name": "Sky Temple Grounds: Accursed Lake - Pickup (Sky Temple Key 9)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sky Temple Grounds",
+                "x": 1386,
+                "y": 1813
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Profane Path",
+        "children": [
+          {
+            "name": "Sky Temple Grounds: Profane Path - Pickup (Dark Ammo)",
+            "sections": [
+              {
+                "name": "Sky Temple Grounds: Profane Path - Pickup (Dark Ammo)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sky Temple Grounds",
+                "x": 879,
+                "y": 866
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Phazon Grounds",
+        "children": [
+          {
+            "name": "Sky Temple Grounds: Phazon Grounds - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Sky Temple Grounds: Phazon Grounds - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sky Temple Grounds",
+                "x": 1111,
+                "y": 137
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Ing Reliquary",
+        "children": [
+          {
+            "name": "Sky Temple Grounds: Ing Reliquary - Pickup (Sky Temple Key 7)",
+            "sections": [
+              {
+                "name": "Sky Temple Grounds: Ing Reliquary - Pickup (Sky Temple Key 7)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Sky Temple Grounds",
+                "x": 1241,
+                "y": 1120
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Dark Agon Wastes",
+    "children": [
+      {
+        "name": "Ing Cache 4",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Ing Cache 4 - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Ing Cache 4 - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 174,
+                "y": 731
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Junction Site",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Junction Site - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Junction Site - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 590,
+                "y": 829
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Crossroads",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Crossroads - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Crossroads - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 609,
+                "y": 1050
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Judgment Pit",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Judgment Pit - Pickup (Space Jump Boots)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Judgment Pit - Pickup (Space Jump Boots)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 797,
+                "y": 855
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Trial Tunnel",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Trial Tunnel - Pickup (Dark Agon Key 1)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Trial Tunnel - Pickup (Dark Agon Key 1)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 662,
+                "y": 501
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Warrior's Walk",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Warrior's Walk - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Warrior's Walk - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 1091,
+                "y": 831
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Dark Agon Temple",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Dark Agon Temple - Pickup (Dark Suit)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Dark Agon Temple - Pickup (Dark Suit)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 818,
+                "y": 500
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Battleground",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Battleground - Pickup (Dark Agon Key 3)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Battleground - Pickup (Dark Agon Key 3)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 1177,
+                "y": 830
+              }
+            ]
+          },
+          {
+            "name": "Dark Agon Wastes: Battleground - Pickup 2 (Sky Temple Key 1)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Battleground - Pickup 2 (Sky Temple Key 1)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 1114,
+                "y": 843
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Doomed Entry",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Doomed Entry - Pickup (Dark Agon Key 2)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Doomed Entry - Pickup (Dark Agon Key 2)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 1465,
+                "y": 829
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Dark Oasis",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Dark Oasis - Pickup (Sky Temple Key 2)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Dark Oasis - Pickup (Sky Temple Key 2)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 1589,
+                "y": 524
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Feeding Pit",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Feeding Pit - Pickup (Power Bomb)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Feeding Pit - Pickup (Power Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 1461,
+                "y": 1125
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Ing Cache 1",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Ing Cache 1 - Pickup (Light Beam)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Ing Cache 1 - Pickup (Light Beam)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 1410,
+                "y": 1176
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Ing Cache 2",
+        "children": [
+          {
+            "name": "Dark Agon Wastes: Ing Cache 2 - Pickup (Sonic Boom)",
+            "sections": [
+              {
+                "name": "Dark Agon Wastes: Ing Cache 2 - Pickup (Sonic Boom)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Agon Wastes",
+                "x": 1839,
+                "y": 912
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Dark Torvus Bog",
+    "children": [
+      {
+        "name": "Cache A",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Cache A - Pickup (Dark Ammo)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Cache A - Pickup (Dark Ammo)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 1706,
+                "y": 1379
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Poisoned Bog",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Poisoned Bog - Pickup (Sky Temple Key 3)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Poisoned Bog - Pickup (Sky Temple Key 3)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 1805,
+                "y": 1278
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Venomous Pond",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Venomous Pond - Pickup (Dark Torvus Key 3)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Venomous Pond - Pickup (Dark Torvus Key 3)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 1278,
+                "y": 1364
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Putrid Alcove",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Putrid Alcove - Pickup (Power Bomb)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Putrid Alcove - Pickup (Power Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 1593,
+                "y": 1156
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Dark Torvus Arena",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Dark Torvus Arena - Pickup (Boost Ball)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Dark Torvus Arena - Pickup (Boost Ball)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 1298,
+                "y": 115
+              }
+            ]
+          },
+          {
+            "name": "Dark Torvus Bog: Dark Torvus Arena - Pickup 2 (Dark Torvus Key 1)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Dark Torvus Arena - Pickup 2 (Dark Torvus Key 1)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 1329,
+                "y": 339
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Dark Torvus Temple",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Dark Torvus Temple - Pickup (Dark Visor)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Dark Torvus Temple - Pickup (Dark Visor)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 791,
+                "y": 1364
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Cache B",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Cache B - Pickup (Energy Tank)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Cache B - Pickup (Energy Tank)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 562,
+                "y": 1363
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Undertemple Access",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Undertemple Access - Pickup (Dark Torvus Key 2)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Undertemple Access - Pickup (Dark Torvus Key 2)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 813,
+                "y": 1454
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Sacrificial Chamber",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Sacrificial Chamber - Pickup (Grapple Beam)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Sacrificial Chamber - Pickup (Grapple Beam)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 790,
+                "y": 940
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Undertemple",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Undertemple - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Undertemple - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 776,
+                "y": 1240
+              }
+            ]
+          },
+          {
+            "name": "Dark Torvus Bog: Undertemple - Pickup 2 (Power Bomb)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Undertemple - Pickup 2 (Power Bomb)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 812,
+                "y": 1365
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Dungeon",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Dungeon - Pickup (Sky Temple Key 4)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Dungeon - Pickup (Sky Temple Key 4)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 1127,
+                "y": 1658
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Undertransit One",
+        "children": [
+          {
+            "name": "Dark Torvus Bog: Undertransit One - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Dark Torvus Bog: Undertransit One - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Dark Torvus Bog",
+                "x": 397,
+                "y": 1166
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Ing Hive",
+    "children": [
+      {
+        "name": "Culling Chamber",
+        "children": [
+          {
+            "name": "Ing Hive: Culling Chamber - Pickup (Ing Hive Key 1)",
+            "sections": [
+              {
+                "name": "Ing Hive: Culling Chamber - Pickup (Ing Hive Key 1)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Ing Hive",
+                "x": 1563,
+                "y": 806
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hazing Cliff",
+        "children": [
+          {
+            "name": "Ing Hive: Hazing Cliff - Pickup (Missile)",
+            "sections": [
+              {
+                "name": "Ing Hive: Hazing Cliff - Pickup (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Ing Hive",
+                "x": 1848,
+                "y": 874
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hive Dynamo Works",
+        "children": [
+          {
+            "name": "Ing Hive: Hive Dynamo Works - Pickup (Sky Temple Key 6)",
+            "sections": [
+              {
+                "name": "Ing Hive: Hive Dynamo Works - Pickup (Sky Temple Key 6)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Ing Hive",
+                "x": 1475,
+                "y": 774
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Aerial Training Site",
+        "children": [
+          {
+            "name": "Ing Hive: Aerial Training Site - Pickup (Ing Hive Key 3)",
+            "sections": [
+              {
+                "name": "Ing Hive: Aerial Training Site - Pickup (Ing Hive Key 3)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Ing Hive",
+                "x": 869,
+                "y": 860
+              }
+            ]
+          },
+          {
+            "name": "Ing Hive: Aerial Training Site - Pickup 2 (Missile)",
+            "sections": [
+              {
+                "name": "Ing Hive: Aerial Training Site - Pickup 2 (Missile)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Ing Hive",
+                "x": 934,
+                "y": 702
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hive Gyro Chamber",
+        "children": [
+          {
+            "name": "Ing Hive: Hive Gyro Chamber - Pickup (Ing Hive Key 2)",
+            "sections": [
+              {
+                "name": "Ing Hive: Hive Gyro Chamber - Pickup (Ing Hive Key 2)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Ing Hive",
+                "x": 1228,
+                "y": 623
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hive Temple",
+        "children": [
+          {
+            "name": "Ing Hive: Hive Temple - Pickup (Annihilator Beam)",
+            "sections": [
+              {
+                "name": "Ing Hive: Hive Temple - Pickup (Annihilator Beam)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Ing Hive",
+                "x": 1182,
+                "y": 1004
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Hive Entrance",
+        "children": [
+          {
+            "name": "Ing Hive: Hive Entrance - Pickup (Sky Temple Key 5)",
+            "sections": [
+              {
+                "name": "Ing Hive: Hive Entrance - Pickup (Sky Temple Key 5)"
+              }
+            ],
+            "map_locations": [
+              {
+                "map": "Ing Hive",
+                "x": 1211,
+                "y": 1349
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Sky Temple",
+    "children": []
+  }
+]

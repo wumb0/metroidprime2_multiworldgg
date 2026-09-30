@@ -30,6 +30,7 @@ from .dolphin_client import (
     get_num_dolphin_instances,
 )
 from .game_interface import ConnectionState, EchoesInterface
+from .item_panel import ItemPanel, compute_panel_state
 from .notification_manager import NotificationManager
 from .receive_items import compute_desired_capacities, plan_grants
 
@@ -191,6 +192,7 @@ class MetroidPrime2Context(CommonContext):
     slot_data: dict[str, Any] = {}  # noqa: RUF012 -- matches CommonContext.slot_data's own unannotated convention
     expected_uuid: str | None = None
     last_sent_mlvl: int | None = None
+    last_sent_area: tuple[int, int] | None = None
     # items_received index up to which receipts have been announced on the
     # HUD (None = not yet synced this connection); see _handle_grant_items.
     last_announced_index: int | None = None
@@ -253,10 +255,23 @@ class MetroidPrime2Context(CommonContext):
             self.hint_scans = decode_hint_scans(self.slot_data.get("hint_scans"))
             self.sent_hint_scans = set()
             self.last_announced_index = None
+            self.last_sent_mlvl = None
+            self.last_sent_area = None
 
             if "death_link" in self.slot_data:
                 self.death_link_enabled = bool(self.slot_data["death_link"])
                 Utils.async_start(self.update_death_link(self.death_link_enabled))
+
+            self._refresh_item_panel()
+        elif cmd == "ReceivedItems":
+            self._refresh_item_panel()
+
+    def _refresh_item_panel(self) -> None:
+        panel = getattr(self.ui, "item_panel", None) if self.ui else None
+        if panel is None:
+            return
+        names = [self.item_names.lookup_in_game(network_item.item, self.game) for network_item in self.items_received]
+        panel.update(compute_panel_state(names, self.slot_data))
 
     def make_gui(self):
         from kvui import GameManager
@@ -271,6 +286,12 @@ class MetroidPrime2Context(CommonContext):
         class MetroidPrime2Manager(base_class):
             logging_pairs = [("Client", "Archipelago")]  # noqa: RUF012 -- matches kvui GameManager's own convention
             base_title = f"Metroid Prime 2: Echoes Client {get_apworld_version()}{ut_title} | {apname}"
+
+            def build(self):
+                container = super().build()
+                self.item_panel = ItemPanel()
+                self.grid.add_widget(self.item_panel.layout)
+                return container
 
         return MetroidPrime2Manager
 
@@ -595,20 +616,31 @@ def _announce_received_items(
 
 async def _send_mlvl_datastorage(ctx: MetroidPrime2Context) -> None:
     mlvl = ctx.game_interface.current_mlvl()
-    if mlvl is None or mlvl == ctx.last_sent_mlvl or not ctx.slot:
+    if mlvl is None or not ctx.slot:
         return
-    ctx.last_sent_mlvl = mlvl
-    await ctx.send_msgs(
-        [
-            {
-                "cmd": "Set",
-                "key": f"metroidprime2_mlvl_{ctx.team}_{ctx.slot}",
-                "default": 0,
-                "want_reply": False,
-                "operations": [{"operation": "replace", "value": mlvl}],
-            }
-        ]
-    )
+    messages: list[dict[str, Any]] = []
+    if mlvl != ctx.last_sent_mlvl:
+        ctx.last_sent_mlvl = mlvl
+        messages.append(_datastorage_replace(f"metroidprime2_mlvl_{ctx.team}_{ctx.slot}", mlvl, 0))
+    # The MLVL alone can't tell a light region from its dark counterpart
+    # (they share one), so UT's map tab follows this finer-grained key.
+    area = ctx.game_interface.current_area_id()
+    if area is not None and (mlvl, area) != ctx.last_sent_area:
+        ctx.last_sent_area = (mlvl, area)
+        key = constants.AREA_DATASTORAGE_KEY.format(team=ctx.team, slot=ctx.slot)
+        messages.append(_datastorage_replace(key, f"{mlvl:X}:{area}", ""))
+    if messages:
+        await ctx.send_msgs(messages)
+
+
+def _datastorage_replace(key: str, value: Any, default: Any) -> dict[str, Any]:
+    return {
+        "cmd": "Set",
+        "key": key,
+        "default": default,
+        "want_reply": False,
+        "operations": [{"operation": "replace", "value": value}],
+    }
 
 
 async def _handle_hint_scans(ctx: MetroidPrime2Context) -> None:

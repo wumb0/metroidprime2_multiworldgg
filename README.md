@@ -17,7 +17,9 @@ uses.
   translator gate / starting room randomization, warp to starting room implementation, Sky
   Temple Key gate + hint scans, translator lore hint scans, pre-scanned elevators.
 - **Needs testing**: cross-game item model matching.
-- **In progress:** Universal Tracker support and final docs
+- **Done (unit-tested only, not yet tried in a live UT session):** Universal Tracker support -- yaml-less
+  regeneration, client item strip, schematic map tab. See PLAN.md section W.
+- **In progress:** final docs
 
 See [`PLAN.md`](PLAN.md) for the full design/porting plan and milestone breakdown.
 

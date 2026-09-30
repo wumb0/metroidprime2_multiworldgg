@@ -50,6 +50,7 @@ from .options import (
 )
 from .patch_data import _translator_lore_hint_text, make_rando_configuration
 from .settings import MetroidPrime2Settings
+from .tracker_data import TRACKER_WORLD, decode_randomization, encode_randomization
 from .utils import get_apworld_version
 
 if TYPE_CHECKING:
@@ -141,6 +142,12 @@ class MetroidPrime2World(World):
     origin_region_name = "Temple Grounds/Landing Site/Save Station"
     required_client_version = (0, 5, 0)
     topology_present = True
+    # Universal Tracker: slot data carries every logic-affecting option plus
+    # the randomized state (tracker_data.py), so UT can skip its first
+    # generation and regen straight from the server's slot data -- no player
+    # yaml needed.
+    ut_can_gen_without_yaml = True
+    tracker_world: ClassVar[dict[str, Any]] = TRACKER_WORLD
 
     trick_levels: dict[str, int]
     world_uuid: str
@@ -169,6 +176,7 @@ class MetroidPrime2World(World):
         # option values arrive via multiworld.re_gen_passthrough instead of
         # the normal player yaml, so apply them before anything below reads
         # self.options (e.g. trick_levels_from_options just below).
+        passthrough: dict[str, Any] | None = None
         if hasattr(multiworld, "re_gen_passthrough"):
             passthrough = multiworld.re_gen_passthrough.get(self.game)
             if passthrough:
@@ -176,6 +184,11 @@ class MetroidPrime2World(World):
                     option = getattr(self.options, key, None)
                     if option is not None:
                         option.value = value
+        # The per-seed randomized state (starting room, dock/gate/lore
+        # rando) can't be re-derived without the original seed, so a UT
+        # regen restores it from slot data (tracker_data.py) instead of
+        # re-rolling it below.
+        restored = decode_randomization(passthrough) if passthrough else None
 
         locations_mode = self.options.sky_temple_keys_locations.value
         sky_temple_keys = self.options.sky_temple_keys.value
@@ -209,7 +222,9 @@ class MetroidPrime2World(World):
         # seed's generation is bit-for-bit unaffected.
         db = load_game_database()
         starting_room_pool = self.options.starting_room.current_key
-        if starting_room_pool == "vanilla":
+        if restored is not None:
+            self.starting_location = restored.starting_location
+        elif starting_room_pool == "vanilla":
             self.starting_location = db.starting_location
         else:
             candidates = db.starting_location_candidates(
@@ -222,9 +237,14 @@ class MetroidPrime2World(World):
         # built first: dock_rando's own reject-and-retry reachability probe
         # (logic/dock_rando.py's _meets_progression_bar) evaluates both
         # through logic/regions.py's _leave_requirement.
-        self.translator_gate_assignment = build_translator_gate_assignment(self)
-        self.translator_lore_assignment = build_translator_lore_assignment(self)
-        self.dock_rando = build_dock_rando_assignment(self)
+        if restored is not None:
+            self.translator_gate_assignment = restored.translator_gates
+            self.translator_lore_assignment = restored.translator_lore
+            self.dock_rando = restored.dock_rando
+        else:
+            self.translator_gate_assignment = build_translator_gate_assignment(self)
+            self.translator_lore_assignment = build_translator_lore_assignment(self)
+            self.dock_rando = build_dock_rando_assignment(self)
 
     def create_regions(self) -> None:
         logic_regions.create_regions(self)
@@ -340,6 +360,7 @@ class MetroidPrime2World(World):
         )
         slot_data["sky_temple_key_locations"] = list(self.sky_temple_key_locations)
         slot_data["starting_region"] = self.origin_region_name
+        slot_data.update(encode_randomization(self))
         slot_data["apworld_version"] = get_apworld_version()
 
         # PLAN.md section Q.4/Q.5: {scan_id: (location_player, location_id,

@@ -13,4 +13,4 @@ manual_tests/
 Dockerfile
 decomp/
 randomprime/
-tools/
+/tools/

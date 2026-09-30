@@ -1810,3 +1810,84 @@ the point of the option is colored hints.
   hologram model with the new texture (OPR's gate technique; area
   dependency rebuild pulls the texture into the pak).
 * Spoiler: "Translator Lore Colors" block when randomized.
+
+## W. Universal Tracker regeneration
+
+UT regenerates the world from `multiworld.re_gen_passthrough[game]` (the
+static `interpret_slot_data` returns slot data unchanged) but has no access
+to the original seed. Options already came through slot data, but the
+per-seed *randomized state* did not: the starting room, door-lock /
+elevator / portal rando, translator gate colors and lore hologram colors
+are all `world.random` draws, so a regen rolled different ones and the
+tracker's logic disagreed with the real game.
+
+* `tracker_data.py`: `encode_randomization(world)` /
+  `decode_randomization(slot_data)`. Slot keys `starting_location`,
+  `translator_gates`, `translator_lore`, `dock_rando`; `NodeId`s are stored
+  as `[region, area, node]` lists and maps as lists of pairs (JSON-safe --
+  ids can't be dict keys and tuples come back as lists).
+* `fill_slot_data` adds them; `generate_early` restores them after applying
+  the option passthrough, skipping the `starting_room` draw and the three
+  `build_*_assignment` calls (incl. dock rando's reject-and-retry probe).
+* Slot data from before this change lacks the keys: `decode_randomization`
+  returns `None` and generation falls back to re-rolling, which is only
+  right for seeds that left every randomized option at "vanilla".
+* `test/test_tracker_data.py` regenerates under a different seed with
+  `generation_is_fake`/`re_gen_passthrough` set and asserts identical
+  assignments and entrance graph (verified to fail with the restore off).
+* `ut_can_gen_without_yaml = True`: slot data holds every world option
+  (`test_slot_data_covers_every_world_option` guards future additions) plus
+  the randomized state, so UT skips its first generation and needs no
+  player yaml. Only server-side options (`exclude_locations`, `start_*`,
+  ...) fall back to defaults in the tracker.
+* Not done: deferred entrances (`found_entrances_datastorage_key`).
+
+### W.1 Item strip (`client/item_panel.py`)
+
+Two rows of upgrade icons plus nine counters (energy tanks, missiles, power
+bombs, dark/light ammo, Sky Temple Keys, and the three Dark Temple key
+sets), below the client window like `worlds/metroidprime`'s.
+`compute_panel_state` (pure) derives everything from the received item
+names; ammo totals and the launcher / power bomb unlock flags come from
+`receive_items.compute_desired_capacities` so the strip can't drift from
+what the client actually grants. Progressive Suit/Grapple resolve to Dark/
+Light Suit and Grapple/Screw Attack by copy index. Sky Temple Keys show
+`have/sky_temple_keys_required`.
+
+Icons (`assets/items`, 41 PNGs) come from `tools/make_tracker_icons.py`:
+16 copied from the Prime 1 world where the item is the same, 16 recolored
+from the analogous Prime 1 icon (Dark/Light beams from the beam hands,
+Darkburst/Sunburst/Sonic Boom from the charge combos, suits, visors, ammo
+expansions), and 9 drawn with Pillow (Screw Attack, four translators, Sky
+Temple Key, three Dark Temple keys). Committed, so the script only needs
+re-running to change an icon.
+
+### W.2 Map tab (`tracker/`, `tracker_data.TRACKER_WORLD`)
+
+An internal poptracker pack, one map per logic-database region (10).
+There is no Echoes map art to reuse and UT's docs advise against shipping
+game images, so `tools/make_tracker_map.py` draws schematic maps from room
+geometry: each area's world-space AABB (MLVL `area_bounding_box` +
+`area_transform` translation, extracted once from the ISO into
+`tools/room_bounds.json`) tinted by height, pickups placed from the logic
+DB's node coordinates (same world frame; 118/119 fall inside their room's
+box, the last is 3 units off in z). Section names are the AP location names,
+which is what UT matches on.
+
+Auto-tabbing: a light region and its dark counterpart share one MLVL
+(Temple Grounds + Sky Temple Grounds, ...), so the existing
+`metroidprime2_mlvl_*` key can't pick the map. The client now also writes
+`metroidprime2_area_{team}_{slot}` = `"<mlvl hex>:<area index>"` (the area
+index it already reads for goal detection) and `tracker_data.map_page_index`
+resolves that through `tracker/area_maps.json`; unrecognized values return
+-1 (keep the current tab).
+
+Not done: a player-position marker (`location_setting_key` /
+`location_icon_coords`) -- would need the player's world coordinates read
+from memory and an icon.
+
+Verification: unit tests cover the panel state, the headless kivy build of
+the strip (mock GL), every location appearing exactly once on its region's
+map with unique in-bounds pixels, the auto-tab mapping, and UT's own
+`UTMapTabData` accepting `TRACKER_WORLD`. Nothing has been run in a live UT
+session, so how the strip and the map actually look is unchecked.

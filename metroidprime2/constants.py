@@ -358,3 +358,8 @@ OPR_MODEL_NAMES = frozenset(
         "SkyTempleKey",
     }
 )
+
+# Datastorage key the client writes the current area to (``"<mlvl hex>:<area
+# index>"``); UT's map tab watches it to follow the player between regions.
+# ``tracker_data.py`` owns the consumer side.
+AREA_DATASTORAGE_KEY = "metroidprime2_area_{team}_{slot}"
