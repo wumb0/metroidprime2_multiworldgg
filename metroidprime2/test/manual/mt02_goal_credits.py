@@ -11,7 +11,7 @@ TEST = ManualTest(
     priority="P0",
     proves="beating the game reaches Credits and the client's current-area memory read marks the goal",
     seed=1_000_002,
-    config_sha256="7e6dcf10a46e4384a6c09629fbf68b027504daf71ace9306ed46ce0ba2d9ee56",
+    config_sha256="ef0ea521882ac63c304aa44c009ed8c32f46be1e68043e0c4c714eb15461b374",
     starting_room="Sky Temple/Sanctum/Door to Sanctum Access",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,

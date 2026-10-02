@@ -127,7 +127,7 @@ TEST = ManualTest(
     priority="P1",
     proves="every distinct cross-game item model (name-matched and override) loads without crashing",
     seed=1_000_010,
-    config_sha256="1895476b9f9f9190d3b3449f21c871bda76b16eacad711d8f021615405e4858b",
+    config_sha256="bdf225f389d0a110f93c1deb1f22e504a60011fc6aab86b21ff5de0b0e7ffc8f",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS, {"display_nonlocal_items": "match_game"}
     ),

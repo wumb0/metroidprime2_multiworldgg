@@ -11,13 +11,13 @@ TEST = ManualTest(
     priority="P2",
     proves="menu/new game/load/wrong-seed/reconnect/export_iso all behave",
     seed=1_000_012,
-    config_sha256="06ffdf2a8fb59fd368debd46c8849802645c8a0b9e764ce71f46a92151a878a8",
+    config_sha256="a428aa315cdb358f95cc4177553609eae85b26e1add7829de387e7bac0bf5318",
     options=presets.merge(presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS),
     variants={
         # A second build of a *different* seed, for the wrong-seed check.
         "other": Variant(
             seed=1_000_112,
-            config_sha256="1bd3e6e905524643d1270c89699e29775de1e7f5cf04921e4ec3151eb5244138",
+            config_sha256="ca0d8dd9a17b1fbed5d36cf596aaa108803fe6d45c85dc88e98ff180827cb349",
         ),
     },
     steps=[

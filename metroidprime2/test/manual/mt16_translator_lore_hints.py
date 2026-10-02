@@ -82,7 +82,7 @@ TEST = ManualTest(
             # Searched so Filler1's only progression item lands on a Violet
             # hologram near the start (only base seeds must be unique).
             seed=1_000_021,
-            config_sha256="07d0c4e73aa19e21a31e82ccaaab1c93399f23219e062419b57da91e0379b9e8",
+            config_sha256="9bdbffbfcf709ed69d85dec915c8feb4260921071d08312658234f17f79b2214",
             options={"translator_lore_hints": "any"},
             notes=[
                 (
@@ -134,7 +134,7 @@ TEST = ManualTest(
             pass_criteria=["Every checked hologram looks like, and opens with, its spoiler color."],
         ),
         "off": Variant(
-            config_sha256="4b074402645f12886755691e1faca639ec2ddbb5548527a43943f29b9255667a",
+            config_sha256="7fbe3558f3731e847566206f7616ced56926c94b6b2f4089f6cce26f9dd060b6",
             options={"translator_lore_hints": "off"},
             steps=[
                 Step(

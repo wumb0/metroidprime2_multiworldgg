@@ -11,7 +11,7 @@ TEST = ManualTest(
     priority="P0",
     proves="a default-options patched ISO boots, starts, saves, and reports a check",
     seed=1_000_001,
-    config_sha256="1366612c4f5326653233f71c8762468644ddc3a3d41b4c417e60bd951d8273e5",
+    config_sha256="734accb0dfaed8ea5e1441763b1227bcc2f96438e412a35f03221de8d99998fa",
     options=presets.merge(presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS),
     steps=[
         Step("Boot the patched ISO in Dolphin.", "The game reaches the title screen; New Game works."),

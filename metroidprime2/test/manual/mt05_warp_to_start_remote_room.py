@@ -11,7 +11,7 @@ TEST = ManualTest(
     priority="P0",
     proves="warp-to-start returns to the configured starting_area, even when it isn't a save station",
     seed=1_000_005,
-    config_sha256="5eeeffd6e63b6874b2a37b1e7a85fb9b60843c77196c1a16c7316abfdfbbe231",
+    config_sha256="69686642ebdc69e6830143c9f7037465296a11df8d1c59a2bda72a06dbaabc78",
     starting_room="Temple Grounds/Windchamber Gateway/Door to Path of Eyes",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
