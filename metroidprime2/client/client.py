@@ -30,7 +30,7 @@ from .dolphin_client import (
     get_num_dolphin_instances,
 )
 from .game_interface import ConnectionState, EchoesInterface
-from .item_panel import ItemPanel, compute_panel_state
+from .item_panel import ItemPanel, compute_panel_state, required_width_dp
 from .notification_manager import NotificationManager
 from .receive_items import compute_desired_capacities, plan_grants
 
@@ -289,6 +289,11 @@ class MetroidPrime2Context(CommonContext):
 
             def build(self):
                 container = super().build()
+                # Kivy's default window (800dp wide) is narrower than the panel.
+                from kivy.core.window import Window
+                from kivy.metrics import dp
+
+                Window.size = (max(Window.width, dp(required_width_dp())), Window.height)
                 self.item_panel = ItemPanel()
                 self.grid.add_widget(self.item_panel.layout)
                 return container

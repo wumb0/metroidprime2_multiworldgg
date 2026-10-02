@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from .. import constants
-from ..client.item_panel import COUNTERS, UPGRADES, compute_panel_state
+from ..client.item_panel import COUNTER_NAMES, COUNTERS, UPGRADES, compute_panel_state
 from ..items import ITEM_TABLE
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets" / "items"
@@ -24,6 +24,9 @@ class TestAssets(unittest.TestCase):
         for _, item in UPGRADES:
             self.assertIn(item, ITEM_TABLE)
 
+    def test_every_counter_icon_has_a_name(self) -> None:
+        self.assertEqual({s for s, _ in COUNTERS}, set(COUNTER_NAMES))
+
     def test_icon_and_counter_keys_unique(self) -> None:
         self.assertEqual(len(UPGRADES), len({s for s, _ in UPGRADES}))
         self.assertEqual(len(COUNTERS), len({k for _, k in COUNTERS}))
@@ -34,6 +37,7 @@ class TestComputePanelState(unittest.TestCase):
         state = compute_panel_state([], {})
         self.assertFalse(any(state.owned.values()))
         self.assertEqual("0", state.counters["missiles"])
+        self.assertEqual("0/14", state.counters["energy_tanks"])
         self.assertEqual("0/3", state.counters["ing_hive_keys"])
 
     def test_starting_items_lit(self) -> None:
@@ -57,30 +61,40 @@ class TestComputePanelState(unittest.TestCase):
         two = compute_panel_state(["Progressive Grapple"] * 2, {})
         self.assertTrue(two.owned["screwattack"])
 
-    def test_missile_ammo_and_launcher_gating(self) -> None:
-        with_launcher = compute_panel_state(["Missile Launcher", "Missile Expansion", "Missile Expansion"], {})
-        self.assertEqual("15", with_launcher.counters["missiles"])
+    def test_missile_expansion_counter_and_launcher_gating(self) -> None:
+        totals = {"expansion_totals": {"Missile Expansion": 33}}
+        with_launcher = compute_panel_state(["Missile Launcher", "Missile Expansion", "Missile Expansion"], totals)
+        self.assertEqual("2/33", with_launcher.counters["missiles"])
         self.assertTrue(with_launcher.owned["missilelauncher"])
 
-        no_launcher = compute_panel_state(["Missile Expansion"], {})
-        self.assertEqual("0", no_launcher.counters["missiles"])
+        no_launcher = compute_panel_state(["Missile Expansion"], totals)
+        self.assertEqual("1/33", no_launcher.counters["missiles"])
         self.assertFalse(no_launcher.owned["missilelauncher"])
 
-        unlocked = compute_panel_state(["Missile Expansion"], {"missile_expansions_unlock_launcher": True})
-        self.assertEqual("5", unlocked.counters["missiles"])
+        unlocked = compute_panel_state(["Missile Expansion"], {**totals, "missile_expansions_unlock_launcher": True})
         self.assertTrue(unlocked.owned["missilelauncher"])
 
     def test_power_bomb_gating(self) -> None:
         self.assertFalse(compute_panel_state(["Power Bomb Expansion"], {}).owned["powerbomb"])
         unlocked = compute_panel_state(["Power Bomb Expansion"], {"power_bomb_expansions_unlock_power_bombs": True})
         self.assertTrue(unlocked.owned["powerbomb"])
-        self.assertEqual("1", unlocked.counters["power_bombs"])
-        self.assertEqual("3", compute_panel_state(["Power Bomb", "Power Bomb Expansion"], {}).counters["power_bombs"])
+        totals = {"expansion_totals": {"Power Bomb Expansion": 8}}
+        self.assertEqual("1/8", compute_panel_state(["Power Bomb", "Power Bomb Expansion"], totals).counters["power_bombs"])
 
-    def test_beam_ammo(self) -> None:
-        state = compute_panel_state(["Dark Beam", "Dark Ammo Expansion", "Beam Ammo Expansion"], {})
-        self.assertEqual("80", state.counters["dark_ammo"])
-        self.assertEqual("10", state.counters["light_ammo"])
+    def test_counters_without_totals_show_bare_count(self) -> None:
+        state = compute_panel_state(["Missile Expansion"] * 3, {})
+        self.assertEqual("3", state.counters["missiles"])
+
+    def test_beam_ammo_expansions(self) -> None:
+        split = {"expansion_totals": {"Dark Ammo Expansion": 10, "Light Ammo Expansion": 10}}
+        state = compute_panel_state(["Dark Beam", "Dark Ammo Expansion", "Dark Ammo Expansion"], split)
+        self.assertEqual("2/10", state.counters["dark_ammo"])
+        self.assertEqual("0/10", state.counters["light_ammo"])
+
+        unified = {"expansion_totals": {"Beam Ammo Expansion": 20}}
+        state = compute_panel_state(["Beam Ammo Expansion"] * 3, unified)
+        self.assertEqual("3/20", state.counters["dark_ammo"])
+        self.assertEqual("3/20", state.counters["light_ammo"])
 
     def test_unlimited_ammo(self) -> None:
         state = compute_panel_state(["Missile Launcher", "Unlimited Missiles", "Unlimited Beam Ammo"], {})
@@ -102,13 +116,14 @@ class TestComputePanelState(unittest.TestCase):
         temple_keys = [f"{area} Key {n}" for area in ("Dark Agon", "Dark Torvus", "Ing Hive") for n in range(1, 4)]
         ammo = ["Dark Beam", "Light Beam"] + ["Dark Ammo Expansion", "Light Ammo Expansion"] * 10
         names = (keys + temple_keys + ammo) * 2
-        for slot_data in ({}, {"sky_temple_keys_required": 9}):
+        totals = {"Dark Ammo Expansion": 10, "Light Ammo Expansion": 10}
+        for slot_data in ({"expansion_totals": totals}, {"sky_temple_keys_required": 9, "expansion_totals": totals}):
             state = compute_panel_state(names, slot_data)
-            self.assertEqual("9/9" if slot_data else "9", state.counters["sky_temple_keys"])
+            self.assertEqual("9/9" if "sky_temple_keys_required" in slot_data else "9", state.counters["sky_temple_keys"])
             for counter in ("dark_agon_keys", "dark_torvus_keys", "ing_hive_keys"):
                 self.assertEqual("3/3", state.counters[counter])
-            self.assertEqual("250", state.counters["dark_ammo"])
-            self.assertEqual("250", state.counters["light_ammo"])
+            self.assertEqual("10/10", state.counters["dark_ammo"])
+            self.assertEqual("10/10", state.counters["light_ammo"])
 
     def test_sky_temple_keys_clamped_to_required(self) -> None:
         keys = [f"Sky Temple Key {n}" for n in range(1, 10)]
@@ -116,7 +131,9 @@ class TestComputePanelState(unittest.TestCase):
         self.assertEqual("3/3", state.counters["sky_temple_keys"])
 
     def test_energy_tanks_capped(self) -> None:
-        self.assertEqual("14", compute_panel_state(["Energy Tank"] * 20, {}).counters["energy_tanks"])
+        self.assertEqual("14/14", compute_panel_state(["Energy Tank"] * 20, {}).counters["energy_tanks"])
+        state = compute_panel_state(["Energy Tank"] * 3, {"expansion_totals": {"Energy Tank": 14}})
+        self.assertEqual("3/14", state.counters["energy_tanks"])
 
 
 @unittest.skipUnless(importlib.util.find_spec("kivymd") is not None, "kivymd not installed")
@@ -145,6 +162,11 @@ class TestKivyPanel(unittest.TestCase):
             panel.update(compute_panel_state([*STARTING, "Dark Beam", "Energy Tank"], {}))
             self.assertEqual(1, panel.upgrade_icons["darkbeam"].opacity)
             self.assertEqual(0.2, panel.upgrade_icons["lightbeam"].opacity)
-            self.assertEqual("1", panel.counter_labels["energy_tanks"].text)
+            self.assertEqual("1/14", panel.counter_labels["energy_tanks"].text)
+            # Hovering an icon shows its name; leaving dismisses it.
+            icon = panel.upgrade_icons["darkbeam"]
+            self.assertEqual("Dark Beam", icon._tooltip.text)
+            icon.on_enter()
+            icon.on_leave()
         finally:
             App._running_app = previous

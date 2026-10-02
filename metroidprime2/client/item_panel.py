@@ -19,18 +19,15 @@ from .receive_items import compute_desired_capacities
 if TYPE_CHECKING:
     from kivymd.uix.fitimage import FitImage
 
-MISSILE_SLOT = 44
 POWER_BOMB_SLOT = 43
-DARK_AMMO_SLOT = 45
-LIGHT_AMMO_SLOT = 46
 MISSILE_LAUNCHER_FLAG_SLOT = 73
 
 UNLIMITED = "∞"
 
-# Beam ammo tops out at 50 (the beam) + 10 expansions x 20. Counters with a
-# fixed maximum are clamped to it: the server can resend items (e.g. the
-# collect on goal completion), and a counter must never read past its max.
-BEAM_AMMO_MAX = 250
+# Counters with a fixed maximum are clamped to it: the server can resend items
+# (e.g. the collect on goal completion), and a counter must never read past
+# its max.
+ENERGY_TANKS_TOTAL = 14
 SKY_TEMPLE_KEYS_TOTAL = 9
 DARK_TEMPLE_KEYS_TOTAL = 3
 
@@ -83,6 +80,31 @@ COUNTERS: tuple[tuple[str, str], ...] = (
     ("darktorvuskey", "dark_torvus_keys"),
     ("ingkey", "ing_hive_keys"),
 )
+
+# counter key -> expansion item it counts. Beam ammo expansions come in two
+# shapes (split_beam_ammo): separate Dark/Light items, or one shared "Beam
+# Ammo Expansion" that feeds both counters.
+_EXPANSION_COUNTERS = {
+    "energy_tanks": ("Energy Tank",),
+    "missiles": ("Missile Expansion",),
+    "power_bombs": ("Power Bomb Expansion",),
+    "dark_ammo": ("Dark Ammo Expansion", "Beam Ammo Expansion"),
+    "light_ammo": ("Light Ammo Expansion", "Beam Ammo Expansion"),
+}
+
+# icon stem -> tooltip text for the counter icons (upgrade icons use their
+# item name from UPGRADES).
+COUNTER_NAMES = {
+    "energytank": "Energy Tanks",
+    "missileexpansion": "Missile Expansions",
+    "powerbombexpansion": "Power Bomb Expansions",
+    "darkammoexpansion": "Dark Beam Ammo Expansions",
+    "lightammoexpansion": "Light Beam Ammo Expansions",
+    "skytemplekey": "Sky Temple Keys",
+    "darkagonkey": "Dark Agon Keys",
+    "darktorvuskey": "Dark Torvus Keys",
+    "ingkey": "Ing Hive Keys",
+}
 
 _DARK_TEMPLE_KEY_PREFIXES = {
     "dark_agon_keys": "Dark Agon Key",
@@ -138,13 +160,26 @@ def compute_panel_state(received_names: Iterable[str], slot_data: dict[str, Any]
     state.owned["missilelauncher"] = capacities.get(MISSILE_LAUNCHER_FLAG_SLOT, 0) > 0
     state.owned["powerbomb"] = capacities.get(POWER_BOMB_SLOT, 0) > 0
 
-    unlimited_missiles = "Unlimited Missiles" in have
-    unlimited_beam_ammo = "Unlimited Beam Ammo" in have
-    state.counters["energy_tanks"] = str(capacities.get(42, 0))
-    state.counters["missiles"] = UNLIMITED if unlimited_missiles else str(capacities.get(MISSILE_SLOT, 0))
-    state.counters["power_bombs"] = str(capacities.get(POWER_BOMB_SLOT, 0))
-    for counter, slot in (("dark_ammo", DARK_AMMO_SLOT), ("light_ammo", LIGHT_AMMO_SLOT)):
-        state.counters[counter] = UNLIMITED if unlimited_beam_ammo else str(min(capacities.get(slot, 0), BEAM_AMMO_MAX))
+    # Expansion counters read "acquired/total". The totals are the pool sizes
+    # (filler included) recorded in slot_data at generation; without them (an
+    # older seed) the counter shows the bare acquired count.
+    totals = slot_data.get("expansion_totals") or {}
+    unlimited = {
+        "missiles": "Unlimited Missiles" in have,
+        "dark_ammo": "Unlimited Beam Ammo" in have,
+        "light_ammo": "Unlimited Beam Ammo" in have,
+    }
+    for counter, item_names in _EXPANSION_COUNTERS.items():
+        if unlimited.get(counter):
+            state.counters[counter] = UNLIMITED
+            continue
+        acquired = sum(concrete.count(item) for item in item_names)
+        total = sum(totals.get(item, 0) for item in item_names)
+        if counter == "energy_tanks":
+            # The game caps tanks at 14 however many are received.
+            total = total or ENERGY_TANKS_TOTAL
+            acquired = min(acquired, ENERGY_TANKS_TOTAL)
+        state.counters[counter] = f"{min(acquired, total)}/{total}" if total else str(acquired)
 
     # Keys are unique items, so count distinct names: a repeated delivery of
     # the same key must not count twice.
@@ -167,20 +202,64 @@ def compute_panel_state(received_names: Iterable[str], slot_data: dict[str, Any]
 
 ICON_SIZE_DP = 24
 COUNTER_ICON_DP = 32
+COUNTER_COLUMN_DP = COUNTER_ICON_DP + 8
+PANEL_SPACING_DP = 2
+PANEL_PADDING_DP = 5
+UPGRADES_GAP_DP = 8
 UPGRADE_ROWS = 2
+UPGRADE_SPACING_DP = 2
 
 
-def get_image(stem: str, size_dp: int) -> FitImage:
+def required_width_dp() -> int:
+    """Width the panel needs to show every counter and upgrade; the window
+    must be at least this wide (kivy's default 800 is too narrow)."""
+    # Children: every counter column, a gap, then the upgrade grid.
+    children = len(COUNTERS) + 2
+    counters = len(COUNTERS) * COUNTER_COLUMN_DP
+    upgrades = -(-len(UPGRADES) // UPGRADE_ROWS) * (ICON_SIZE_DP + UPGRADE_SPACING_DP)
+    return 2 * PANEL_PADDING_DP + (children - 1) * PANEL_SPACING_DP + counters + UPGRADES_GAP_DP + upgrades
+
+
+def _hover_image_class() -> type:
+    """FitImage that shows a tooltip while hovered (same HoverBehavior +
+    MDTooltip combination kvui's ServerLabel uses). Built lazily because
+    kivy can only be imported once kvui has set it up."""
+    global _HoverImage
+    if _HoverImage is None:
+        from kivymd.uix.fitimage import FitImage
+        from kivymd.uix.tooltip import MDTooltip
+        from kvui import HoverBehavior, ToolTip
+
+        class HoverImage(HoverBehavior, MDTooltip, FitImage):
+            tooltip_display_delay = 0.1
+
+            def __init__(self, tooltip_text: str, **kwargs: Any) -> None:
+                super().__init__(**kwargs)
+                self._tooltip = ToolTip(text=tooltip_text)
+
+            def on_enter(self) -> None:
+                self.display_tooltip()
+
+            def on_leave(self) -> None:
+                self.animation_tooltip_dismiss()
+
+        _HoverImage = HoverImage
+    return _HoverImage
+
+
+_HoverImage: type | None = None
+
+
+def get_image(stem: str, size_dp: int, name: str) -> FitImage:
     from importlib import resources
     from io import BytesIO
 
     from kivy.core.image import Image
     from kivy.metrics import dp
-    from kivymd.uix.fitimage import FitImage
 
     resource = resources.files(f"{__package__.rsplit('.', 1)[0]}.assets.items").joinpath(f"{stem}.png")
     texture = Image(BytesIO(resource.read_bytes()), ext="png").texture
-    image = FitImage(texture=texture)
+    image = _hover_image_class()(tooltip_text=name, texture=texture)
     image.size_hint = (None, None)
     image.size = (dp(size_dp), dp(size_dp))
     image.fit_mode = "scale-down"
@@ -192,14 +271,15 @@ class ItemPanel:
 
     def __init__(self) -> None:
         from kivy.metrics import dp
+        from kivy.uix.widget import Widget
         from kvui import MDBoxLayout, MDGridLayout, MDLabel
 
         self.layout = MDBoxLayout(
             orientation="horizontal",
             size_hint_y=None,
             height=dp(64),
-            spacing=dp(5),
-            padding=dp(5),
+            spacing=dp(PANEL_SPACING_DP),
+            padding=dp(PANEL_PADDING_DP),
         )
 
         self.counter_labels: dict[str, MDLabel] = {}
@@ -208,11 +288,11 @@ class ItemPanel:
                 rows=2,
                 spacing=dp(3),
                 size_hint_x=None,
-                width=dp(COUNTER_ICON_DP + 12),
+                width=dp(COUNTER_COLUMN_DP),
                 row_default_height=dp(COUNTER_ICON_DP),
                 row_force_default=True,
             )
-            icon = get_image(stem, COUNTER_ICON_DP)
+            icon = get_image(stem, COUNTER_ICON_DP, COUNTER_NAMES[stem])
             # Span the column so scale-down centers the icon over the (centered)
             # label instead of leaving it pinned to the cell's left edge.
             icon.size_hint_x = 1
@@ -223,16 +303,17 @@ class ItemPanel:
             self.counter_labels[key] = label
             self.layout.add_widget(column)
 
-        self.upgrade_icons: dict[str, FitImage] = {stem: get_image(stem, ICON_SIZE_DP) for stem, _ in UPGRADES}
+        self.upgrade_icons: dict[str, FitImage] = {stem: get_image(stem, ICON_SIZE_DP, item) for stem, item in UPGRADES}
         upgrades_grid = MDGridLayout(
             rows=UPGRADE_ROWS,
             padding=0,
-            spacing=dp(2),
+            spacing=dp(UPGRADE_SPACING_DP),
             size_hint_x=None,
-            width=dp(-(-len(UPGRADES) // UPGRADE_ROWS) * (ICON_SIZE_DP + 2)),
+            width=dp(-(-len(UPGRADES) // UPGRADE_ROWS) * (ICON_SIZE_DP + UPGRADE_SPACING_DP)),
         )
         for icon in self.upgrade_icons.values():
             upgrades_grid.add_widget(icon)
+        self.layout.add_widget(Widget(size_hint_x=None, width=dp(UPGRADES_GAP_DP)))
         self.layout.add_widget(upgrades_grid)
 
         self.update(compute_panel_state([], {}))

@@ -246,6 +246,17 @@ STATIC_VERSIONS = {
 
 # Items pushed via push_precollected regardless of options (the vanilla
 # starting inventory at Landing Site / Save Station).
+# Items whose pool size the client's tracker shows as the "total" in its
+# acquired/total counters (sent in slot_data as ``expansion_totals``).
+TRACKED_EXPANSIONS = (
+    "Energy Tank",
+    "Missile Expansion",
+    "Power Bomb Expansion",
+    "Dark Ammo Expansion",
+    "Light Ammo Expansion",
+    "Beam Ammo Expansion",
+)
+
 DEFAULT_STARTING_ITEMS = (
     "Power Beam",
     "Charge Beam",

@@ -360,6 +360,17 @@ class MetroidPrime2World(World):
         )
         slot_data["sky_temple_key_locations"] = list(self.sky_temple_key_locations)
         slot_data["starting_region"] = self.origin_region_name
+        # Pool size of each counted expansion (filler/starting copies
+        # included) for the client's "acquired/total" counters.
+        placed = [
+            location.item.name
+            for location in self.multiworld.get_locations()
+            if location.item is not None and location.item.player == self.player
+        ]
+        placed += [item.name for item in self.multiworld.precollected_items[self.player]]
+        slot_data["expansion_totals"] = {
+            name: placed.count(name) for name in constants.TRACKED_EXPANSIONS
+        }
         slot_data.update(encode_randomization(self))
         slot_data["apworld_version"] = get_apworld_version()
 

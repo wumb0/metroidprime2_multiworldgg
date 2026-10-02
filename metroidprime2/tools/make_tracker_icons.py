@@ -46,6 +46,7 @@ COPIES: dict[str, str] = {
     "grapplebeam": "grapplebeam",
     "missilelauncher": "missilelauncher",
     "missileexpansion": "missileexpansion",
+    "supermissile": "supermissile",
     "powerbombexpansion": "powerbombexpansion",
     "energytank": "energytank",
 }
@@ -367,7 +368,7 @@ def _draw_beam_ammo(crystal: tuple[int, int, int]) -> Image.Image:
 
 
 # --------------------------------------------------------------------------
-# Charge combos, Super Missile, translators (drawn after the in-game art)
+# Charge combos, translators (drawn after the in-game art)
 # --------------------------------------------------------------------------
 
 Point = tuple[float, float]
@@ -501,37 +502,6 @@ def _draw_sonic_boom() -> Image.Image:
     return _finish(image)
 
 
-def _draw_super_missile() -> Image.Image:
-    """The Missile Expansion's missile silhouette (so the two read as one
-    family), solid black like the dart in the game's icon, with the flame
-    running up its middle -- red at the tail to yellow at the tip -- and an
-    orange glow lighting it from within (clipped to the silhouette)."""
-    source = Image.open(P1_ICONS / "missileexpansion.png").convert("RGBA")
-    black = Image.new("RGBA", source.size, (0, 0, 0, 255))
-    black.putalpha(source.getchannel("A"))
-    image = black.resize((SIZE * SUPERSAMPLE, SIZE * SUPERSAMPLE), Image.Resampling.LANCZOS)
-    s = SUPERSAMPLE
-    silhouette = image.getchannel("A")
-    lift = 4  # flame and glow ride this far up the body
-    _glow(image, s, (255, 120, 30), (28, 10 - lift, 52, 74 - lift), 5, 150)
-    draw = ImageDraw.Draw(image)
-    for scale, color in ((1.0, (222, 48, 24)), (0.7, (255, 138, 36)), (0.4, (255, 228, 112))):
-        w = 4.6 * scale
-        top = 18 + 16 * (1 - scale) - lift
-        # Softly rounded tip: a tall half-ellipse as wide as the flame, so it
-        # tapers without ending in a point.
-        reach = 4.4 * w
-        cap = [
-            (40 + w * math.cos(math.radians(a)), top + reach - reach * math.sin(math.radians(a)))
-            for a in range(0, 181, 15)
-        ]
-        flame = [*cap, (40 - w, 40 - lift), (40 - w * 0.8, 66 - lift), (40 + w * 0.8, 66 - lift), (40 + w, 40 - lift)]
-        _poly(draw, s, flame, (*color, 255))
-    # Keep the glow (and flame) inside the missile.
-    image.putalpha(ImageChops.multiply(image.getchannel("A"), silhouette))
-    return _finish(image)
-
-
 # A translator glyph is a small graph of glowing nodes. The two layouts are
 # traced from the gate screenshots; each translator color gets one of them
 # (or its mirror image) so the four stay distinguishable by shape as well.
@@ -596,7 +566,6 @@ DRAWN: dict[str, Callable[[], Image.Image]] = {
     "sunburst": _draw_sunburst,
     "darkburst": _draw_darkburst,
     "sonicboom": _draw_sonic_boom,
-    "supermissile": _draw_super_missile,
     **{name: (lambda n=name, c=color: _draw_translator(n, c)) for name, color in TRANSLATOR_COLORS.items()},
     **{
         name: (lambda c=color: _draw_temple_key(c, RED_CRYSTAL, (255, 90, 80)))

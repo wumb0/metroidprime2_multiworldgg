@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -44,6 +45,15 @@ DARK_REGIONS = frozenset({"Sky Temple Grounds", "Dark Agon Wastes", "Dark Torvus
 
 IMAGE_LONG_SIDE = 1800
 PADDING = 60
+# Room bounding boxes are 3D AABBs, so stacked rooms and rooms with a lot of
+# empty air around them overlap heavily when seen from above. Each room is
+# drawn at ROOM_SHRINK of its footprint and the rooms are then pushed apart
+# until none overlap (keeping ROOM_GAP world units between neighbours).
+ROOM_SHRINK = 0.6
+ROOM_MIN_HALF = 5.0
+ROOM_GAP = 6.0
+LABEL_FONT_SIZE = 26
+LABEL_STROKE = 4
 LOCATION_SIZE = 26
 LOCATION_BORDER = 3
 
@@ -104,6 +114,62 @@ def extract_bounds(iso: Path, db: dict[str, dict]) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Layout
+# --------------------------------------------------------------------------
+
+
+def layout_areas(areas: dict[str, dict]) -> dict[str, dict]:
+    """Display geometry for every area: ``bounds`` is the shrunk, de-overlapped
+    box (world units, z untouched) and ``source`` the real one, which
+    ``display_point`` uses to carry a pickup coordinate across."""
+    rects: dict[str, list[float]] = {}
+    for name, area in areas.items():
+        b = area["bounds"]
+        cx, cy = (b[0] + b[3]) / 2, (b[1] + b[4]) / 2
+        hx = max((b[3] - b[0]) / 2 * ROOM_SHRINK, ROOM_MIN_HALF)
+        hy = max((b[4] - b[1]) / 2 * ROOM_SHRINK, ROOM_MIN_HALF)
+        rects[name] = [cx - hx, cy - hy, cx + hx, cy + hy]
+
+    names = sorted(rects, key=lambda n: (rects[n][0], rects[n][1], n))
+    for _ in range(500):
+        moved = False
+        for i, a in enumerate(names):
+            for b in names[i + 1 :]:
+                ra, rb = rects[a], rects[b]
+                ox = min(ra[2], rb[2]) - max(ra[0], rb[0]) + ROOM_GAP
+                oy = min(ra[3], rb[3]) - max(ra[1], rb[1]) + ROOM_GAP
+                if ox <= 0 or oy <= 0:
+                    continue
+                moved = True
+                area_a = (ra[2] - ra[0]) * (ra[3] - ra[1])
+                area_b = (rb[2] - rb[0]) * (rb[3] - rb[1])
+                share_a = area_b / (area_a + area_b)  # the smaller room moves further
+                axis = 0 if ox < oy else 1
+                depth = ox if axis == 0 else oy
+                sign = 1 if (ra[axis] + ra[axis + 2]) >= (rb[axis] + rb[axis + 2]) else -1
+                for rect, share, direction in ((ra, share_a, sign), (rb, 1 - share_a, -sign)):
+                    rect[axis] += direction * depth * share
+                    rect[axis + 2] += direction * depth * share
+        if not moved:
+            break
+
+    result: dict[str, dict] = {}
+    for name, area in areas.items():
+        b, r = area["bounds"], rects[name]
+        result[name] = {**area, "source": b, "bounds": [r[0], r[1], b[2], r[2], r[3], b[5]]}
+    return result
+
+
+def display_point(area: dict, x: float, y: float) -> tuple[float, float]:
+    """Maps a world point inside ``area``'s real bounds to the same relative
+    spot inside its display box."""
+    s, d = area["source"], area["bounds"]
+    fx = (x - s[0]) / max(s[3] - s[0], 1e-6)
+    fy = (y - s[1]) / max(s[4] - s[1], 1e-6)
+    return d[0] + fx * (d[3] - d[0]), d[1] + fy * (d[4] - d[1])
+
+
+# --------------------------------------------------------------------------
 # Drawing
 # --------------------------------------------------------------------------
 
@@ -135,15 +201,70 @@ class Projection:
         return tuple(round(low[i] + (high[i] - low[i]) * t) for i in range(3))  # type: ignore[return-value]
 
 
-def _wrap_label(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: float) -> str | None:
-    if draw.textlength(text, font=font) <= max_width:
-        return text
+def _balanced_label(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> str:
+    """One line if the name is short, otherwise split into two lines of as
+    even a width as possible."""
     words = text.split()
-    for split in range(1, len(words)):
-        candidate = " ".join(words[:split]) + "\n" + " ".join(words[split:])
-        if max(draw.textlength(line, font=font) for line in candidate.split("\n")) <= max_width:
-            return candidate
-    return None
+    if len(words) < 2 or draw.textlength(text, font=font) <= 150:
+        return text
+    candidates = [" ".join(words[:i]) + "\n" + " ".join(words[i:]) for i in range(1, len(words))]
+    return min(candidates, key=lambda c: max(draw.textlength(line, font=font) for line in c.split("\n")))
+
+
+def _place_labels(
+    draw: ImageDraw.ImageDraw, rooms: list[tuple[str, tuple[int, int, int, int]]], font: ImageFont.FreeTypeFont
+) -> list[tuple[str, str, tuple[float, float]]]:
+    """Picks a label position per room (centered in the room if it fits
+    without touching another label, otherwise just outside one of its
+    sides), largest rooms first so they keep the center spots."""
+    placed: list[tuple[float, float, float, float]] = []
+    result: list[tuple[str, str, tuple[float, float]]] = []
+
+    def overlap(box: tuple[float, float, float, float], others: Iterable[tuple[float, ...]]) -> float:
+        total = 0.0
+        for other in others:
+            w = min(box[2], other[2]) - max(box[0], other[0])
+            h = min(box[3], other[3]) - max(box[1], other[1])
+            if w > 0 and h > 0:
+                total += w * h
+        return total
+
+    boxes = {name: box for name, box in rooms}
+    for name, (x0, y0, x1, y1) in sorted(rooms, key=lambda r: -(r[1][2] - r[1][0]) * (r[1][3] - r[1][1])):
+        label = _balanced_label(draw, name, font)
+        left, top, right, bottom = draw.multiline_textbbox((0, 0), label, font=font, stroke_width=LABEL_STROKE)
+        w, h = right - left + 4, bottom - top + 4
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        candidates = [(cx, cy)]
+        # Rings of positions around the room, nearest first (min() keeps the
+        # first of equally good candidates, so near spots win ties).
+        for ring in range(3):
+            gap = 2 + ring * (h + 4)
+            ex, ey = (x1 - x0) / 2 + w / 2 + gap, (y1 - y0) / 2 + h / 2 + gap
+            candidates += [
+                (cx, cy - ey),
+                (cx, cy + ey),
+                (cx + ex, cy),
+                (cx - ex, cy),
+                (cx + ex, cy - ey),
+                (cx - ex, cy - ey),
+                (cx + ex, cy + ey),
+                (cx - ex, cy + ey),
+            ]
+        foreign = [box for other, box in boxes.items() if other != name]
+
+        def cost(c: tuple[float, float]) -> float:
+            box = (c[0] - w / 2, c[1] - h / 2, c[0] + w / 2, c[1] + h / 2)
+            # Colliding with another label is worst; sitting on another room
+            # makes the label look like that room's, so it costs too; and
+            # the farther from its own room, the less obviously its own.
+            distance = abs(c[0] - cx) + abs(c[1] - cy)
+            return 20 * overlap(box, placed) + overlap(box, foreign) + 8 * distance
+
+        best = min(candidates, key=cost)
+        placed.append((best[0] - w / 2, best[1] - h / 2, best[0] + w / 2, best[1] + h / 2))
+        result.append((name, label, best))
+    return result
 
 
 def draw_map(region: str, areas: dict[str, dict], projection: Projection) -> Image.Image:
@@ -152,7 +273,7 @@ def draw_map(region: str, areas: dict[str, dict], projection: Projection) -> Ima
     image = Image.new("RGB", (projection.width, projection.height), (26, 18, 36) if dark else (18, 22, 30))
     draw = ImageDraw.Draw(image, "RGBA")
     title_font = ImageFont.load_default(size=34)
-    label_font = ImageFont.load_default(size=15)
+    label_font = ImageFont.load_default(size=LABEL_FONT_SIZE)
 
     grid = 100
     x = (projection.min_x // grid + 1) * grid
@@ -173,20 +294,34 @@ def draw_map(region: str, areas: dict[str, dict], projection: Projection) -> Ima
         x1, y0 = projection.point(b[3], b[4])
         color = projection.height_color((b[2] + b[5]) / 2, dark)
         draw.rectangle((x0, y0, x1, y1), fill=(*color, 55), outline=(*color, 200), width=2)
+    rooms = []
     for name, area in ordered:
         b = area["bounds"]
         x0, y1 = projection.point(b[0], b[1])
         x1, y0 = projection.point(b[3], b[4])
-        label = _wrap_label(draw, name, label_font, (x1 - x0) - 6)
-        if label is not None:
-            draw.multiline_text(
-                ((x0 + x1) / 2, (y0 + y1) / 2),
-                label,
-                font=label_font,
-                fill=(255, 255, 255, 190),
-                anchor="mm",
-                align="center",
-            )
+        rooms.append((name, (x0, y0, x1, y1)))
+    # Labels go in a pass of their own, on top of every room and outlined, so
+    # a neighbour's fill can never hide one. A label that had to leave its
+    # room is tied back to it with a leader line (drawn first, under all text).
+    placed = _place_labels(draw, rooms, label_font)
+    room_boxes = dict(rooms)
+    for name, _, position in placed:
+        x0, y0, x1, y1 = room_boxes[name]
+        if not (x0 <= position[0] <= x1 and y0 <= position[1] <= y1):
+            center = ((x0 + x1) / 2, (y0 + y1) / 2)
+            draw.line([center, position], fill=(255, 255, 255, 150), width=2)
+            draw.ellipse((center[0] - 5, center[1] - 5, center[0] + 5, center[1] + 5), fill=(255, 255, 255, 220))
+    for _, label, position in placed:
+        draw.multiline_text(
+            position,
+            label,
+            font=label_font,
+            fill=(255, 255, 255, 255),
+            stroke_width=LABEL_STROKE,
+            stroke_fill=(0, 0, 0, 235),
+            anchor="mm",
+            align="center",
+        )
     draw.text((PADDING // 2, 8), region, font=title_font, fill=(255, 255, 255, 230))
     return image
 
@@ -205,12 +340,12 @@ def pickup_nodes(db: dict[str, dict], region: str) -> list[tuple[str, str, dict]
     ]
 
 
-def build_locations(db: dict[str, dict], region: str, projection: Projection) -> dict:
+def build_locations(db: dict[str, dict], region: str, areas: dict[str, dict], projection: Projection) -> dict:
     used: set[tuple[int, int]] = set()
     by_area: dict[str, list[dict]] = {}
     for area_name, node_name, node in pickup_nodes(db, region):
         c = node["coordinates"]
-        px, py = projection.point(c["x"], c["y"])
+        px, py = projection.point(*display_point(areas[area_name], c["x"], c["y"]))
         # UT keys a map dot by its (x, y); two pickups sharing one pixel would
         # collapse into a single dot, so nudge later ones apart.
         while (px, py) in used:
@@ -250,7 +385,7 @@ def main() -> None:
     locations: list[dict] = []
     area_maps: dict[str, dict[str, str]] = {}
     for region in regions:
-        areas = bounds[region]["areas"]
+        areas = layout_areas(bounds[region]["areas"])
         projection = Projection(areas)
         draw_map(region, areas, projection).save(OUT_DIR / "images" / f"{slug(region)}.png", optimize=True)
         maps.append(
@@ -261,7 +396,7 @@ def main() -> None:
                 "location_border_thickness": LOCATION_BORDER,
             }
         )
-        locations.append(build_locations(db, region, projection))
+        locations.append(build_locations(db, region, areas, projection))
         mlvl_areas = area_maps.setdefault(bounds[region]["mlvl"], {})
         for area in areas.values():
             mlvl_areas[str(area["index"])] = region
