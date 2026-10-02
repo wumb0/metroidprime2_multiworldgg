@@ -140,6 +140,17 @@ SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX = 9
 # uses; patching goes by asset id).
 SKY_TEMPLE_ENERGY_CONTROLLER_MREA = 0x7B4AFA6F
 
+# The two boss-skip goals' warp patch (``client/goal_warp_patch.py``) also
+# writes this amount onto ``GOAL_MARKER_ITEM`` (74, PersistentCounter8 --
+# "Multiworld", unused since PLAN.md section P) as it starts the warp, and
+# the client reports the goal when it reads the counter at or above it.
+# That is a plain inventory read, so it needs no area-id match and cannot be
+# missed by a poll that lands between rooms. The amount sits above the
+# largest value the retired shared-counter pickup encoding could ever have
+# left on an old save (7140) and below the item's 65536 max capacity.
+GOAL_MARKER_ITEM = 74
+GOAL_MARKER_AMOUNT = 16384
+
 # --- asset ids ---------------------------------------------------------------
 # Temple Grounds region MLVL and its Landing Site / Credits area MREAs.
 TEMPLE_GROUNDS_MLVL = 1006255871

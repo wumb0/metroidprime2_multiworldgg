@@ -109,6 +109,15 @@ class _FakeArea:
         return [(i, c) for i in self.all_instances() for c in i.connections if c.target == target]
 
 
+class _FakeEditor:
+    def __init__(self) -> None:
+        self.strgs: dict[str, str] = {}
+
+    def create_strg(self, name: str, text: str) -> tuple[int, None]:
+        self.strgs[name] = text
+        return 0x1234, None
+
+
 def _energy_controller() -> tuple[_FakeArea, _FakeInstance]:
     """The arrival spawn point wired to both cinematic starts and the layer
     reset, as in the retail room."""
@@ -142,10 +151,13 @@ def _gateway() -> tuple[_FakeArea, _FakeInstance, _FakeInstance]:
     return area, relay, ending_cinema_start
 
 
+def _added(area: _FakeArea, type_name: str) -> _FakeInstance:
+    (instance,) = (i for i in area.get_layer("Default").instances if i.type_name == type_name)
+    return instance
+
+
 def _added_timer_and_teleporter(area: _FakeArea) -> tuple[_FakeInstance, _FakeInstance]:
-    (timer,) = (i for i in area.get_layer("Default").instances if i.type_name == "Timer")
-    (teleporter,) = (i for i in area.get_layer("Default").instances if i.type_name == "WorldTeleporter")
-    return timer, teleporter
+    return _added(area, "Timer"), _added(area, "WorldTeleporter")
 
 
 @unittest.skipUnless(_RDS_AVAILABLE, "retro_data_structures is not installed")
@@ -154,19 +166,19 @@ class TestEnergyControllerWarp(unittest.TestCase):
         from retro_data_structures.enums.echoes import Message, State
 
         area, spawn = _energy_controller()
-        goal_warp_patch.warp_to_credits_from_energy_controller(None, None, cast(Any, area))
+        goal_warp_patch.warp_to_credits_from_energy_controller(_FakeEditor(), None, cast(Any, area))
 
-        timer, _teleporter = _added_timer_and_teleporter(area)
+        start = _added(area, "Relay")
         targets = [area.get_instance(c.target).name for c in spawn.connections]
-        self.assertEqual(targets, ["Setup 08_Temple Layers after Arrival", timer.name])
+        self.assertEqual(targets, ["Setup 08_Temple Layers after Arrival", start.name])
         self.assertEqual(spawn.connections[-1].state, State.Zero)
-        self.assertEqual(spawn.connections[-1].message, Message.ResetAndStart)
+        self.assertEqual(spawn.connections[-1].message, Message.SetToZero)
 
     def test_timer_feeds_a_teleporter_to_the_credits(self) -> None:
         from retro_data_structures.enums.echoes import Message, State
 
         area, _spawn = _energy_controller()
-        goal_warp_patch.warp_to_credits_from_energy_controller(None, None, cast(Any, area))
+        goal_warp_patch.warp_to_credits_from_energy_controller(_FakeEditor(), None, cast(Any, area))
 
         timer, teleporter = _added_timer_and_teleporter(area)
         self.assertEqual(timer.properties.time, goal_warp_patch.WARP_DELAY_SECONDS)
@@ -179,11 +191,35 @@ class TestEnergyControllerWarp(unittest.TestCase):
         self.assertEqual(teleporter.properties.world, constants.TEMPLE_GROUNDS_MLVL)
         self.assertEqual(teleporter.properties.area, constants.CREDITS_MREA)
 
+    def test_start_relay_shows_memo_sets_marker_and_starts_timer(self) -> None:
+        from retro_data_structures.enums.echoes import Message, PlayerItemEnum, State
+        from retro_data_structures.properties.echoes.objects.SpecialFunction import Function
+
+        area, _spawn = _energy_controller()
+        editor = _FakeEditor()
+        goal_warp_patch.warp_to_credits_from_energy_controller(editor, None, cast(Any, area))
+
+        start, memo, marker, timer = (_added(area, t) for t in ("Relay", "HUDMemo", "SpecialFunction", "Timer"))
+        self.assertEqual(
+            start.connections,
+            [
+                _FakeConnection(State.Zero, Message.SetToZero, memo.id),
+                _FakeConnection(State.Zero, Message.Action, marker.id),
+                _FakeConnection(State.Zero, Message.ResetAndStart, timer.id),
+            ],
+        )
+        self.assertEqual(memo.properties.string, 0x1234)
+        self.assertIn("Goal complete", editor.strgs[goal_warp_patch._MEMO_STRG_NAME])
+        self.assertEqual(marker.properties.function, Function.SetInventoryAmountAndCapacity)
+        self.assertEqual(marker.properties.inventory_item_parm, PlayerItemEnum(constants.GOAL_MARKER_ITEM))
+        self.assertEqual(marker.properties.int_parm1, constants.GOAL_MARKER_AMOUNT)
+        self.assertEqual(marker.properties.int_parm2, constants.GOAL_MARKER_AMOUNT)
+
     def test_changed_room_shape_fails_loudly(self) -> None:
         area, spawn = _energy_controller()
         spawn.connections.pop(0)  # lose one of the two cinematic starts
         with self.assertRaises(AssertionError):
-            goal_warp_patch.warp_to_credits_from_energy_controller(None, None, cast(Any, area))
+            goal_warp_patch.warp_to_credits_from_energy_controller(_FakeEditor(), None, cast(Any, area))
 
 
 @unittest.skipUnless(_RDS_AVAILABLE, "retro_data_structures is not installed")
@@ -192,27 +228,27 @@ class TestGatewayWarp(unittest.TestCase):
         from retro_data_structures.enums.echoes import Message, State
 
         area, relay, _ending_cinema_start = _gateway()
-        goal_warp_patch.warp_to_credits_from_gateway(None, None, cast(Any, area))
+        goal_warp_patch.warp_to_credits_from_gateway(_FakeEditor(), None, cast(Any, area))
 
-        timer, _teleporter = _added_timer_and_teleporter(area)
+        start = _added(area, "Relay")
         self.assertEqual(
             [(c.state, c.message, area.get_instance(c.target).name) for c in relay.connections],
             [
                 (State.InternalState01, Message.Deactivate, "Load/Unload 0T"),
-                (State.InternalState01, Message.ResetAndStart, timer.name),
+                (State.InternalState01, Message.SetToZero, start.name),
             ],
         )
 
     def test_only_the_intro_layers_cinema_start_is_touched(self) -> None:
         area, _relay, ending_cinema_start = _gateway()
-        goal_warp_patch.warp_to_credits_from_gateway(None, None, cast(Any, area))
+        goal_warp_patch.warp_to_credits_from_gateway(_FakeEditor(), None, cast(Any, area))
         # The vanilla ending's own "Cinema Start" (same name, other layer)
         # must still be reachable; nothing of it is rewired.
         self.assertEqual(ending_cinema_start.connections, [])
 
     def test_timer_feeds_a_teleporter_to_the_credits(self) -> None:
         area, _relay, _ending_cinema_start = _gateway()
-        goal_warp_patch.warp_to_credits_from_gateway(None, None, cast(Any, area))
+        goal_warp_patch.warp_to_credits_from_gateway(_FakeEditor(), None, cast(Any, area))
 
         _timer, teleporter = _added_timer_and_teleporter(area)
         self.assertEqual(teleporter.properties.world, constants.TEMPLE_GROUNDS_MLVL)
@@ -222,7 +258,7 @@ class TestGatewayWarp(unittest.TestCase):
         area, relay, _ending_cinema_start = _gateway()
         relay.connections.pop(0)  # nothing triggers the intro any more
         with self.assertRaises(AssertionError):
-            goal_warp_patch.warp_to_credits_from_gateway(None, None, cast(Any, area))
+            goal_warp_patch.warp_to_credits_from_gateway(_FakeEditor(), None, cast(Any, area))
 
 
 class _FakeAreaPatcher:

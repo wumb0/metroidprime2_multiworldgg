@@ -55,6 +55,8 @@ except ImportError:
 if TYPE_CHECKING:
     pass
 
+GOAL_COMPLETE_MESSAGE = "Goal complete!"
+
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
 
 _STATUS_MESSAGES: dict[ConnectionState, str] = {
@@ -401,15 +403,17 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
 
         # 0. Goal check is a pure memory read, so it runs before (and
         # independently of) the pending-op guard and the inventory protocol.
-        await _handle_check_goal(ctx)
+        # The inventory is read first because the boss-skip goals' marker
+        # lives in it (``constants.GOAL_MARKER_ITEM``).
+        inventory = ctx.game_interface.read_inventory()
+        await _handle_check_goal(ctx, inventory)
 
         # 1. Pending-op guard: never write over a body the game hasn't consumed yet.
         if ctx.game_interface.has_pending_op():
             delay = 0.1
             return
 
-        # 2. Inventory read.
-        inventory = ctx.game_interface.read_inventory()
+        # 2. Inventory read (done above).
         if inventory is None:
             return
 
@@ -444,7 +448,9 @@ async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
         await ctx.send_death(f"{ctx.player_names[ctx.slot]} ran out of energy.")
 
 
-async def _handle_check_goal(ctx: MetroidPrime2Context) -> None:
+async def _handle_check_goal(
+    ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]] | None = None
+) -> None:
     """Declares the goal once the player's current area satisfies
     ``slot_data["goal"]`` (``options.py``'s ``Goal`` choice, defaulting to
     ``constants.GOAL_BOTH_BOSSES`` for slot_data predating this option).
@@ -474,6 +480,13 @@ async def _handle_check_goal(ctx: MetroidPrime2Context) -> None:
       (``sky_temple_keys_required``) has opened. The warp patch leaves it
       for the Credits about a second later; this check just reports first.
 
+    Both boss-skipping goals also report on the *goal marker*: the warp
+    patch writes ``constants.GOAL_MARKER_AMOUNT`` onto
+    ``constants.GOAL_MARKER_ITEM`` as it starts the warp, and ``inventory``
+    (the caller's read of it, None when unreadable) is checked for that.
+    This is the route that does not depend on the area-id read matching,
+    which in play it did not after the warp.
+
     A harder condition always satisfies an easier one too, so continuing
     to play past your goal still ends the slot correctly."""
     if ctx.finished_game or not ctx.slot:
@@ -490,12 +503,18 @@ async def _handle_check_goal(ctx: MetroidPrime2Context) -> None:
         and mlvl == constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL
         and area == constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX
     )
-    if not (reached_credits or reached_keys):
+    marker_set = (
+        goal != constants.GOAL_BOTH_BOSSES
+        and inventory is not None
+        and inventory.get(constants.GOAL_MARKER_ITEM, (0, 0))[0] >= constants.GOAL_MARKER_AMOUNT
+    )
+    if not (reached_credits or reached_keys or marker_set):
         return
 
-    logger.info("Reached the ending areas; reporting goal.")
+    logger.info("Goal complete! Reporting it to the server.")
     await ctx.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
     ctx.finished_game = True
+    ctx.notification_manager.queue_notification(GOAL_COMPLETE_MESSAGE)
 
 
 async def _handle_pickup_counters(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]]) -> None:

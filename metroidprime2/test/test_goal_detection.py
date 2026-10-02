@@ -76,6 +76,14 @@ class _FakeGameInterface:
         return self.area
 
 
+class _FakeNotifications:
+    def __init__(self) -> None:
+        self.queued: list[str] = []
+
+    def queue_notification(self, message: str) -> None:
+        self.queued.append(message)
+
+
 class _FakeContext:
     def __init__(
         self,
@@ -91,6 +99,7 @@ class _FakeContext:
         self.missing_locations: set[int] = missing_locations if missing_locations is not None else set()
         self.slot = slot
         self.slot_data: dict[str, Any] = {} if goal is None else {"goal": goal}
+        self.notification_manager = _FakeNotifications()
 
     async def send_msgs(self, msgs: list[dict[str, Any]]) -> None:
         self.sent_msgs.append(msgs)
@@ -114,10 +123,10 @@ def _run(ctx: _FakeContext, inventory: dict[int, tuple[int, int]]) -> None:
     asyncio.run(_handle_pickup_counters(ctx, inventory))  # type: ignore[arg-type]
 
 
-def _run_goal(ctx: _FakeContext) -> None:
+def _run_goal(ctx: _FakeContext, inventory: dict[int, tuple[int, int]] | None = None) -> None:
     import asyncio
 
-    asyncio.run(_handle_check_goal(ctx))  # type: ignore[arg-type]
+    asyncio.run(_handle_check_goal(ctx, inventory))  # type: ignore[arg-type]
 
 
 def _goal_ctx(area: int | None = _END_AREA, mlvl: int | None = constants.TEMPLE_GROUNDS_MLVL) -> _FakeContext:
@@ -136,6 +145,11 @@ class TestMemoryGoalDetection(unittest.TestCase):
         _run_goal(ctx)
         _run_goal(ctx)
         self.assertEqual(1, len(ctx.sent_msgs))
+
+    def test_goal_queues_a_hud_message(self) -> None:
+        ctx = _goal_ctx()
+        _run_goal(ctx)
+        self.assertEqual(["Goal complete!"], ctx.notification_manager.queued)
 
     def test_non_ending_area_does_not_declare_goal(self) -> None:
         # Area index 0 (Temple Grounds, but not an ending area).
@@ -298,3 +312,41 @@ class TestPickupBitmaskCounters(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestGoalMarker(unittest.TestCase):
+    """The warp patch's inventory marker: reported regardless of what the
+    area-id read says (``client/goal_warp_patch.py`` module docstring)."""
+
+    @staticmethod
+    def _marker_inventory(amount: int) -> dict[int, tuple[int, int]]:
+        return {constants.GOAL_MARKER_ITEM: (amount, amount)}
+
+    def _ctx(self, goal: int | None) -> _FakeContext:
+        # Wherever the area read lands, it must not matter.
+        return _FakeContext(mlvl=constants.TEMPLE_GROUNDS_MLVL, area=0, goal=goal)
+
+    def test_marker_declares_both_boss_skip_goals(self) -> None:
+        for goal in (constants.GOAL_EMPEROR_ING, constants.GOAL_KEYS):
+            ctx = self._ctx(goal)
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            self.assertTrue(ctx.finished_game, f"goal {goal} ignored the marker")
+            self.assertEqual(1, len(ctx.sent_msgs))
+
+    def test_marker_ignored_for_the_vanilla_goal(self) -> None:
+        for goal in (None, constants.GOAL_BOTH_BOSSES):
+            ctx = self._ctx(goal)
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            self.assertFalse(ctx.finished_game)
+
+    def test_amount_below_the_marker_is_ignored(self) -> None:
+        # What the old shared-counter encoding could leave on an old save.
+        ctx = self._ctx(constants.GOAL_KEYS)
+        _run_goal(ctx, self._marker_inventory(7140))
+        self.assertFalse(ctx.finished_game)
+
+    def test_unreadable_or_missing_inventory_is_ignored(self) -> None:
+        ctx = self._ctx(constants.GOAL_EMPEROR_ING)
+        _run_goal(ctx, None)
+        _run_goal(ctx, {})
+        self.assertFalse(ctx.finished_game)

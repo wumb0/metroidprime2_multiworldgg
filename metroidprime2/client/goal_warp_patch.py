@@ -30,9 +30,18 @@ unloaded by the intro itself, which no longer runs, so every later Gateway
 load warps too.
 
 The Credits area is self-contained -- its own ``OcclusionRelay`` runs the
-ending cinematic and docks onward to the credits -- and is also what the
-client's memory read already treats as the end of the game, so reaching it
-reports the goal with no further client-side detection.
+ending cinematic and docks onward to the credits.
+
+**Goal reporting.** Reading the current area id turned out not to be enough:
+in play the client never reported the goal after one of these warps, so
+reporting no longer depends on it matching (the source rooms are only
+occupied for a moment, and a ``WorldTeleporter`` arrival may not update
+``CStateManager::m_nextAreaId`` the way a dock crossing does). The same
+hook that starts the warp also fires a start relay which (a) shows an in-game "goal complete" HUD memo and (b)
+writes ``constants.GOAL_MARKER_AMOUNT`` onto the otherwise unused
+``constants.GOAL_MARKER_ITEM`` counter -- a persistent inventory value the
+client reads every tick, so it cannot be missed however briefly the player
+stays anywhere. The Credits/area checks stay as a second route.
 """
 
 from __future__ import annotations
@@ -45,10 +54,13 @@ if TYPE_CHECKING:
     from open_prime_rando.area_patcher import AreaPatcher
     from retro_data_structures.formats.mrea import Area
 
-WARP_DELAY_SECONDS = 1.0
-"""Pause between arrival and the warp: long enough for the player to have
-spawned and for the client's 0.5s area poll to see the room, short enough
-to read as part of the arrival."""
+WARP_DELAY_SECONDS = 3.0
+"""Pause between arrival and the warp: long enough for the "goal complete"
+memo to be read and for several of the client's 0.5s polls to see the
+room and the goal marker."""
+
+_MEMO_STRG_NAME = "ap_goal_complete.STRG"
+_MEMO_TEXT = "&just=center;Goal complete!\nWarping to the Credits..."
 
 _DEFAULT_LAYER = "Default"
 
@@ -60,15 +72,47 @@ _GATEWAY_INTRO_LAYER = "Dark Samus Battle3 Intro"
 _GATEWAY_INTRO_START = "Cinema Start"
 
 
-def _add_credits_warp(area: Area) -> Any:
-    """Adds the delay timer and the Credits ``WorldTeleporter`` to the
-    area's Default layer, wired timer -> teleporter. Returns the timer; the
-    caller starts it from the room's own arrival hook."""
-    from retro_data_structures.enums.echoes import Message, State
+def _add_credits_warp(editor: Any, area: Area) -> Any:
+    """Adds the goal-complete HUD memo, the goal-marker counter write, the
+    delay timer and the Credits ``WorldTeleporter`` to the area's Default
+    layer. Returns the start relay; the caller triggers it
+    (``SetToZero``) from the room's own arrival hook."""
+    from retro_data_structures.enums.echoes import Message, PlayerItemEnum, State
     from retro_data_structures.properties.echoes.archetypes.EditorProperties import EditorProperties
-    from retro_data_structures.properties.echoes.objects import Timer, WorldTeleporter
+    from retro_data_structures.properties.echoes.objects import (
+        HUDMemo,
+        Relay,
+        SpecialFunction,
+        Timer,
+        WorldTeleporter,
+    )
+    from retro_data_structures.properties.echoes.objects.SpecialFunction import Function
+
+    memo_strg, _ = editor.create_strg(_MEMO_STRG_NAME, _MEMO_TEXT)
 
     layer = area.get_layer(_DEFAULT_LAYER)
+    start = layer.add_instance_with(Relay(editor_properties=EditorProperties(name="AP Goal Start")))
+    memo = layer.add_instance_with(
+        HUDMemo(
+            editor_properties=EditorProperties(name="AP Goal Memo"),
+            display_time=WARP_DELAY_SECONDS,
+            # 1 is the on-screen message box; see warp_patch.py.
+            display_type=1,
+            string=memo_strg,
+        )
+    )
+    marker = layer.add_instance_with(
+        SpecialFunction(
+            editor_properties=EditorProperties(name="AP Goal Marker"),
+            function=Function.SetInventoryAmountAndCapacity,
+            int_parm1=constants.GOAL_MARKER_AMOUNT,
+            int_parm2=constants.GOAL_MARKER_AMOUNT,
+            inventory_item_parm=PlayerItemEnum(constants.GOAL_MARKER_ITEM),
+            sound1=-1,
+            sound2=-1,
+            sound3=-1,
+        )
+    )
     timer = layer.add_instance_with(
         Timer(
             editor_properties=EditorProperties(name="AP Goal Warp Delay"),
@@ -87,8 +131,11 @@ def _add_credits_warp(area: Area) -> Any:
             is_fade_white=False,
         )
     )
+    start.add_connection(State.Zero, Message.SetToZero, memo)
+    start.add_connection(State.Zero, Message.Action, marker)
+    start.add_connection(State.Zero, Message.ResetAndStart, timer)
     timer.add_connection(State.Zero, Message.SetToZero, teleporter)
-    return timer
+    return start
 
 
 def warp_to_credits_from_energy_controller(editor: Any, mlvl: Any, area: Area) -> None:
@@ -110,7 +157,7 @@ def warp_to_credits_from_energy_controller(editor: Any, mlvl: Any, area: Area) -
     for connection in cinematic_starts:
         spawn.remove_connection(connection)
 
-    spawn.add_connection(State.Zero, Message.ResetAndStart, _add_credits_warp(area))
+    spawn.add_connection(State.Zero, Message.SetToZero, _add_credits_warp(editor, area))
 
 
 def warp_to_credits_from_gateway(editor: Any, mlvl: Any, area: Area) -> None:
@@ -131,7 +178,7 @@ def warp_to_credits_from_gateway(editor: Any, mlvl: Any, area: Area) -> None:
     )
     relay, connection = triggers[0]
     relay.remove_connection(connection)
-    relay.add_connection(State.InternalState01, Message.ResetAndStart, _add_credits_warp(area))
+    relay.add_connection(State.InternalState01, Message.SetToZero, _add_credits_warp(editor, area))
 
 
 def register(area_patcher: AreaPatcher, goal: int) -> None:

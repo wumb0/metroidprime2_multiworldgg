@@ -77,10 +77,11 @@ TEST = ManualTest(
                 Step(
                     "Run the escape sequence back to Sky Temple Energy Controller and use its "
                     "teleporter to return to Sky Temple Gateway.",
-                    "About a second after arriving in Sky Temple Gateway you are warped to the "
-                    "Credits (the Dark Samus 3 & 4 intro cinematic does not play). Within one "
-                    "client tick of the Credits area loading, the client logs the goal, sends "
-                    "StatusUpdate(GOAL), and the server marks the slot finished.",
+                    "On arriving in Sky Temple Gateway a \"Goal complete!\" HUD message appears, "
+                    "and about three seconds later you are warped to the Credits (the Dark "
+                    "Samus 3 & 4 intro cinematic does not play). Within one client tick of "
+                    "the message the client logs \"Goal complete!\", sends StatusUpdate(GOAL), "
+                    "and the server marks the slot finished.",
                 ),
             ],
             pass_criteria=[
@@ -99,10 +100,11 @@ TEST = ManualTest(
                 Step(
                     "Start New Game, then walk into the teleporter and through to Sky Temple "
                     "Energy Controller.",
-                    "The arrival cinematic does not play; about a second after arriving you are "
-                    "warped to the Credits. The client logs the goal, sends StatusUpdate(GOAL), "
-                    "and the server marks the slot finished -- before reaching the Sanctum or "
-                    "fighting either boss.",
+                    "The arrival cinematic does not play; a \"Goal complete!\" HUD message "
+                    "appears and about three seconds later you are warped to the Credits. The "
+                    "client logs \"Goal complete!\", sends StatusUpdate(GOAL), and the server "
+                    "marks the slot finished -- before reaching the Sanctum or fighting either "
+                    "boss.",
                 ),
             ],
             pass_criteria=[
@@ -114,16 +116,20 @@ TEST = ManualTest(
     },
     notes=[
         (
-            "Detection is a memory read (current MLVL + CStateManager::m_nextAreaId, "
-            "EchoesInterface.current_mlvl/current_area_id): the Credits areas for every goal, "
-            "plus Sky Temple Energy Controller for keys. emperor_ing has no client-side proxy "
-            "for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's "
-            "death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the "
-            "warp hangs off that layer's OcclusionRelay)."
+            "The Credits areas (current MLVL + CStateManager::m_nextAreaId, "
+            "EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple "
+            "Energy Controller for keys. That read never fired after the warps in play, so the "
+            "warps also write constants.GOAL_MARKER_AMOUNT onto inventory item "
+            "GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and "
+            "the client reports emperor_ing/keys when it reads it (`!mp2_debug_inventory` shows "
+            "item 74 at 16384/16384). emperor_ing has no client-side proxy for Ing's death; "
+            "the ISO patch keys off the game's own state instead (Sanctum's death sequence "
+            "activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off "
+            "that layer's OcclusionRelay)."
         ),
         (
             "Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival "
-            "cinematic with a 1s timer into a WorldTeleporter to `!!game_end_part3`; their "
+            "cinematic with a HUD memo and a 3s timer into a WorldTeleporter to `!!game_end_part3`; their "
             "wiring was checked against the retail NTSC-U and PAL rooms but never run in-game "
             "before this test."
         ),
@@ -131,6 +137,12 @@ TEST = ManualTest(
             "If the warp misbehaves (stuck camera, white screen, wrong room), suspect the "
             "removed cinematic: it normally hands control back to the player, and the warp "
             "leaves before that would happen."
+        ),
+        (
+            "If the warp works but the goal is still not reported, check item 74 with "
+            "`/mp2_debug_inventory`: 0/0 means the SetInventoryAmountAndCapacity "
+            "SpecialFunction (function 45; its int_parm layout was never confirmed in-game) "
+            "did not write the marker."
         ),
     ],
     on_failure=[
