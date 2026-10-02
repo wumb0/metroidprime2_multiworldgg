@@ -265,11 +265,12 @@ def _hover_image_class() -> type:
 
             def __init__(self, tooltip_text: str, **kwargs: Any) -> None:
                 super().__init__(**kwargs)
-                self._tooltip = ToolTip(text=tooltip_text)
+                # kvui's <ToolTip> style centers it in the window through a
+                # pos_hint, which overrides any pos we set; clear it.
+                self._tooltip = ToolTip(text=tooltip_text, pos_hint={})
 
             def adjust_tooltip_position(self) -> tuple[float, float]:
-                # MDTooltip anchors to the widget (and was landing mid-screen
-                # here); anchor to the mouse instead.
+                # MDTooltip anchors to the widget; anchor to the mouse instead.
                 from kivy.core.window import Window
                 from kivy.metrics import dp
 

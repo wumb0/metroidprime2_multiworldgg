@@ -187,6 +187,9 @@ class TestKivyPanel(unittest.TestCase):
             # Hovering an icon shows its name; leaving dismisses it.
             icon = panel.upgrade_icons["darkbeam"]
             self.assertEqual("Dark Beam", icon._tooltip.text)
+            # kvui's <ToolTip> style centers it in the window via pos_hint
+            # (overriding any pos we set); it must have been cleared.
+            self.assertEqual({}, icon._tooltip.pos_hint)
             icon.on_enter()
             icon.on_leave()
         finally:
