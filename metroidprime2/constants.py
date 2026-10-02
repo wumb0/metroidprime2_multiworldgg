@@ -114,14 +114,15 @@ PICKUP_ENCODING_VERSION = "bitmask-v1"
 GAME_END_AREA_INDICES = frozenset({47, 50, 53, 56, 58})
 
 # ``options.py``'s ``Goal`` choice controls which of three conditions
-# ``client.py``'s ``_handle_check_goal`` accepts, all still plain memory
-# reads with nothing patched into the ISO. Named here (not just inlined as
-# 0/1/2 in options.py) because client.py deliberately does not import
-# options.py (see options.py's own note next to ``Goal``) and needs the
-# same values to compare ``slot_data["goal"]`` against.
+# ``client.py``'s ``_handle_check_goal`` accepts, and (for the two
+# boss-skipping ones) whether ``client/goal_warp_patch.py`` patches a warp to
+# the Credits into the ISO. Named here (not just inlined as 0/1/2 in
+# options.py) because client.py deliberately does not import options.py (see
+# options.py's own note next to ``Goal``) and needs the same values to
+# compare ``slot_data["goal"]`` against.
 GOAL_BOTH_BOSSES = 0  # vanilla: Credits only (GAME_END_AREA_INDICES above)
-GOAL_EMPEROR_ING = 1  # Credits, or Emperor Ing alone (see below)
-GOAL_KEYS = 2  # Credits, Emperor Ing, or the Sky Temple Keys alone
+GOAL_EMPEROR_ING = 1  # Credits, warped to on returning to Sky Temple Gateway after Ing
+GOAL_KEYS = 2  # Credits, warped to on reaching Sky Temple Energy Controller
 
 # Great Temple / Sky Temple share one MLVL (REGION_MLVL_IDS below); indices
 # verified the same way GAME_END_AREA_INDICES was cross-checked above --
@@ -134,12 +135,10 @@ GREAT_TEMPLE_SKY_TEMPLE_MLVL = 2252328306
 # Reachable only through the Sky Temple Gateway's key-count gate
 # (``sky_temple_keys_required``) -- there is no other door into Sky Temple.
 SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX = 9
-# Emperor Ing's arena. Like every other Guardian boss room in this game, it
-# seals shut on entry and only opens once the boss is dead, so "the player
-# was in this area and is now in a different one" is a safe proxy for "Ing
-# is dead" without needing to find and read his actual health/state --
-# ``client.py`` latches this the first time it sees the transition.
-SKY_TEMPLE_SANCTUM_AREA_INDEX = 11
+# The same room's MREA asset id, for ``client/goal_warp_patch.py``'s SCLY
+# edit (the index above is a TAreaId, which only the client's memory read
+# uses; patching goes by asset id).
+SKY_TEMPLE_ENERGY_CONTROLLER_MREA = 0x7B4AFA6F
 
 # --- asset ids ---------------------------------------------------------------
 # Temple Grounds region MLVL and its Landing Site / Credits area MREAs.

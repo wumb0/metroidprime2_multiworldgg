@@ -302,6 +302,9 @@ class MetroidPrime2World(World):
                 # like the settings above it travels here rather than in
                 # config.json.
                 "sky_temple_keys_required": sky_temple_keys_required_count(self),
+                # client/goal_warp_patch.py: the boss-skip goals warp to the
+                # Credits in-game (Goal's option_* values, constants.GOAL_*).
+                "goal": int(self.options.goal.value),
                 # translator_lore_rando: {str(strg_id): color} for each
                 # recolored lore hologram (client/lore_translator_patch.py);
                 # empty under "vanilla".

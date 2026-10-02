@@ -91,8 +91,6 @@ class _FakeContext:
         self.missing_locations: set[int] = missing_locations if missing_locations is not None else set()
         self.slot = slot
         self.slot_data: dict[str, Any] = {} if goal is None else {"goal": goal}
-        self.was_in_sky_temple_sanctum = False
-        self.emperor_ing_defeated = False
 
     async def send_msgs(self, msgs: list[dict[str, Any]]) -> None:
         self.sent_msgs.append(msgs)
@@ -168,9 +166,10 @@ class TestMemoryGoalDetection(unittest.TestCase):
 
 
 class TestBossSkipGoals(unittest.TestCase):
-    """``options.py``'s ``Goal`` choice (PLAN.md boss-skip addition): all
-    three conditions are still plain memory reads of the current area, nothing
-    patched into the ISO. See ``_handle_check_goal``'s docstring."""
+    """``options.py``'s ``Goal`` choice (PLAN.md boss-skip addition): the
+    client side is a plain memory read of the current area; the ISO-side
+    warp to the Credits is tested in test_goal_warp_patch.py. See
+    ``_handle_check_goal``'s docstring."""
 
     def test_keys_goal_fires_on_energy_controller(self) -> None:
         ctx = _FakeContext(
@@ -200,47 +199,28 @@ class TestBossSkipGoals(unittest.TestCase):
         _run_goal(ctx)
         self.assertFalse(ctx.finished_game)
 
-    def test_emperor_ing_goal_fires_after_leaving_sanctum(self) -> None:
+    def test_leaving_sanctum_does_not_fire_emperor_ing_goal(self) -> None:
+        # There is no client-side proxy for Ing's death: respawning after
+        # dying in his arena also leaves it. The goal is reported through
+        # the Credits warp (client/goal_warp_patch.py) instead.
         ctx = _FakeContext(
             mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
-            area=constants.SKY_TEMPLE_SANCTUM_AREA_INDEX,
+            area=11,  # Sanctum
             goal=constants.GOAL_EMPEROR_ING,
         )
         _run_goal(ctx)
-        self.assertFalse(ctx.finished_game, "entering the arena alone must not fire the goal")
-
-        ctx.game_interface.area = constants.SKY_TEMPLE_SANCTUM_AREA_INDEX - 1  # Sanctum Access
-        _run_goal(ctx)
-        self.assertTrue(ctx.finished_game, "leaving the arena after having been inside it should fire the goal")
-
-    def test_emperor_ing_goal_does_not_fire_without_ever_entering_sanctum(self) -> None:
-        # Just walking around Sky Temple's other rooms must not look like
-        # "left the arena" -- the latch requires having actually been inside.
-        ctx = _FakeContext(
-            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
-            area=constants.SKY_TEMPLE_SANCTUM_AREA_INDEX - 1,  # Sanctum Access
-            goal=constants.GOAL_EMPEROR_ING,
-        )
+        ctx.game_interface.area = 10  # Sanctum Access
         _run_goal(ctx)
         self.assertFalse(ctx.finished_game)
 
-    def test_emperor_ing_sanctum_entry_in_a_different_mlvl_does_not_latch(self) -> None:
-        # Same numeric area index, wrong MLVL -- must not arm the latch.
+    def test_sky_temple_gateway_alone_does_not_fire_emperor_ing_goal(self) -> None:
+        # Gateway is entered before Ing too, to open the key gate; only the
+        # patched warp onward to the Credits may end the game.
         ctx = _FakeContext(
             mlvl=constants.TEMPLE_GROUNDS_MLVL,
-            area=constants.SKY_TEMPLE_SANCTUM_AREA_INDEX,
+            area=42,  # Sky Temple Gateway
             goal=constants.GOAL_EMPEROR_ING,
         )
-        _run_goal(ctx)
-        ctx.game_interface.mlvl = constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL
-        ctx.game_interface.area = constants.SKY_TEMPLE_SANCTUM_AREA_INDEX - 1
-        _run_goal(ctx)
-        self.assertFalse(ctx.finished_game)
-
-    def test_emperor_ing_goal_does_not_fire_for_default_goal(self) -> None:
-        ctx = _FakeContext(mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL, area=constants.SKY_TEMPLE_SANCTUM_AREA_INDEX)
-        _run_goal(ctx)
-        ctx.game_interface.area = constants.SKY_TEMPLE_SANCTUM_AREA_INDEX - 1
         _run_goal(ctx)
         self.assertFalse(ctx.finished_game)
 

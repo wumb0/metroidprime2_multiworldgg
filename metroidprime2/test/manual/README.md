@@ -1414,7 +1414,7 @@ If it fails, look at:
 
 ### MT17_GOAL_BOSS_SKIP -- `mt17_goal_boss_skip` (P0)
 
-*Proves: options.py's Goal choice controls which of the three memory-read conditions in client.py's _handle_check_goal reports the multiworld goal, and none of them change what's patched into the ISO -- the escape sequence and Dark Samus 3 & 4 fight always play out exactly as in vanilla regardless of the setting*
+*Proves: options.py's Goal choice controls when the multiworld goal is reported: both_bosses patches nothing and reports at the Credits; emperor_ing and keys patch a warp to the Credits into the ISO (client/goal_warp_patch.py) the moment their condition is met, and the client reports the goal on reaching it*
 
 Build:
 ```
@@ -1427,8 +1427,9 @@ What the build contains:
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
 
 Notes / derived values:
-* All three conditions are plain memory reads (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) -- no ISO patch is involved for any of them, so the escape sequence and Dark Samus 3 & 4 fight are identical across every variant of this test.
-* emperor_ing's detection is a proxy, not a read of his health/state: constants.SKY_TEMPLE_SANCTUM_AREA_INDEX (his arena, which -- like every other Guardian boss room in this game -- seals shut on entry and only opens once he's dead) is latched on entry, and the goal fires the first time the area changes again.
+* Detection is a memory read (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id): the Credits areas for every goal, plus Sky Temple Energy Controller for keys. emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
+* Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival cinematic with a 1s timer into a WorldTeleporter to `!!game_end_part3`; their wiring was checked against the retail NTSC-U and PAL rooms but never run in-game before this test.
+* If the warp misbehaves (stuck camera, white screen, wrong room), suspect the removed cinematic: it normally hands control back to the player, and the warp leaves before that would happen.
 
 Run:
 ```
@@ -1454,14 +1455,17 @@ Pass if:
 * No client traceback.
 
 If it fails, look at:
-* `constants.GOAL_BOTH_BOSSES` / `GOAL_EMPEROR_ING` / `GOAL_KEYS` / `GREAT_TEMPLE_SKY_TEMPLE_MLVL` / `SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX` / `SKY_TEMPLE_SANCTUM_AREA_INDEX`
+* `constants.GOAL_BOTH_BOSSES` / `GOAL_EMPEROR_ING` / `GOAL_KEYS` / `GREAT_TEMPLE_SKY_TEMPLE_MLVL` / `SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX` / `SKY_TEMPLE_ENERGY_CONTROLLER_MREA` / `CREDITS_MREA`
 * `options.py::Goal`
+* `client/goal_warp_patch.py`
+* `client/patcher_runner.py::goal_warp_installed`
 * `client/client.py::_handle_check_goal`
 * `test/test_goal_detection.py::TestBossSkipGoals`
+* `test/test_goal_warp_patch.py`
 
 ### MT17_GOAL_BOSS_SKIP -- `mt17_goal_boss_skip_emperor_ing` (P0)
 
-*Proves: options.py's Goal choice controls which of the three memory-read conditions in client.py's _handle_check_goal reports the multiworld goal, and none of them change what's patched into the ISO -- the escape sequence and Dark Samus 3 & 4 fight always play out exactly as in vanilla regardless of the setting*
+*Proves: options.py's Goal choice controls when the multiworld goal is reported: both_bosses patches nothing and reports at the Credits; emperor_ing and keys patch a warp to the Credits into the ISO (client/goal_warp_patch.py) the moment their condition is met, and the client reports the goal on reaching it*
 
 Build:
 ```
@@ -1474,8 +1478,9 @@ What the build contains:
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
 
 Notes / derived values:
-* All three conditions are plain memory reads (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) -- no ISO patch is involved for any of them, so the escape sequence and Dark Samus 3 & 4 fight are identical across every variant of this test.
-* emperor_ing's detection is a proxy, not a read of his health/state: constants.SKY_TEMPLE_SANCTUM_AREA_INDEX (his arena, which -- like every other Guardian boss room in this game -- seals shut on entry and only opens once he's dead) is latched on entry, and the goal fires the first time the area changes again.
+* Detection is a memory read (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id): the Credits areas for every goal, plus Sky Temple Energy Controller for keys. emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
+* Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival cinematic with a 1s timer into a WorldTeleporter to `!!game_end_part3`; their wiring was checked against the retail NTSC-U and PAL rooms but never run in-game before this test.
+* If the warp misbehaves (stuck camera, white screen, wrong room), suspect the removed cinematic: it normally hands control back to the player, and the warp leaves before that would happen.
 
 Run:
 ```
@@ -1487,28 +1492,29 @@ Run:
 
 Steps:
 1. **Do:** Start New Game, then walk into Sky Temple Energy Controller.
-   **Expect:** No goal is reported: entering that room alone does not satisfy emperor_ing.
-2. **Do:** Continue to the Sanctum and kill Emperor Ing.
-   **Expect:** No goal is reported yet -- the escape sequence's forced camera run starts as normal.
-3. **Do:** Let the escape run carry you out of the Sanctum into Sanctum Access (the very first room transition after his death).
-   **Expect:** Within one client tick of that transition, the client logs the goal, sends StatusUpdate(GOAL), and the server marks the slot finished -- well before reaching Sky Temple Gateway or fighting Dark Samus 3 & 4.
-4. **Do:** Keep playing through the rest of the escape sequence and the Dark Samus 3 & 4 fight to the Credits.
-   **Expect:** Everything plays out exactly like vanilla (nothing was skipped or patched); the goal is not reported a second time.
+   **Expect:** No goal is reported and no warp happens: entering that room alone does not satisfy emperor_ing, and its arrival cinematic plays as in vanilla.
+2. **Do:** Continue to the Sanctum and kill Emperor Ing, then leave the Sanctum.
+   **Expect:** No goal is reported yet -- the escape sequence's forced camera run starts as normal, and leaving the Sanctum does not report anything.
+3. **Do:** Run the escape sequence back to Sky Temple Energy Controller and use its teleporter to return to Sky Temple Gateway.
+   **Expect:** About a second after arriving in Sky Temple Gateway you are warped to the Credits (the Dark Samus 3 & 4 intro cinematic does not play). Within one client tick of the Credits area loading, the client logs the goal, sends StatusUpdate(GOAL), and the server marks the slot finished.
 
 Pass if:
-* The goal fires immediately after leaving the Sanctum post-kill, not merely on entering Sky Temple Energy Controller and not only at the Credits.
-* The escape sequence and Dark Samus 3 & 4 fight are unaffected and still playable.
+* The warp to the Credits happens on the first return to Sky Temple Gateway after Emperor Ing's death, with no Dark Samus 3 & 4 fight.
+* Nothing warps or reports the goal on the first visit to Sky Temple Gateway (before Ing), on entering Sky Temple Energy Controller, or on leaving the Sanctum.
 * The goal is reported exactly once, with no spurious location checks.
 
 If it fails, look at:
-* `constants.GOAL_BOTH_BOSSES` / `GOAL_EMPEROR_ING` / `GOAL_KEYS` / `GREAT_TEMPLE_SKY_TEMPLE_MLVL` / `SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX` / `SKY_TEMPLE_SANCTUM_AREA_INDEX`
+* `constants.GOAL_BOTH_BOSSES` / `GOAL_EMPEROR_ING` / `GOAL_KEYS` / `GREAT_TEMPLE_SKY_TEMPLE_MLVL` / `SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX` / `SKY_TEMPLE_ENERGY_CONTROLLER_MREA` / `CREDITS_MREA`
 * `options.py::Goal`
+* `client/goal_warp_patch.py`
+* `client/patcher_runner.py::goal_warp_installed`
 * `client/client.py::_handle_check_goal`
 * `test/test_goal_detection.py::TestBossSkipGoals`
+* `test/test_goal_warp_patch.py`
 
 ### MT17_GOAL_BOSS_SKIP -- `mt17_goal_boss_skip_keys` (P0)
 
-*Proves: options.py's Goal choice controls which of the three memory-read conditions in client.py's _handle_check_goal reports the multiworld goal, and none of them change what's patched into the ISO -- the escape sequence and Dark Samus 3 & 4 fight always play out exactly as in vanilla regardless of the setting*
+*Proves: options.py's Goal choice controls when the multiworld goal is reported: both_bosses patches nothing and reports at the Credits; emperor_ing and keys patch a warp to the Credits into the ISO (client/goal_warp_patch.py) the moment their condition is met, and the client reports the goal on reaching it*
 
 Build:
 ```
@@ -1521,8 +1527,9 @@ What the build contains:
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
 
 Notes / derived values:
-* All three conditions are plain memory reads (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) -- no ISO patch is involved for any of them, so the escape sequence and Dark Samus 3 & 4 fight are identical across every variant of this test.
-* emperor_ing's detection is a proxy, not a read of his health/state: constants.SKY_TEMPLE_SANCTUM_AREA_INDEX (his arena, which -- like every other Guardian boss room in this game -- seals shut on entry and only opens once he's dead) is latched on entry, and the goal fires the first time the area changes again.
+* Detection is a memory read (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id): the Credits areas for every goal, plus Sky Temple Energy Controller for keys. emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
+* Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival cinematic with a 1s timer into a WorldTeleporter to `!!game_end_part3`; their wiring was checked against the retail NTSC-U and PAL rooms but never run in-game before this test.
+* If the warp misbehaves (stuck camera, white screen, wrong room), suspect the removed cinematic: it normally hands control back to the player, and the warp leaves before that would happen.
 
 Run:
 ```
@@ -1534,19 +1541,20 @@ Run:
 
 Steps:
 1. **Do:** Start New Game, then walk into the teleporter and through to Sky Temple Energy Controller.
-   **Expect:** Within one client tick of entering that room, the client logs the goal, sends StatusUpdate(GOAL), and the server marks the slot finished -- before reaching the Sanctum, fighting either boss, or seeing the Credits.
-2. **Do:** Keep playing through the Sanctum, Emperor Ing, the escape sequence, and Dark Samus 3 & 4 to the Credits.
-   **Expect:** Everything plays out exactly like vanilla; the goal is not reported again.
+   **Expect:** The arrival cinematic does not play; about a second after arriving you are warped to the Credits. The client logs the goal, sends StatusUpdate(GOAL), and the server marks the slot finished -- before reaching the Sanctum or fighting either boss.
 
 Pass if:
-* The goal fires on entering Sky Temple Energy Controller, before either boss.
+* The warp to the Credits happens on arriving in Sky Temple Energy Controller, before either boss.
 * The goal is reported exactly once, with no spurious location checks.
 
 If it fails, look at:
-* `constants.GOAL_BOTH_BOSSES` / `GOAL_EMPEROR_ING` / `GOAL_KEYS` / `GREAT_TEMPLE_SKY_TEMPLE_MLVL` / `SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX` / `SKY_TEMPLE_SANCTUM_AREA_INDEX`
+* `constants.GOAL_BOTH_BOSSES` / `GOAL_EMPEROR_ING` / `GOAL_KEYS` / `GREAT_TEMPLE_SKY_TEMPLE_MLVL` / `SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX` / `SKY_TEMPLE_ENERGY_CONTROLLER_MREA` / `CREDITS_MREA`
 * `options.py::Goal`
+* `client/goal_warp_patch.py`
+* `client/patcher_runner.py::goal_warp_installed`
 * `client/client.py::_handle_check_goal`
 * `test/test_goal_detection.py::TestBossSkipGoals`
+* `test/test_goal_warp_patch.py`
 
 ## Suggested runs
 

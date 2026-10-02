@@ -64,22 +64,23 @@ class Goal(Choice):
     """Which boss(es) must fall before the multiworld considers this slot's
     game complete.
 
-    This only changes when the goal is reported -- nothing about the level
-    itself is patched or skipped, so the escape sequence and the Dark
-    Samus 3 & 4 fight always play out normally regardless of this setting
-    if you keep playing past your goal condition.
+    The two boss-skipping goals patch your game to warp you straight to the
+    Credits (which reports the goal) the moment they are met. Both Bosses
+    patches nothing.
 
     Both Bosses (default, vanilla): complete once the Credits are reached,
     which requires defeating both Emperor Ing (Sky Temple/Sanctum) and
     Dark Samus 3 & 4 (Sky Temple Gateway), exactly like an unmodified
     playthrough.
 
-    Emperor Ing: complete as soon as Emperor Ing is defeated, without also
-    requiring the Dark Samus 3 & 4 fight or the Credits.
+    Emperor Ing: complete once Emperor Ing is defeated and you return to
+    Sky Temple Gateway, where you are warped to the Credits instead of
+    fighting Dark Samus 3 & 4.
 
     Keys: complete as soon as Sky Temple Energy Controller is reached --
     which only requires opening the Sky Temple Gateway's key gate (see
-    ``sky_temple_keys_required``) -- without fighting either boss.
+    ``sky_temple_keys_required``) -- without fighting either boss. You are
+    warped to the Credits from there.
     """
 
     display_name = "Goal"

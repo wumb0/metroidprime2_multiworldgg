@@ -203,6 +203,29 @@ def sky_temple_keys_required_installed(required: int):
 
 
 @contextlib.contextmanager
+def goal_warp_installed(goal: int):
+    """Context manager installing the boss-skip goal warps
+    (``client/goal_warp_patch.py``) for the duration of one
+    ``_apply_patches`` call, through the same ``register_world_changes``
+    hook as ``sky_temple_keys_required_installed`` above."""
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import goal_warp_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_goal_warp(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        goal_warp_patch.register(area_patcher, goal)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_goal_warp
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
 def translator_lore_colors_installed(colors: dict[int, str]):
     """Context manager installing the translator lore hologram recoloring
     (``client/lore_translator_patch.py``) for the duration of one
@@ -407,6 +430,7 @@ def patch_iso_with_ap(
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
     sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
+    goal = int(apmp2_options.get("goal", constants.GOAL_BOTH_BOSSES))
     translator_lore_colors = {
         int(strg_id): str(color) for strg_id, color in apmp2_options.get("translator_lore_colors", {}).items()
     }
@@ -449,6 +473,8 @@ def patch_iso_with_ap(
                 patches.enter_context(item_map_icons_always_visible())
             if sky_temple_keys_required != 9:
                 patches.enter_context(sky_temple_keys_required_installed(sky_temple_keys_required))
+            if goal != constants.GOAL_BOTH_BOSSES:
+                patches.enter_context(goal_warp_installed(goal))
             if translator_lore_colors:
                 patches.enter_context(translator_lore_colors_installed(translator_lore_colors))
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)
