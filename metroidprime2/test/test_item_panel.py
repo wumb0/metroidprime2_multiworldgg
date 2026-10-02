@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from .. import constants
-from ..client.item_panel import COUNTER_NAMES, COUNTERS, UPGRADES, compute_panel_state
+from ..client.item_panel import COUNTER_NAMES, COUNTERS, UPGRADES, compute_panel_state, tooltip_position
 from ..items import ITEM_TABLE
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets" / "items"
@@ -137,6 +137,27 @@ class TestComputePanelState(unittest.TestCase):
 
 
 @unittest.skipUnless(importlib.util.find_spec("kivymd") is not None, "kivymd not installed")
+class TestTooltipPosition(unittest.TestCase):
+    WINDOW = (1000.0, 800.0)
+
+    def _position(self, mouse: tuple[float, float]) -> tuple[float, float]:
+        return tooltip_position(mouse, (100.0, 40.0), self.WINDOW, gap=8.0, margin=10.0)
+
+    def test_centered_right_above_the_mouse(self) -> None:
+        self.assertEqual((450.0, 308.0), self._position((500.0, 300.0)))
+
+    def test_clamped_to_the_left_and_right_edges(self) -> None:
+        self.assertEqual(10.0, self._position((5.0, 300.0))[0])
+        self.assertEqual(1000.0 - 100.0 - 10.0, self._position((995.0, 300.0))[0])
+
+    def test_flips_below_the_mouse_when_there_is_no_room_above(self) -> None:
+        # 790 + 8 + 40 would overflow the 800-high window (10 margin).
+        self.assertEqual(790.0 - 8.0 - 40.0, self._position((500.0, 790.0))[1])
+
+    def test_never_below_the_bottom_margin(self) -> None:
+        self.assertEqual(10.0, self._position((500.0, 0.0))[1])
+
+
 class TestKivyPanel(unittest.TestCase):
     def test_builds_and_updates_headless(self) -> None:
         # kivy's "mock" GL backend lets widgets and textures build without a

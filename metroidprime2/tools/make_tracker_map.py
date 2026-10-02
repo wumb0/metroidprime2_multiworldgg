@@ -52,8 +52,8 @@ PADDING = 60
 ROOM_SHRINK = 0.6
 ROOM_MIN_HALF = 5.0
 ROOM_GAP = 6.0
-LABEL_FONT_SIZE = 26
-LABEL_STROKE = 4
+LABEL_FONT_SIZE = 34
+LABEL_STROKE = 5
 LOCATION_SIZE = 26
 LOCATION_BORDER = 3
 
@@ -205,18 +205,22 @@ def _balanced_label(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTy
     """One line if the name is short, otherwise split into two lines of as
     even a width as possible."""
     words = text.split()
-    if len(words) < 2 or draw.textlength(text, font=font) <= 150:
+    if len(words) < 2 or draw.textlength(text, font=font) <= 200:
         return text
     candidates = [" ".join(words[:i]) + "\n" + " ".join(words[i:]) for i in range(1, len(words))]
     return min(candidates, key=lambda c: max(draw.textlength(line, font=font) for line in c.split("\n")))
 
 
 def _place_labels(
-    draw: ImageDraw.ImageDraw, rooms: list[tuple[str, tuple[int, int, int, int]]], font: ImageFont.FreeTypeFont
+    draw: ImageDraw.ImageDraw,
+    rooms: list[tuple[str, tuple[int, int, int, int]]],
+    font: ImageFont.FreeTypeFont,
+    image_size: tuple[int, int],
 ) -> list[tuple[str, str, tuple[float, float]]]:
     """Picks a label position per room (centered in the room if it fits
     without touching another label, otherwise just outside one of its
-    sides), largest rooms first so they keep the center spots."""
+    sides), largest rooms first so they keep the center spots. A label that
+    would run off the image (and be clipped) is the costliest of all."""
     placed: list[tuple[float, float, float, float]] = []
     result: list[tuple[str, str, tuple[float, float]]] = []
 
@@ -259,7 +263,8 @@ def _place_labels(
             # makes the label look like that room's, so it costs too; and
             # the farther from its own room, the less obviously its own.
             distance = abs(c[0] - cx) + abs(c[1] - cy)
-            return 20 * overlap(box, placed) + overlap(box, foreign) + 8 * distance
+            clipped = w * h - overlap(box, [(0, 0, *image_size)])
+            return 100 * clipped + 20 * overlap(box, placed) + overlap(box, foreign) + 8 * distance
 
         best = min(candidates, key=cost)
         placed.append((best[0] - w / 2, best[1] - h / 2, best[0] + w / 2, best[1] + h / 2))
@@ -303,7 +308,7 @@ def draw_map(region: str, areas: dict[str, dict], projection: Projection) -> Ima
     # Labels go in a pass of their own, on top of every room and outlined, so
     # a neighbour's fill can never hide one. A label that had to leave its
     # room is tied back to it with a leader line (drawn first, under all text).
-    placed = _place_labels(draw, rooms, label_font)
+    placed = _place_labels(draw, rooms, label_font, image.size)
     room_boxes = dict(rooms)
     for name, _, position in placed:
         x0, y0, x1, y1 = room_boxes[name]

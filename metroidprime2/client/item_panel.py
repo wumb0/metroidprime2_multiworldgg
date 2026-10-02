@@ -220,12 +220,42 @@ def required_width_dp() -> int:
     return 2 * PANEL_PADDING_DP + (children - 1) * PANEL_SPACING_DP + counters + UPGRADES_GAP_DP + upgrades
 
 
+TOOLTIP_GAP_DP = 8
+TOOLTIP_MARGIN_DP = 10
+
+
+def tooltip_position(
+    mouse_pos: tuple[float, float],
+    tooltip_size: tuple[float, float],
+    window_size: tuple[float, float],
+    gap: float,
+    margin: float,
+) -> tuple[float, float]:
+    """Bottom-left corner for a tooltip centered right above the mouse
+    (kivy coordinates: origin bottom-left, y up), kept ``margin`` inside the
+    window. Flips below the mouse when there is no room above."""
+    mouse_x, mouse_y = mouse_pos
+    width, height = tooltip_size
+    window_width, window_height = window_size
+
+    x = min(mouse_x - width / 2, window_width - width - margin)
+    x = max(x, margin)
+
+    y = mouse_y + gap
+    if y + height > window_height - margin:
+        y = mouse_y - gap - height
+    y = max(y, margin)
+    return x, y
+
+
 def _hover_image_class() -> type:
     """FitImage that shows a tooltip while hovered (same HoverBehavior +
-    MDTooltip combination kvui's ServerLabel uses). Built lazily because
-    kivy can only be imported once kvui has set it up."""
+    MDTooltip combination kvui's ServerLabel uses), placed right above the
+    mouse. Built lazily because kivy can only be imported once kvui has set
+    it up."""
     global _HoverImage
     if _HoverImage is None:
+        from kivy.clock import Clock
         from kivymd.uix.fitimage import FitImage
         from kivymd.uix.tooltip import MDTooltip
         from kvui import HoverBehavior, ToolTip
@@ -236,6 +266,30 @@ def _hover_image_class() -> type:
             def __init__(self, tooltip_text: str, **kwargs: Any) -> None:
                 super().__init__(**kwargs)
                 self._tooltip = ToolTip(text=tooltip_text)
+
+            def adjust_tooltip_position(self) -> tuple[float, float]:
+                # MDTooltip anchors to the widget (and was landing mid-screen
+                # here); anchor to the mouse instead.
+                from kivy.core.window import Window
+                from kivy.metrics import dp
+
+                return tooltip_position(
+                    Window.mouse_pos,
+                    self._tooltip.size,
+                    Window.size,
+                    dp(TOOLTIP_GAP_DP),
+                    dp(TOOLTIP_MARGIN_DP),
+                )
+
+            def display_tooltip(self, *args: Any) -> None:
+                super().display_tooltip(*args)
+                # The tooltip's size is only final once it has been laid out,
+                # a frame after it is added to the window.
+                Clock.schedule_once(self._reposition_tooltip, 0)
+
+            def _reposition_tooltip(self, *_args: Any) -> None:
+                if self._tooltip is not None and self._tooltip.parent is not None:
+                    self._tooltip.pos = self.adjust_tooltip_position()
 
             def on_enter(self) -> None:
                 self.display_tooltip()
