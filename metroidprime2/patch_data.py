@@ -30,13 +30,29 @@ import copy
 from typing import TYPE_CHECKING, Any
 
 from . import constants
+from .hint_scans import (
+    SKY_TEMPLE_KEY_HINT_SCANS,
+    TRANSLATOR_LORE_HINT_SCANS,
+    sky_temple_key_locations,
+    translator_lore_hint_locations,
+)
 from .items import ITEM_TABLE, gains_for
 from .locations import LOCATION_TABLE
 from .logic.db_reader import GameDatabase, Node, NodeId, load_game_database
-from .options import AnnihilatorAmmoSource, BeamAmmoCosts, DisplayNonLocalItems, MapVisibility, dark_damage_per_second
+from .options import (
+    AnnihilatorAmmoSource,
+    BeamAmmoCosts,
+    DisplayNonLocalItems,
+    MapVisibility,
+    SkyTempleKeyHints,
+    TranslatorLoreHints,
+    dark_damage_per_second,
+)
 from .pickup_encoding import counter_and_amount
 
 if TYPE_CHECKING:
+    from BaseClasses import Location
+
     from . import MetroidPrime2World
 
 # --------------------------------------------------------------------------
@@ -68,10 +84,10 @@ _VARIA_STARTING_CAPACITY = 1
 
 # Energy Tank capacity is nominally unbounded from gains_for's point of
 # view (each copy just adds another (42, 1)), but the DOL's powerup_max
-# table only allows so many; 14 matches ITEM_TABLE's own
-# default_pool_count for Energy Tank (PLAN.md section F).
-_ENERGY_TANK_ITEM_ID = 42
-_ENERGY_TANK_MAX_STARTING_CAPACITY = 14
+# table only allows so many: the ``max_energy_tanks`` option, 14 by default
+# (matching ITEM_TABLE's own default_pool_count for Energy Tank, PLAN.md
+# section F).
+_ENERGY_TANK_ITEM_ID = constants.ENERGY_TANK_ITEM
 
 # Missile capacity / launcher-unlock flag ids (mirrors the same ids in
 # client/receive_items.py's _MISSILE_ITEM/_MISSILE_LAUNCHER_FLAG). Needed
@@ -158,7 +174,7 @@ def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
     capacities[_VARIA_ITEM_ID] = _VARIA_STARTING_CAPACITY
     if _ENERGY_TANK_ITEM_ID in capacities:
         capacities[_ENERGY_TANK_ITEM_ID] = min(
-            capacities[_ENERGY_TANK_ITEM_ID], _ENERGY_TANK_MAX_STARTING_CAPACITY
+            capacities[_ENERGY_TANK_ITEM_ID], int(world.options.max_energy_tanks.value)
         )
 
     if bool(world.options.missile_expansions_unlock_launcher) and capacities.get(
@@ -389,6 +405,18 @@ def _sanitize(text: str, max_length: int | None = None) -> str:
     if max_length is not None:
         text = text[:max_length]
     return text
+
+
+def _colorize(color: str, text: str) -> str:
+    """Wraps ``text`` in the game's own STRG rich-text markup for a
+    temporary main-text color override (``&push;&main-color=<color>;text
+    &pop;`` -- ``&push;``/``&pop;`` save/restore the surrounding text's own
+    color so this doesn't leak into whatever follows). ``color`` is a
+    literal ``#RRGGBB`` or ``#RRGGBBAA`` string (randovania's Echoes hint
+    colors -- PLAN.md section Q.1); passed straight through rather than
+    reformatted, since the two forms it's actually called with already
+    have exactly the digit count they need."""
+    return f"&push;&main-color={color};{text}&pop;"
 
 
 def _sound_kind(model_name: str) -> str:
@@ -622,6 +650,113 @@ def _translator_gate_modification(world: MetroidPrime2World, node: Node) -> dict
 
 
 # --------------------------------------------------------------------------
+# Sky Temple Key / translator lore hint scans (PLAN.md sections Q, R)
+# --------------------------------------------------------------------------
+
+# randovania's Echoes hint colors (games/prime2/exporter/hints.py), reused
+# verbatim: item names, world/player names, and location names each get
+# their own consistent color across every hint in the game. Shared by both
+# Sky Temple Key pillar text and translator lore hologram text (renamed
+# from _STK_*_COLOR when section R generalized them -- PLAN.md R.4).
+_HINT_ITEM_COLOR = "#FF6705B3"
+_HINT_PLAYER_COLOR = "#d4cc33"
+_HINT_LOCATION_COLOR = "#FF3333"
+
+
+def _sky_temple_key_hint_text(world: MetroidPrime2World, key_number: int, location: Location | None) -> str:
+    """The scan popup / logbook text for one Sky Temple Key pillar (PLAN.md
+    section Q.4). ``location`` is ``sky_temple_key_locations(world)``'s
+    entry for this key -- the single source of truth this and
+    ``__init__.py``'s slot_data both read from, so they can never disagree
+    about where a key actually is.
+    """
+    key = _colorize(_HINT_ITEM_COLOR, f"Sky Temple Key {key_number}")
+
+    if world.options.sky_temple_key_hints.value == SkyTempleKeyHints.option_disabled:
+        # Always overwrite, even though this key mode never asked for it:
+        # the vanilla riddles describe vanilla key spots and would mislead
+        # once keys are shuffled.
+        return f"{key} is lost somewhere in Aether."
+
+    if location is not None:
+        if location.player == world.player:
+            owner = "your"
+        else:
+            player_name = _colorize(_HINT_PLAYER_COLOR, _sanitize(world.multiworld.player_name[location.player]))
+            owner = f"{player_name}'s"
+        loc = _colorize(_HINT_LOCATION_COLOR, _sanitize(location.name))
+        return f"{key} is in {owner} {loc}."
+
+    precollected_names = {item.name for item in world.multiworld.precollected_items[world.player]}
+    if f"Sky Temple Key {key_number}" in precollected_names:
+        return f"{key} is already in your possession."
+
+    # Not placed anywhere reachable from here (e.g. item-linked away) and
+    # not precollected either.
+    return f"{key} is lost somewhere in the multiverse."
+
+
+def _sky_temple_key_string_changes(world: MetroidPrime2World) -> list[dict[str, Any]]:
+    """One STRG rewrite per Sky Temple Key pillar: ``[text, "", text]``
+    (randovania's own ``create_simple_logbook_hint`` shape -- the scan
+    popup, then the logbook body twice)."""
+    locations = sky_temple_key_locations(world)
+    changes: list[dict[str, Any]] = []
+    for key_number, (hint_scan, location) in enumerate(zip(SKY_TEMPLE_KEY_HINT_SCANS, locations, strict=True), start=1):
+        text = _sky_temple_key_hint_text(world, key_number, location)
+        changes.append({"strg_id": hint_scan.strg_id, "strings": [text, "", text]})
+    return changes
+
+
+def _translator_lore_hint_text(world: MetroidPrime2World, location: Location | None, colored: bool = True) -> str:
+    """The scan popup / "Data transferred..." logbook text for one
+    translator lore hologram (PLAN.md section R.4). ``location`` is
+    ``translator_lore_hint_locations(world)``'s entry for this hologram --
+    the single source of truth this, ``__init__.py``'s slot_data, and
+    ``write_spoiler`` all read from.
+
+    ``colored`` gates every bit of STRG rich-text markup (item/player/
+    location colors alike); ``write_spoiler`` passes ``colored=False`` to
+    get a plain-text line for the spoiler log."""
+    if location is None:
+        return "The Luminoth have nothing more to tell you."
+
+    item = location.item
+    assert item is not None, f"{location.name}: chosen lore-hint location has no item"
+
+    def _player_name(player: int) -> str:
+        name = _sanitize(world.multiworld.player_name[player])
+        return _colorize(_HINT_PLAYER_COLOR, name) if colored else name
+
+    item_text = _sanitize(item.name)
+    if colored:
+        item_text = _colorize(_HINT_ITEM_COLOR, item_text)
+    location_text = _sanitize(location.name)
+    if colored:
+        location_text = _colorize(_HINT_LOCATION_COLOR, location_text)
+
+    item_owner = "Your" if item.player == world.player else f"{_player_name(item.player)}'s"
+    loc_owner = "your" if location.player == world.player else f"{_player_name(location.player)}'s"
+
+    return f"{item_owner} {item_text} can be found in {loc_owner} {location_text}."
+
+
+def _translator_lore_string_changes(world: MetroidPrime2World) -> list[dict[str, Any]]:
+    """One STRG rewrite per translator lore hologram: ``[]`` under ``off``
+    (vanilla lore text stands), otherwise ``[text, "", text]`` per
+    hologram (same randovania ``create_simple_logbook_hint`` shape as the
+    Sky Temple Key pillars -- PLAN.md section R.1)."""
+    if world.options.translator_lore_hints.value == TranslatorLoreHints.option_off:
+        return []
+    locations = translator_lore_hint_locations(world)
+    changes: list[dict[str, Any]] = []
+    for hint_scan, location in zip(TRANSLATOR_LORE_HINT_SCANS, locations, strict=True):
+        text = _translator_lore_hint_text(world, location)
+        changes.append({"strg_id": hint_scan.strg_id, "strings": [text, "", text]})
+    return changes
+
+
+# --------------------------------------------------------------------------
 # World/area change grouping
 # --------------------------------------------------------------------------
 
@@ -824,7 +959,7 @@ def make_rando_configuration(world: MetroidPrime2World) -> dict[str, Any]:
             "unvisited_map_icons": False,
         },
         "practice_mod": "disabled",
-        "auto_enabled_elevators": False,
+        "auto_enabled_elevators": bool(world.options.pre_scan_elevators.value),
         "two_way_portals": bool(world.options.portal_rando),
         "inverted_mode": False,
         "damage_changes": {
@@ -837,5 +972,5 @@ def make_rando_configuration(world: MetroidPrime2World) -> dict[str, Any]:
         "beam_configuration": _beam_configuration(world),
         "custom_items": _custom_items(world),
         "world_changes": _world_changes(world, db),
-        "string_changes": [],
+        "string_changes": _sky_temple_key_string_changes(world) + _translator_lore_string_changes(world),
     }

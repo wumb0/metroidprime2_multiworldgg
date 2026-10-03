@@ -125,17 +125,17 @@ class TestSkyTempleKeysNine(_FillMatrixCase):
 
 
 class TestSkyTempleKeysAllBosses(_FillMatrixCase):
-    options = {"sky_temple_keys": "all_bosses"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses"}
     seeds = (1, 2)
 
 
 class TestSkyTempleKeysAllGuardians(_FillMatrixCase):
-    options = {"sky_temple_keys": "all_guardians"}
+    options = {"sky_temple_keys": 3, "sky_temple_keys_locations": "all_guardians"}
     seeds = (1, 2)
 
 
 class TestSkyTempleKeysAllGuardiansPlus6(_FillMatrixCase):
-    options = {"sky_temple_keys": "all_guardians_plus_6"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_guardians"}
     seeds = (1, 2)
 
 
@@ -204,6 +204,30 @@ class TestTranslatorGateFullRandom(_FillMatrixCase):
 class TestTranslatorGateFullRandomUnlocked(_FillMatrixCase):
     options = {"translator_gate_rando": "full_random_unlocked"}
     seeds = (1, 2, 3)
+
+
+class TestExpansionTotals(unittest.TestCase):
+    """slot_data's ``expansion_totals`` feeds the tracker's acquired/total
+    counters, so it must match the pool actually placed."""
+
+    def _totals(self, options: dict) -> dict[str, int]:
+        multiworld = _build(options, 1)
+        distribute_items_restrictive(multiworld)
+        call_all(multiworld, "post_fill")
+        return multiworld.worlds[1].fill_slot_data()["expansion_totals"]
+
+    def test_split_beam_ammo(self) -> None:
+        totals = self._totals({"split_beam_ammo": True})
+        self.assertEqual(14, totals["Energy Tank"])
+        self.assertEqual(10, totals["Dark Ammo Expansion"])
+        self.assertEqual(10, totals["Light Ammo Expansion"])
+        self.assertEqual(0, totals["Beam Ammo Expansion"])
+        self.assertGreaterEqual(totals["Missile Expansion"], 33)  # filler pads past 33
+
+    def test_unified_beam_ammo(self) -> None:
+        totals = self._totals({"split_beam_ammo": False})
+        self.assertEqual(20, totals["Beam Ammo Expansion"])
+        self.assertEqual(0, totals["Dark Ammo Expansion"])
 
 
 if __name__ == "__main__":

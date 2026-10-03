@@ -388,7 +388,7 @@ Both dark-damage options are stored in **tenths of a point per second** and conv
  "starting_area": {"mlvl_id": 1006255871, "mrea_id": 1655756413},          # Temple Grounds / Landing Site
  "starting_items": starting_items_config(world),
  "map_visibility": {"reveal_map_at_start": ..., "unvisited_room_names": ..., "areas_to_never_reveal": [], "unvisited_map_icons": False},
- "practice_mod": "disabled", "auto_enabled_elevators": False, "two_way_portals": False, "inverted_mode": False,
+ "practice_mod": "disabled", "auto_enabled_elevators": bool(world.options.pre_scan_elevators.value), "two_way_portals": bool(world.options.portal_rando), "inverted_mode": False,
  "damage_changes": {"energy_per_tank": E, "safe_zone_heal_per_second": 1.0, "dangerous_energy_tanks": ...,
                     "dark_world_damage": float(dark_aether_damage), "dark_suit_protection": dark_suit_damage / dark_aether_damage},
  "world_changes": [...], "string_changes": [],
@@ -1135,3 +1135,759 @@ state with no dependence on an injected script layer activating.
 `test_goal_detection.py` covers the new detector alongside the pickup
 counters, `test_game_interface.py` covers the new offset read, and manual
 MT03 pokes the area field directly.
+
+## Q. Sky Temple Key hint scans (foundation for lore hints)
+
+Goal: the 9 Luminoth pillars in Sky Temple Gateway (Sky Temple Grounds)
+each name where one Sky Temple Key really is -- in whichever player's
+world it landed -- and scanning a pillar sends a real AP hint to the
+server. Parallels `worlds/metroidprime`'s `artifact_hints`
+(`Config.make_artifact_hints` for text, `MetroidPrimeInterface.get_scans`
++ `MetroidPrimeClient.handle_artifact_hints` for detection). **No DOL
+patch**: text goes in through OPR's existing `string_changes`, detection
+is a pure memory read of state the game already keeps.
+
+### Q.1 Facts (verified 2026-09-26, do not re-derive)
+
+* **Scan state lives in `CPlayerState`.** PrimeDecomp/echoes
+  `CPlayerState::SPersistentState::vec` is an `rstl::vector<SScanState>`,
+  `SScanState = {u32 scan_asset_id; u8 progress; u8 flag; pad[2]}` (8
+  bytes), sorted ascending by id (binary-searched by `GetScanTime`/
+  `SetScanTime`). `progress == 255` means scan complete (`SetScanTime`
+  stores `255*t`; loading a save restores complete scans as 255). The
+  first 4 entries are placeholder ids 0..3; the rest is
+  `gpMemoryCard->GetScanStates()`, i.e. every SCAN listed in any SAVW.
+* **Offsets, identical NTSC and PAL** (disassembled from both retail
+  DOLs): `ScanStates__12CPlayerStateFv` is `addi r3,r3,0x59C; blr`
+  (NTSC 0x800851DC, PAL 0x80085318); `GetScanTime` reads the element
+  count from `CPlayerState+0x5A0` and the data pointer from
+  `CPlayerState+0x5A8` (NTSC 0x80085068, PAL 0x800851A4), indexes with
+  `slwi 3` (stride 8) and loads progress as a u8 from element+4. So:
+  count @ +0x5A0, capacity @ +0x5A4, data @ +0x5A8.
+* **Pillar STRG -> SCAN ids** (STRG ids from randovania
+  `games/prime2/exporter/hints.py::_SKY_TEMPLE_KEY_SCAN_ASSETS`, which
+  are actually STRG ids; SCAN ids read from the retail NTSC and PAL
+  ISOs -- identical on both, each SCAN's `ScannableObjectInfo.string`
+  names exactly one of these STRGs, and every one is in the Sky Temple
+  Grounds SAVW so the game tracks it):
+
+      Key 1  STRG 0xD97685FE  SCAN 0x856AD9A4
+      Key 2  STRG 0x32413EFD  SCAN 0x6E5D62A7
+      Key 3  STRG 0xDD8355C3  SCAN 0x819F0999
+      Key 4  STRG 0x3F5F4EBA  SCAN 0x634312E0
+      Key 5  STRG 0xD09D2584  SCAN 0x8C8179DE
+      Key 6  STRG 0x3BAA9E87  SCAN 0x67B6C2DD
+      Key 7  STRG 0xD468F5B9  SCAN 0x8874A9E3
+      Key 8  STRG 0x2563AE34  SCAN 0x797FF26E
+      Key 9  STRG 0xCAA1C50A  SCAN 0x96BD9950
+
+  Key N is `items.py`'s "Sky Temple Key N" (randovania's
+  `echoes_items.SKY_TEMPLE_KEY_ITEMS` order, same as OPR's logbook
+  renames).
+* **Lore/keybearer scans (for the follow-up, recorded now so nobody
+  needs the ISO again).** Every `hint` node in the vendored logic DB
+  with `extra.string_asset_id` maps 1:1 to a SAVW-tracked SCAN, same ids
+  NTSC/PAL (STRG -> SCAN):
+
+      0x24E69725->0xC108FC20  0xA272E58B->0x479C8E8E  0x5324575E->0xB6CA3C5B
+      0x692E362E->0x8CC05D2B  0x150E8DB8->0xF0E0E6BD  0xEFBA4480->0x0A542F85
+      0xDE525E1D->0x3BBC3518  0xC3576EA5->0x26B905A0  0xF2BF7438->0x17511F3D
+      0x62CC4DC3->0x872226C6  0x0405EE3F->0xE1EB853A  0xBF77D533->0x5A99BE36
+      0xA9909E66->0x4C7EF563  0x742B0696->0x91C56D93  0xF5535CEA->0x10BD37EF
+      0x3E0F8F4F->0xDBE1E44A  0xE3B417BF->0x065A7CBA  0x987884FB->0x7D96EFFE
+      0x65206511->0x80CE0E14  0x8E9FCFAE->0x6B71A4AB  0x39E3A79D->0xDC0DCC98
+      0x28E8C41A->0xCD06AF1F  0xCF593D9A->0x2AB7569F  0x58C62CB3->0xBD2847B6
+      0x45C31C0B->0xA02D770E  0x54C87F8C->0xB1261489  0xD25C0D22->0x37B26627
+      0x49CD4F34->0xAC232431  0x9F94AC29->0x7A7AC72C  0x82919C91->0x677FF794
+      0x939AFF16->0x76749413
+
+* **STRG layout.** A pillar STRG has 3 strings (scan popup, then the
+  logbook body twice). randovania writes `[hint, "", hint]`
+  (`create_simple_logbook_hint`); copy that exactly. Markup:
+  `&push;&main-color=#RRGGBB[AA];text&pop;`. randovania's Echoes colors:
+  item `#FF6705B3`, world/player `#d4cc33`, location `#FF3333`.
+* **Server `CreateHints`** (`MultiServer.py` ~2238): `player` = the
+  location's owner, `locations` = that player's location ids.
+  `HINT_PRIORITY` is allowed only when the hinted *item* belongs to the
+  sender (true for our own STKs, in any world). Hinting someone else's
+  item is only allowed in our own world and must use
+  `HINT_UNSPECIFIED` -- matters for lore hints later, not for STKs.
+  `notify_hints(only_new=True)` dedups, so re-sending after a reconnect
+  is harmless.
+
+### Q.2 Option
+
+`options.py`: `SkyTempleKeyHints(Choice)`, display name "Sky Temple Key
+Hints", `option_disabled = 0`, `option_scanned = 1`,
+`option_precollected = 2`, `default = option_scanned`,
+`alias_false = option_disabled`, `alias_true = option_scanned`.
+Docstring: scanning a pillar in Sky Temple Gateway shows where that key
+is and (scanned) sends the hint to the server; precollected gives all
+key hints at start; disabled replaces the pillars' text with a
+non-hint. Field `sky_temple_key_hints` in `MetroidPrime2Options` right
+after `sky_temple_keys`; add to the "Goal" `OptionGroup`. It flows into
+slot_data automatically via `_slot_data_option_names()`.
+
+### Q.3 Shared module `metroidprime2/hint_scans.py`
+
+Pure data + pure functions, no top-level AP imports beyond `TYPE_CHECKING`
+(unit-testable without a multiworld, like `pickup_encoding.py`).
+
+* `@dataclass(frozen=True) class HintScan: strg_id: int; scan_id: int`
+* `SKY_TEMPLE_KEY_HINT_SCANS: tuple[HintScan, ...]` -- the 9 rows
+  above, index `n-1` is key `n`.
+* `LORE_HINT_SCAN_IDS: dict[int, int]` -- the STRG->SCAN table above
+  (unused by runtime code for now; guarded by a test).
+* `SCAN_COMPLETE = 255`
+* `sky_temple_key_locations(world) -> list[Location | None]` -- length
+  9; entry `n-1` is the filled location holding this player's "Sky
+  Temple Key n" (search `world.multiworld.get_filled_locations()` once
+  for `item.player == world.player and item.name in STK_ITEM_NAMES`;
+  ignore locations with `address is None`), or `None` if it is
+  precollected / not placed anywhere (item links). This is the single
+  source of truth for both the pillar text and slot_data, so they can
+  never disagree.
+* `encode_hint_scans(entries: dict[int, tuple[int, int]]) -> dict[str, list[int]]`
+  and `decode_hint_scans(raw) -> dict[int, tuple[int, int]]`:
+  `{scan_id: (location_player, location_id)}` <-> JSON-safe
+  `{str(scan_id): [location_player, location_id]}`. `decode` must
+  tolerate `None`/missing (older slot_data) -> `{}`.
+* `newly_completed_hints(scan_progress: dict[int, int], hint_scans: dict[int, tuple[int, int]], already_sent: set[int]) -> tuple[set[int], dict[int, list[int]]]`
+  -> (scan ids newly completed, `{location_player: sorted location
+  ids}`). Only `progress >= SCAN_COMPLETE`, only ids in `hint_scans`,
+  skip `already_sent`. Pure; the caller updates `already_sent`.
+
+The generic `hint_scans` shape (scan id -> location to hint) is the
+lore-hint foundation: a future lore feature only adds entries (and,
+because of the CreateHints rules above, probably a third per-entry
+field for status); the client path does not change.
+
+### Q.4 Generation side
+
+* `patch_data.py`: new `_sky_temple_key_string_changes(world) -> list[dict]`,
+  wired into `make_rando_configuration`'s `"string_changes"` (currently
+  `[]`). One `{"strg_id": scan.strg_id, "strings": [text, "", text]}`
+  per key. Text, with `key = colorize("#FF6705B3", "Sky Temple Key n")`:
+  - option disabled: `f"{key} is lost somewhere in Aether."` (randovania's
+    `hide_stk_hints` wording) -- always overwrite: the vanilla riddles
+    describe vanilla key spots and would mislead.
+  - location found: `f"{key} is in {owner}'s {loc}."` where `owner` is
+    `"your"` (no "'s") when `location.player == world.player`, else the
+    sanitized `multiworld.player_name[location.player]` in `#d4cc33`
+    plus `'s`; `loc` is the sanitized `location.name` in `#FF3333`. Use
+    `_sanitize` (strips `&`, `;`, newlines -- they'd break STRG markup;
+    no length cap).
+  - `None` and the key is in `multiworld.precollected_items[player]`:
+    `f"{key} is already in your possession."`
+  - otherwise: `f"{key} is lost somewhere in the multiverse."`
+  Put the colorize helper next to `_sanitize`.
+* `__init__.py`:
+  - `post_fill`: if option is `precollected`, add every `STK_ITEM_NAMES`
+    entry whose location is not `None` to `self.options.start_hints.value`
+    (Main.py reads start_hints after post_fill -- same as Prime 1).
+  - `fill_slot_data`: `slot_data["hint_scans"] = encode_hint_scans(...)`
+    containing, only when option is `scanned`, `{SKY_TEMPLE_KEY_HINT_SCANS[n].scan_id: (loc.player, loc.address)}`
+    for each non-`None` location; `{}` otherwise.
+
+### Q.5 Client side
+
+* `client/versions.py`: `SCAN_STATES_OFFSET = 0x5A0` (count; capacity at
+  +4, data pointer at +8), `SCAN_STATE_SIZE = 8`,
+  `SCAN_STATES_MAX_COUNT = 2048` (sanity cap; retail has ~820), with a
+  comment citing the Q.1 disassembly.
+* `client/game_interface.py`: `EchoesInterface.read_scan_progress() -> dict[int, int] | None`.
+  `_player_state_pointer()`; one 12-byte read at
+  `+SCAN_STATES_OFFSET` -> `count, capacity, data_ptr`; return `None`
+  unless `0 < count <= min(capacity, SCAN_STATES_MAX_COUNT)` and
+  `0x80000000 <= data_ptr < 0x81800000`; one `count*8` read; unpack
+  `">IBBxx"` into `{scan_id: progress}`. `DolphinException`/`None` read
+  -> `None`, same as `read_inventory`.
+* `client/client.py`:
+  - Context fields `hint_scans: dict[int, tuple[int, int]]` and
+    `sent_hint_scans: set[int]`; in `on_package("Connected")` set
+    `hint_scans = decode_hint_scans(slot_data.get("hint_scans"))` and
+    reset `sent_hint_scans = set()`.
+  - `async def _handle_hint_scans(ctx)`: return early (no Dolphin read)
+    if `set(ctx.hint_scans) <= ctx.sent_hint_scans`; read progress (None
+    -> return); `newly_completed_hints(...)`; for each player send
+    `{"cmd": "CreateHints", "locations": ids, "player": player, "status": HintStatus.HINT_PRIORITY}`
+    in a single `send_msgs`; then add the ids to `sent_hint_scans`;
+    `logger.info` once per newly scanned hint.
+  - Call it in `_handle_game_ready` right after `_send_mlvl_datastorage`
+    (it's a pure read, independent of the pending-op protocol).
+
+### Q.6 Tests
+
+* `test/test_hint_scans.py`: 9 distinct strg/scan ids in key order;
+  `LORE_HINT_SCAN_IDS` covers every vendored DB `hint` node's
+  `extra.string_asset_id` (so a DB resync that adds one fails loudly)
+  and is disjoint from the STK table; encode/decode round trip and
+  `decode(None) == {}`; `newly_completed_hints` ignores progress < 255,
+  unknown ids, already-sent ids, and groups by player.
+* `test_patch_data.py` (reuse its existing generation bases): 9 STK
+  string changes with the right strg ids and `[t, "", t]` shape; own
+  world says "your"; disabled wording; numeric `sky_temple_keys` mode
+  -> "already in your possession" for precollected keys; a player/
+  location name containing `&`/`;` is sanitized.
+* slot_data: `hint_scans` has one entry per placed key with the right
+  (player, address) under `scanned`, `{}` under `disabled` and
+  `precollected`; `precollected` puts the placed keys into start_hints.
+* `test_game_interface.py`: `read_scan_progress` against its existing
+  fake Dolphin client: happy path, null player state, count 0, count >
+  cap, bad data pointer, `DolphinException`.
+* Client (style of `test_client_grant_message.py`): CreateHints sent
+  once per newly completed scan, grouped by player, not re-sent on the
+  next tick, and no Dolphin read once everything's sent.
+
+### Q.7 Docs / validation
+
+Add the option and a short "Sky Temple Key hints" paragraph to
+`docs/en_Metroid Prime 2 Echoes.md`. Manual validation still needed in
+Dolphin: patch a seed, visit Sky Temple Gateway, confirm pillar text and
+that the server receives the hint after the scan completes (and not
+from a partial scan).
+
+## R. Translator lore hints
+
+Builds on section Q. The 22 colored Luminoth lore holograms (the `hint`
+nodes with `extra.translator`; NOT translator gates, NOT the 9 Keybearer
+corpses) get their text replaced with a hint about a progression item, and
+scanning one sends that hint to the server through the same `hint_scans`
+path as the Sky Temple Key pillars.
+
+### R.1 Facts (verified 2026-09-26)
+
+* The 22 holograms (region / room, translator, STRG -> SCAN; SCAN ids from
+  the Q.1 lore table):
+
+      Agon Wastes / Mining Plaza                  Amber   0x24E69725 -> 0xC108FC20
+      Agon Wastes / Mining Station B              Amber   0xA272E58B -> 0x479C8E8E
+      Agon Wastes / Mining Station A              Amber   0x5324575E -> 0xB6CA3C5B
+      Agon Wastes / Portal Terminal               Amber   0x692E362E -> 0x8CC05D2B
+      Agon Wastes / Agon Energy Controller        Amber   0xEFBA4480 -> 0x0A542F85
+      Great Temple / Main Energy Controller       Violet  0xC3576EA5 -> 0x26B905A0
+      Sanctuary Fortress / Sanctuary Entrance     Cobalt  0xF2BF7438 -> 0x17511F3D
+      Sanctuary Fortress / Hall of Combat Mastery Cobalt  0x0405EE3F -> 0xE1EB853A
+      Sanctuary Fortress / Main Research          Cobalt  0xBF77D533 -> 0x5A99BE36
+      Sanctuary Fortress / Watch Station          Cobalt  0x742B0696 -> 0x91C56D93
+      Sanctuary Fortress / Main Gyro Chamber      Cobalt  0xF5535CEA -> 0x10BD37EF
+      Sanctuary Fortress / Sanctuary Energy Controller Cobalt 0x3E0F8F4F -> 0xDBE1E44A
+      Temple Grounds / Meeting Grounds            Violet  0x987884FB -> 0x7D96EFFE
+      Temple Grounds / Path of Eyes               Violet  0x8E9FCFAE -> 0x6B71A4AB
+      Temple Grounds / Transport to Agon Wastes   Violet  0x39E3A79D -> 0xDC0DCC98
+      Temple Grounds / Fortress Transport Access  Violet  0xCF593D9A -> 0x2AB7569F
+      Torvus Bog / Path of Roots                  Emerald 0x45C31C0B -> 0xA02D770E
+      Torvus Bog / Underground Tunnel             Emerald 0x54C87F8C -> 0xB1261489
+      Torvus Bog / Torvus Energy Controller       Emerald 0xD25C0D22 -> 0x37B26627
+      Torvus Bog / Gathering Hall                 Emerald 0x49CD4F34 -> 0xAC232431
+      Torvus Bog / Training Chamber               Emerald 0x9F94AC29 -> 0x7A7AC72C
+      Torvus Bog / Catacombs                      Emerald 0x82919C91 -> 0x677FF794
+
+* The tracked SCAN only completes once translated: in Meeting Grounds the
+  SCAN 0x7D96EFFE belongs to the `POIN "Translator Yes"` instance (popup
+  "Luminoth Lore translated."), which is only live with the translator.
+  Lore STRGs have 3 strings (popup, "Data transferred...", body);
+  randovania writes `[hint, "", hint]` for these too -- copy that.
+* `CreateHints` rejects the WHOLE packet if any entry breaks a rule, and
+  another player's item may only be hinted with `HINT_UNSPECIFIED`
+  (`HintStatus` value 0; `HINT_PRIORITY` is 30). So each hint needs its
+  own status and the client must group sends by (player, status).
+* `Main.py` order: fill -> `post_fill` -> progression balancing ->
+  `pre_output` -> `generate_output` (threaded, per world) ->
+  `fill_slot_data`. Balancing can move items after `post_fill`, so hint
+  choice must happen at/after `pre_output`.
+
+### R.2 Option
+
+`options.py`: `TranslatorLoreHints(Choice)`, display name "Translator
+Lore Hints", `option_off = 0`, `option_my_items = 1`, `option_any = 2`,
+`default = option_my_items`. Only progression items (`item.advancement`)
+are ever hinted.
+* `my_items`: each hologram names where one of *your* progression items
+  is, in any player's world.
+* `any`: the pool is your progression items anywhere **plus** other
+  players' progression items placed in *your* world (the most the server
+  allows).
+* `off`: holograms keep their vanilla lore text; no hints.
+Field `translator_lore_hints` right after `sky_temple_key_hints`; add it
+to the "Goal" `OptionGroup` next to `SkyTempleKeyHints` (or a new
+"Hints" group holding both -- pick one, keep it tidy).
+
+### R.3 `hint_scans.py`
+
+* Give `HintScan` a `room: str = ""` field (e.g. `"Temple Grounds -
+  Meeting Grounds"`) and add `TRANSLATOR_LORE_HINT_SCANS:
+  tuple[HintScan, ...]`, the 22 rows above in that order. Test: its STRG
+  set equals exactly the DB `hint` nodes that have `extra.translator`,
+  each row's scan equals `LORE_HINT_SCAN_IDS[strg]`, and `room` matches
+  the node's region/area.
+* slot_data entries grow a status: `{scan_id: (location_player,
+  location_id, status)}` <-> `{str(scan_id): [player, location, status]}`.
+  `decode_hint_scans` accepts old 2-element entries as
+  `HintStatus.HINT_PRIORITY`. STK entries (section Q) are written with
+  `HINT_PRIORITY` explicitly.
+* `newly_completed_hints` returns `{(location_player, status): sorted
+  location ids}` instead of `{player: ids}`.
+* `translator_lore_hint_locations(world) -> list[Location | None]`
+  (length 22, index i is `TRANSLATOR_LORE_HINT_SCANS[i]`), computed once
+  and cached on the world (e.g. `world._translator_lore_hints`):
+  - `off` -> 22 `None`s (and callers don't write anything, see below).
+  - candidates = every filled location in the multiworld with
+    `address is not None`, `item.advancement`, and
+    `item.player == world.player`; under `any` also every location with
+    `location.player == world.player` holding another player's
+    progression item. Exclude this player's Sky Temple Key items unless
+    `sky_temple_key_hints` is `disabled` (the pillars already cover them).
+    Also skip `skip_balancing` items (expansions and other bulk
+    progression). Dedupe, sort by `(location.player, location.address)`.
+  - `rng.shuffle(candidates)`, then take in order skipping any repeat of
+    `(item.player, item.name)` (one Energy Tank hint, not four), up to
+    22; pad with `None`. (Added after the first build: plain
+    `rng.sample` spent most holograms on expansions and Energy Tanks.)
+  - RNG: `random.Random(f"{world.multiworld.seed}:{world.player}:translator_lore_hints")`
+    -- deterministic per seed but NOT drawn from `world.random`, so toggling
+    this option never reshuffles the rest of the patch (the OPR `seed`
+    field etc.). Comment why.
+  - Lazy compute is safe: its first caller is `generate_output` (after
+    balancing). Also call it from `pre_output` so the choice is pinned
+    before the threaded output stage. Initialize the cache attribute
+    where `sky_temple_key_locations` is initialized.
+
+### R.4 Generation side
+
+* `patch_data.py`: rename the three `_STK_*_COLOR` constants to shared
+  `_HINT_ITEM_COLOR` / `_HINT_PLAYER_COLOR` / `_HINT_LOCATION_COLOR`.
+  New `_translator_lore_hint_text(world, location, colored=True) -> str`:
+  - location: `f"{item_owner} {item} can be found in {loc_owner} {loc}."`
+    where `item_owner` is `"Your"` or `"<player>'s"`, `loc_owner` is
+    `"your"` or `"<player>'s"`, names/item/location sanitized with
+    `_sanitize` and colorized (player color on player names only) when
+    `colored`.
+  - `None`: `"The Luminoth have nothing more to tell you."`
+  New `_translator_lore_string_changes(world)`: `[]` when `off`,
+  otherwise one `{"strg_id", "strings": [t, "", t]}` per hologram.
+  `make_rando_configuration`'s `string_changes` = STK changes + these.
+* `__init__.py`:
+  - `pre_output`: call `translator_lore_hint_locations(self)`.
+  - `fill_slot_data`: add each non-`None` hologram hint to `hint_scans`
+    as `(loc.player, loc.address, HINT_PRIORITY if loc.item.player ==
+    self.player else HINT_UNSPECIFIED)`.
+  - `write_spoiler`: when not `off`, a "Translator Lore Hints
+    (<player>):" block, one line per hologram: `f"    {room}: {plain text}"`
+    using `colored=False`.
+
+### R.5 Client
+
+`client.py::_handle_hint_scans` sends one `CreateHints` per
+`(player, status)` group with that status (single `send_msgs` list).
+Nothing else changes.
+
+### R.6 Tests
+
+* `test_hint_scans.py`: table checks above; 3-tuple encode/decode round
+  trip + 2-element backward compat; grouping by (player, status).
+* Selection (use the existing generation test bases, 2 players where
+  needed): `off` -> no lore string changes and no lore slot_data entries;
+  `my_items` -> every chosen location holds this player's progression
+  item, 22 distinct; `any` with a second player -> candidates include
+  foreign progression items in this world, and those entries carry
+  `HINT_UNSPECIFIED`; STK exclusion follows `sky_temple_key_hints`;
+  determinism (same seed -> same choice) and the text/slot_data agree
+  (same locations). Fewer candidates than holograms -> padded with the
+  "nothing more" text and no slot_data entry.
+* Client: mixed statuses produce separate `CreateHints` messages.
+
+### R.7 Excluding bulk/indistinguishable-copy items (2026-09-28)
+
+Originally only `skip_balancing` items (Missile/Power Bomb/Dark/Light/Beam
+Ammo Expansions) were excluded from the candidate pool by classification,
+plus a conditional `exclude_own_stk` that only dropped this player's own
+Sky Temple Keys when `sky_temple_key_hints != disabled` (letting STK
+locations leak into the lore-hint pool as a fallback when the pillars
+themselves were turned off) -- Energy Tank was never excluded at all
+(plain `progression`, not `skip_balancing`), so a hologram could point at
+"an Energy Tank" out of 14 indistinguishable copies, which isn't
+actionable.
+
+`hint_scans.py`'s `_LORE_HINT_EXCLUDED_ITEM_NAMES` (`STK_ITEM_NAMES |
+{"Energy Tank"}`) now excludes both by name, unconditionally -- Sky Temple
+Keys are excluded regardless of `sky_temple_key_hints` (own or foreign,
+under `any`), and Energy Tank is excluded the same way `skip_balancing`
+expansions already were. The `exclude_own_stk`/`SkyTempleKeyHints` import
+this replaced is gone from `hint_scans.py` entirely.
+
+## S. `sky_temple_keys_required` (MP1-style reduced key requirement)
+
+Ported from `worlds/metroidprime`'s `required_artifacts`/`has_group`
+pattern: a separate knob from `sky_temple_keys` (section F) that lets
+fewer than all 9 Sky Temple Keys actually be *required* to finish the
+game, independent of how many of the 9 `sky_temple_keys` shuffles into
+the pool as findable pickups versus pre-collects for free. Requested
+directly (MP1 has this; MP2 vanilla and every prior tool checked --
+randovania's `prime2`/`prime2_opr` games, open-prime-rando -- did not).
+
+**Why this is a real difficulty reduction, not just relocation.**
+Randovania's own `LayoutSkyTempleKeyMode.num_keys` looks similar but
+isn't: it only controls how many of the 9 are shuffled-vs-precollected,
+and the *physical* Sky Temple Gateway door still hardcodes "all 9" no
+matter the mode, so the player ends up holding all 9 regardless (some
+found, some free) -- confirmed by reading
+`randovania/games/prime2/generator/pickup_pool/sky_temple_keys.py` and
+grepping open-prime-rando for any "gateway"/counter patch (none exists).
+This project's own `sky_temple_keys` option (section F) already matches
+that same present-vs-precollected shape. `sky_temple_keys_required`
+instead patches the in-game gate itself, so a lower value genuinely means
+fewer key *locations* ever need to be found before Dark Samus 3/4 is
+reachable -- the other keys still exist and can still be collected
+(nothing is removed from the pool), they simply stop being necessary.
+
+**The in-game mechanism (verified against a retail NTSC-U ISO via
+`retro_data_structures`/open-prime-rando's `PatcherEditor`, Temple
+Grounds/Sky Temple Gateway MREA).** An `AdvancedCounter` named "Count Keys
+Returned" (`Default` layer) increments once per Sky Temple Key whose
+`PlayerItem` amount reads 1: 9 "\[IN\] Query Key Return" `ConditionalRelay`
+objects (one per key) are re-evaluated from scratch whenever "Initiate
+Returned Key Tests" (a `SequenceTimer` in the `All columns` layer) pulses
+them with `SetToZero` -- on room load and after a key is inserted -- so
+this naturally also covers keys the player already held on first arrival,
+not just ones inserted in front of the player. The counter's `Open`
+message to a `Switch` named "Got All Keys ?" -- which starts the
+"Returned All Keys" `SequenceTimer` that lowers the ring of columns and
+unlocks everything downstream (elevator to Sky Temple, Dark Samus 3/4) --
+is wired from the counter's 9th internal state (`InternalState08`; state
+N corresponds to N+1 keys held, confirmed by state 2, the 3rd, driving
+the "Returned 3 Keys" HUD message via a separate connection on the same
+counter). Moving that one connection to an earlier internal state
+(`InternalState{required-1:02d}`) is the entire patch: every query relay,
+the per-key column-raising visuals (`All columns` layer), and the
+"Returned N Keys" HUD messages are all untouched and still track every
+key the player actually holds, up to 9 -- they just no longer gate
+progress past `required`. (The room also has several unrelated "\[OUT\]
+Has 8 Keys" `Counter`s fed by a `Temporary keys` layer's "Check Key N"
+relays, one set per key excluded -- an 8-of-9 "final key" detector for
+cinematic purposes, confirmed unrelated by tracing incoming/outgoing
+connections; not touched.)
+
+**Where this lives, and why not in open-prime-rando.** The user maintains
+a fork of open-prime-rando (already carrying an unreleased
+`feature/warp-to-start` branch) and the pinned dependency
+(`open-prime-rando[nod]==0.20.1` in `pyproject.toml`) is a released PyPI
+version, not a local/path install of either checkout on disk -- so a
+change made only in the fork's source wouldn't actually run until a new
+release is cut and the pin bumped. This project already has a precedent
+for exactly this situation: `client/warp_patch.py`'s "open-prime-rando has
+no equivalent" docstring, which reimplements warp-to-start's SCLY half
+directly against the client's own `PatcherEditor` instance and hooks it
+into `open_prime_rando.echoes.patcher._apply_patches` via a monkeypatched
+`register_world_changes` (`client/patcher_runner.py`'s
+`warp_to_start_installed` context manager) rather than waiting on an OPR
+release. `client/sky_temple_key_gate_patch.py` follows the identical
+shape (`set_sky_temple_key_requirement`/`register`,
+`patcher_runner.sky_temple_keys_required_installed` wrapping
+`register_world_changes` the same way) -- simpler than warp-to-start
+since this feature needs no DOL patch at all, only one more registered
+SCLY function, so there is no "DOL half" to this module. Like
+`warp_to_start`, this is a candidate to upstream into the OPR fork later;
+not done here since the pinned release wouldn't pick it up regardless.
+
+**Config plumbing.** `sky_temple_keys_required` (options.py, `Range`
+1-9, default 9) is resolved (and clamped -- see below) by
+`item_pool.sky_temple_keys_required_count`, which is also where
+`item_pool.sky_temple_keys_present_count` now lives (a small refactor:
+the existing numeric-mode branch of `_apply_sky_temple_keys` calls it
+too, instead of duplicating `int(mode)`). Like `warp_to_start`/
+`show_item_locations`/`spring_ball` before it, the resolved value has no
+home in OPR's `RandoConfiguration` (`config.json` is validated with
+`extra="forbid"`), so `__init__.py`'s `generate_output` writes it into
+`options.json` instead, where `patcher_runner.patch_iso_with_ap` reads it
+back (default 9 if absent, so a `.apmp2` produced before this option
+existed still patches unchanged).
+
+**Clamping.** `sky_temple_keys_required_count` clamps the raw option
+value down to `sky_temple_keys_present_count(world)` -- the same
+present-vs-precollected count `_apply_sky_temple_keys` uses -- so a seed
+can never require more keys than could possibly be held (e.g.
+`sky_temple_keys=all_guardians` only ever makes 3 keys distinguishable
+from "already held for free"; requiring 9 there would be trivially
+satisfied by the 6 precollected keys alone regardless, since
+`CollectionState.__init__` processes precollected items unconditionally
+-- clamping to 3 instead keeps the option's stated number meaningful).
+
+**Logic side.** The generated logic database (from randovania's
+`prime2_opr` data, section C) has exactly one edge anywhere that mentions
+a `TempleKeyN` resource -- verified by grepping every region JSON's
+connections for the substring -- Sky Temple Grounds/Sky Temple Gateway's
+"Spawn Point/Front of Teleporter" -> "Elevator to Sky Temple", whose
+requirement is a flat `and` of the 9 `TempleKeyN` resources (each amount
+1) plus a `DarkWorld1` damage check. `logic/regions.py`'s
+`_intra_area_edges` special-cases this one edge (`SKY_TEMPLE_GATEWAY_KEY_
+NODE`/`_TARGET`, alongside the file's existing `translator_gate_
+requirement` override for `configurable_node`s): `_strip_sky_temple_key_
+items` removes the 9 key resources from the requirement tree before
+compiling (leaving the damage check to compile normally), and the result
+is ANDed with `_sky_temple_key_count_rule` -- a `Rule` closure counting
+`state.has("Sky Temple Key N", player)` across all 9 and comparing
+against `sky_temple_keys_required_count(world)`, matching in state-space
+exactly what the ISO patch above checks in the actual game (every key
+currently held, regardless of how it was obtained).
+
+**Tests.** `test_regions.py` (region graph, via `can_reach_location` on
+the real victory event location -- *not* `multiworld.can_beat_game`,
+which sweeps for reachable-but-uncollected advancement items first and
+would auto-collect a deliberately-excluded key, defeating the point):
+required=6 beatable holding exactly 6 of 9 keys, still unbeatable holding
+5; default (9) still needs every key; `sky_temple_keys=3` with
+`required=9` clamped down to 3 is satisfiable via the 6 precollected keys
+alone, without ever collecting the 3 findable ones (the case that would
+fail unclamped). `test_pool.py`: present/required count helper values
+across modes, including the `all_guardians` clamp. `test_sky_temple_key_
+gate_patch.py`: the connection-rewiring logic against a fake `Area`/
+`ScriptInstance` (moves the `Open` connection to the right internal
+state, preserves unrelated connections, no-ops at 9, rejects out-of-range
+values and a malformed room with more than one `Open` connection);
+`register`'s wiring; `sky_temple_keys_required_installed`'s wrap/restore
+(including on exception, matching `TestWarpToStartInstalled`'s
+coverage); the resolved value's route into `options.json` (default,
+lowered, clamped) with `assertNotIn` on `config.json`.
+
+---
+
+## T. `move_while_scanning`
+
+A port of randomprime's (undocumented) `moveWhileScan` CtwkConfig field
+(`randomprime/schema/randomprime.schema.json`'s `moveWhileScan`,
+`randomprime/src/patches.rs::patch_ctwk_player` -- `ctwk_player.
+scan_freezes_game = 0` when set): lets the player move while Scan Visor is
+locked onto a scan point, instead of the game freezing movement for the
+scan's duration. Purely a resource-tweak field flip, no DOL asm and no
+SCLY object involved at all -- the simplest of the QoL ports so far.
+
+**Where this lives, and why not in open-prime-rando (same reasoning as
+section S's `sky_temple_keys_required`).** The pinned dependency
+(`open-prime-rando[nod]==0.20.1`) is a released PyPI version; a
+`move_while_scanning: bool` field was added to the fork's
+`RandoConfiguration` (`echoes/rando_configuration.py`) and wired into
+`echoes/patcher.py::apply_dol_patches` (`with editor.edit_tweak(TweakPlayer)
+as tweak: tweak.scan_visor.scan_freezes_game = not configuration.
+move_while_scanning`, mirroring `damage_changes.py`'s existing `edit_tweak
+(TweakPlayer)` usage for `dark_world`/`dark_suit_damage_reduction`) as a
+candidate to upstream later, but the pinned release wouldn't pick it up
+regardless -- confirmed by regenerating the fork's own golden-hash export
+tests (`tests/test_files/echoes/new_patcher.json` gained `"move_while_
+scanning": true`; only `Standard.ntwk`'s hash changed, and the full 251-test
+OPR suite still passes against real NTSC/PAL ISOs). So, like
+`warp_to_start`/`show_item_locations`/`spring_ball`/
+`sky_temple_keys_required` before it, the actual shipped feature lives in
+`client/patcher_runner.py`: `install_move_while_scanning(editor)` calls the
+exact same `editor.edit_tweak(TweakPlayer)` two-liner directly against the
+client's own `PatcherEditor`. Unlike every other patch-time setting so far
+this needs no hook into `_apply_patches` at all (no `register_world_changes`
+wrap, no code-cave request) -- like `install_spring_ball`, it only needs to
+run once on `editor` before `_apply_patches`'s trailing
+`editor.save_modifications(output, ...)`, which `patch_iso_with_ap` already
+guarantees by calling it in the same place spring ball's installer runs,
+right before the `ExitStack` of hook-based patches. Verified directly
+against the pinned 0.20.1 release and a real vanilla ISO (not just the
+fork): `editor.edit_tweak(TweakPlayer)` reads `scan_freezes_game=True`
+before `install_move_while_scanning`, `False` after.
+
+**Config plumbing.** `move_while_scanning` (options.py, `Toggle`, default
+off -- matching randomprime's own default-off `moveWhileScan`, since there
+is no MP1-world precedent either way to mirror) has no home in OPR's
+`RandoConfiguration` for the reason above, so `__init__.py`'s
+`generate_output` writes it into `options.json` alongside `warp_to_start`,
+where `patcher_runner.patch_iso_with_ap` reads it back (default `False` if
+absent, so a `.apmp2` produced before this option existed still patches
+unchanged).
+
+**Tests.** `test_move_while_scanning.py`: the option's route into
+`options.json` with `assertNotIn` on `config.json` (enabled/default-off);
+`install_move_while_scanning` against a fake `PatcherEditor` exposing just
+`edit_tweak`, asserting it flips `scan_visor.scan_freezes_game` and nothing
+else.
+
+---
+
+## U. Splitting `sky_temple_keys` into count + `sky_temple_keys_locations`
+
+Section F's original `sky_temple_keys` was a single `Choice` conflating
+two independent axes: how many of the 9 keys are findable at all
+(`0`-`9`), and where the findable ones are placed (numeric modes leave
+them to the general pool; `all_bosses`/`all_guardians`/
+`all_guardians_plus_6` lock them onto boss/guardian pickups). That made
+the option's own value space redundant -- `all_guardians` and
+`all_guardians_plus_6` differed only in whether keys 4-9 were
+precollected or pooled, a distinction that had nothing to do with
+"guardians" -- and forced anyone wanting, say, 5 findable keys locked
+across the 3 guardians-plus-pool to fall back to a numeric mode and lose
+the guardian placement entirely.
+
+Split into two options (`options.py`): `sky_temple_keys` is now a plain
+`Range(0, 9)`, just the findable-count axis from section F, with the
+exact same semantics as the old numeric modes (`N` findable, `9-N`
+precollected). `sky_temple_keys_locations` is a `Choice` with only the
+placement axis: `off` (default; matches the old numeric modes exactly),
+`all_bosses` (matches the old `all_bosses`, but now requires
+`sky_temple_keys == 9` since there are exactly 9 boss/guardian slots to
+fill), `all_guardians` (locks keys 1-3 onto the 3 guardians, same as
+before, then shuffles keys 4..`sky_temple_keys` into the pool -- which
+subsumes both old `all_guardians` (`sky_temple_keys=3`, nothing left to
+pool) and old `all_guardians_plus_6` (`sky_temple_keys=9`, keys 4-9
+pooled) as special cases of one mechanism, so `all_guardians_plus_6` is
+gone entirely). Requires `sky_temple_keys >= 3` (enough keys to cover the
+3 locked guardian slots).
+
+**`item_pool.py` simplifies too.** `sky_temple_keys_present_count(world)`
+used to special-case each old mode; since "present" (findable, as opposed
+to precollected) is now always exactly `sky_temple_keys` regardless of
+`sky_temple_keys_locations` (the guardian-lock + pool split still sums to
+`sky_temple_keys`), it's now a one-line passthrough.
+`sky_temple_keys_required_count` (section S) is unchanged -- it already
+just clamped the raw `sky_temple_keys_required` value down to
+`sky_temple_keys_present_count(world)`, so "`sky_temple_keys_required`
+must be no higher than `sky_temple_keys`" was already the enforced
+invariant, just against a more roundabout present-count calculation.
+
+**Validation.** The two placement preconditions above
+(`all_bosses` needs `sky_temple_keys == 9`; `all_guardians` needs
+`sky_temple_keys >= 3`) are real constraints, not something to silently
+reinterpret, so `MetroidPrime2World.generate_early` raises
+`Options.OptionError` (imported as `from Options import OptionError`,
+matching the `worlds/paint`/`worlds/lingo` convention -- the first use of
+`OptionError` in this world) when they're violated, right after the
+Universal Tracker passthrough block and before anything else reads
+`self.options`. This is a harder failure mode than
+`sky_temple_keys_required`'s silent clamp deliberately: a clamp has a
+well-defined, always-satisfiable fallback (require fewer keys), but there
+is no sensible auto-correction for "you asked to lock 9 keys onto bosses
+but only made 5 of them findable" short of guessing which 5, so it errors
+instead.
+
+**Migration note.** This is a breaking option-shape change: old YAMLs
+using `sky_temple_keys: all_bosses`/`all_guardians`/`all_guardians_plus_6`
+need `sky_temple_keys: 9` (or `3` for old `all_guardians`) plus the new
+`sky_temple_keys_locations: all_bosses`/`all_guardians` key instead. Old
+numeric values (`sky_temple_keys: 0`-`9`) are unaffected --
+`sky_temple_keys_locations` simply defaults to `off`, reproducing the old
+numeric-mode behavior exactly.
+
+## V. `translator_lore_rando` (lore hologram colors)
+
+Option `TranslatorLoreRando(Choice)`, `vanilla` (default) / `full_random`,
+right after `translator_lore_hints` in the "Goal" group. No "unlocked"
+outcome: a hologram with no translator would need a new hologram look, and
+the point of the option is colored hints.
+
+### V.1 Facts (verified 2026-09-30 against retail NTSC and PAL, identical)
+
+* Each of the 22 lore rooms wires its hologram like a translator gate: CRLY
+  "Does Player Have Correct Translator?" (`conditional1.player_item` =
+  translator) -> Open: deactivate POIN "Translator No", activate POIN
+  "Translator Yes" (the tracked lore SCAN). ACTR "Lore Hologram" is
+  ScanSource for both POIs; its model is unique per hologram, 1 material
+  set, 1 texture = the per-color lore texture (violet 0x4BE5342E, amber
+  0xF5308558, emerald 0xA9640FDF, cobalt 0x2C56D2D4). ACTR "Glow For Holo 1"
+  uses the same 4 glow models as OPR's `TRANSLATOR_DATA`. The projector
+  (0x34BAA476, "Active/Inactive Lore Object") is shared and color-neutral.
+* The "Translator No" SCAN 0x0D16CCEE (STRG 0xF11AD0F9) is shared by all 22
+  and names no color, so no string change is needed.
+* Several of these rooms also have a translator gate with its own
+  "Glow For Holo 1", so the patch uses instance ids
+  (`client/lore_translator_patch.py`'s `LORE_HOLOGRAMS`), not names.
+
+### V.2 Implementation
+
+* `logic/translator_gate_rando.py`'s `build_translator_lore_assignment` ->
+  `world.translator_lore_assignment` (`{strg_id: color}`, `{}` under
+  vanilla, no RNG draw then), built in `generate_early` before dock rando
+  (its probe goes through `_leave_requirement`).
+* `logic/regions.py`'s `_leave_requirement` gives a reassigned hint node
+  Scan + its new color (`Node.string_asset_id` added to find it).
+* options.json `translator_lore_colors` (`{str(strg_id): "amber", ...}`) ->
+  `patcher_runner.translator_lore_colors_installed` ->
+  `lore_translator_patch.register`, which skips unchanged holograms and
+  for the rest retargets the CRLY, swaps the glow model, and duplicates the
+  hologram model with the new texture (OPR's gate technique; area
+  dependency rebuild pulls the texture into the pak).
+* Spoiler: "Translator Lore Colors" block when randomized.
+
+## W. Universal Tracker regeneration
+
+UT regenerates the world from `multiworld.re_gen_passthrough[game]` (the
+static `interpret_slot_data` returns slot data unchanged) but has no access
+to the original seed. Options already came through slot data, but the
+per-seed *randomized state* did not: the starting room, door-lock /
+elevator / portal rando, translator gate colors and lore hologram colors
+are all `world.random` draws, so a regen rolled different ones and the
+tracker's logic disagreed with the real game.
+
+* `tracker_data.py`: `encode_randomization(world)` /
+  `decode_randomization(slot_data)`. Slot keys `starting_location`,
+  `translator_gates`, `translator_lore`, `dock_rando`; `NodeId`s are stored
+  as `[region, area, node]` lists and maps as lists of pairs (JSON-safe --
+  ids can't be dict keys and tuples come back as lists).
+* `fill_slot_data` adds them; `generate_early` restores them after applying
+  the option passthrough, skipping the `starting_room` draw and the three
+  `build_*_assignment` calls (incl. dock rando's reject-and-retry probe).
+* Slot data from before this change lacks the keys: `decode_randomization`
+  returns `None` and generation falls back to re-rolling, which is only
+  right for seeds that left every randomized option at "vanilla".
+* `test/test_tracker_data.py` regenerates under a different seed with
+  `generation_is_fake`/`re_gen_passthrough` set and asserts identical
+  assignments and entrance graph (verified to fail with the restore off).
+* `ut_can_gen_without_yaml = True`: slot data holds every world option
+  (`test_slot_data_covers_every_world_option` guards future additions) plus
+  the randomized state, so UT skips its first generation and needs no
+  player yaml. Only server-side options (`exclude_locations`, `start_*`,
+  ...) fall back to defaults in the tracker.
+* Not done: deferred entrances (`found_entrances_datastorage_key`).
+
+### W.1 Item strip (`client/item_panel.py`)
+
+Two rows of upgrade icons plus nine counters (energy tanks, missiles, power
+bombs, dark/light ammo, Sky Temple Keys, and the three Dark Temple key
+sets), below the client window like `worlds/metroidprime`'s.
+`compute_panel_state` (pure) derives everything from the received item
+names; ammo totals and the launcher / power bomb unlock flags come from
+`receive_items.compute_desired_capacities` so the strip can't drift from
+what the client actually grants. Progressive Suit/Grapple resolve to Dark/
+Light Suit and Grapple/Screw Attack by copy index. Sky Temple Keys show
+`have/sky_temple_keys_required`.
+
+Icons (`assets/items`, 41 PNGs) come from `tools/make_tracker_icons.py`:
+16 copied from the Prime 1 world where the item is the same, 16 recolored
+from the analogous Prime 1 icon (Dark/Light beams from the beam hands,
+Darkburst/Sunburst/Sonic Boom from the charge combos, suits, visors, ammo
+expansions), and 9 drawn with Pillow (Screw Attack, four translators, Sky
+Temple Key, three Dark Temple keys). Committed, so the script only needs
+re-running to change an icon.
+
+### W.2 Map tab (`tracker/`, `tracker_data.TRACKER_WORLD`)
+
+An internal poptracker pack, one map per logic-database region (10).
+There is no Echoes map art to reuse and UT's docs advise against shipping
+game images, so `tools/make_tracker_map.py` draws schematic maps from room
+geometry: each area's world-space AABB (MLVL `area_bounding_box` +
+`area_transform` translation, extracted once from the ISO into
+`tools/room_bounds.json`) tinted by height, pickups placed from the logic
+DB's node coordinates (same world frame; 118/119 fall inside their room's
+box, the last is 3 units off in z). Section names are the AP location names,
+which is what UT matches on.
+
+Auto-tabbing: a light region and its dark counterpart share one MLVL
+(Temple Grounds + Sky Temple Grounds, ...), so the existing
+`metroidprime2_mlvl_*` key can't pick the map. The client now also writes
+`metroidprime2_area_{team}_{slot}` = `"<mlvl hex>:<area index>"` (the area
+index it already reads for goal detection) and `tracker_data.map_page_index`
+resolves that through `tracker/area_maps.json`; unrecognized values return
+-1 (keep the current tab).
+
+Not done: a player-position marker (`location_setting_key` /
+`location_icon_coords`) -- would need the player's world coordinates read
+from memory and an icon.
+
+Verification: unit tests cover the panel state, the headless kivy build of
+the strip (mock GL), every location appearing exactly once on its region's
+map with unique in-bounds pixels, the auto-tab mapping, and UT's own
+`UTMapTabData` accepting `TRACKER_WORLD`. Nothing has been run in a live UT
+session, so how the strip and the map actually look is unchecked.

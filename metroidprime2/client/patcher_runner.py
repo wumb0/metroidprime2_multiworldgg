@@ -123,6 +123,23 @@ def install_spring_ball(editor: Any, dol_version: Any, button: str) -> None:
     spring_ball_patch.apply_dol_patches(editor.code_cave, version_info.spring_ball, button)
 
 
+def install_move_while_scanning(editor: Any) -> None:
+    """Flips CTWK-Player's ``ScanFreezesGame`` off, mirroring randomprime's
+    (undocumented) ``moveWhileScan`` -- open-prime-rando has no field for
+    this (config.json is validated with ``extra="forbid"``), so like spring
+    ball it's applied directly here instead of via ``RandoConfiguration``.
+
+    Resource-only (a single tweak field, no DOL asm), so like spring ball
+    this needs no hook into ``_apply_patches``: the mutated tweak instance
+    just has to be on ``editor`` before ``editor.save_modifications`` runs,
+    which ``_apply_patches`` calls at its very end.
+    """
+    from retro_data_structures.properties.echoes.objects import TweakPlayer
+
+    with editor.edit_tweak(TweakPlayer) as tweak:
+        tweak.scan_visor.scan_freezes_game = False
+
+
 @contextlib.contextmanager
 def warp_to_start_installed(dol_version: Any, starting_area: Any):
     """Context manager installing both halves of warp-to-start (see
@@ -151,6 +168,80 @@ def warp_to_start_installed(dol_version: Any, starting_area: Any):
         warp_patch.apply_dol_patches(area_patcher.editor.code_cave, version_info.warp_to_start)
 
     opr_patcher.register_world_changes = _register_world_changes_with_warp
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
+def sky_temple_keys_required_installed(required: int):
+    """Context manager installing the Sky Temple Key gate rewrite
+    (``client/sky_temple_key_gate_patch.py``) for the duration of one
+    ``_apply_patches`` call.
+
+    Uses the same ``register_world_changes`` hook point as
+    ``warp_to_start_installed`` above (see its docstring) -- the DOL-free
+    equivalent of that mechanism, since this feature needs no DOL patch at
+    all, only one more registered SCLY function.
+    """
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import sky_temple_key_gate_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_gate(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        sky_temple_key_gate_patch.register(area_patcher, required)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_gate
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
+def goal_warp_installed(goal: int):
+    """Context manager installing the boss-skip goal warps
+    (``client/goal_warp_patch.py``) for the duration of one
+    ``_apply_patches`` call, through the same ``register_world_changes``
+    hook as ``sky_temple_keys_required_installed`` above."""
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import goal_warp_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_goal_warp(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        goal_warp_patch.register(area_patcher, goal)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_goal_warp
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
+def translator_lore_colors_installed(colors: dict[int, str]):
+    """Context manager installing the translator lore hologram recoloring
+    (``client/lore_translator_patch.py``) for the duration of one
+    ``_apply_patches`` call, through the same ``register_world_changes``
+    hook as ``sky_temple_keys_required_installed`` above."""
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import lore_translator_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_lore(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        lore_translator_patch.register(area_patcher, colors)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_lore
     try:
         yield
     finally:
@@ -334,9 +425,16 @@ def patch_iso_with_ap(
     apmp2_options = _read_apmp2_json(apmp2_file, "options.json")
     _check_pickup_encoding_compatibility(apmp2_options)
     warp_to_start = bool(apmp2_options.get("warp_to_start", False))
+    move_while_scanning = bool(apmp2_options.get("move_while_scanning", False))
     show_item_locations = bool(apmp2_options.get("show_item_locations", False))
+    max_energy_tanks = int(apmp2_options.get("max_energy_tanks", constants.DEFAULT_MAX_ENERGY_TANKS))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
+    sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
+    goal = int(apmp2_options.get("goal", constants.GOAL_BOTH_BOSSES))
+    translator_lore_colors = {
+        int(strg_id): str(color) for strg_id, color in apmp2_options.get("translator_lore_colors", {}).items()
+    }
 
     _report("Reading input ISO", 0.0)
     provider = IsoFileProvider(input_iso)  # type: ignore[arg-type]
@@ -362,9 +460,19 @@ def patch_iso_with_ap(
             struct.pack(">I", constants.COUNTER_MAX_CAPACITY),
         )
 
+    # Energy Tank ceiling (``max_energy_tanks``; retail's is 14). Written
+    # unconditionally, like the counter ceilings above, so the cap is known
+    # on every DOL version rather than assumed from one.
+    editor.dol.write(
+        dol_version.powerup_max + constants.ENERGY_TANK_ITEM * 4,
+        struct.pack(">I", max_energy_tanks),
+    )
+
     try:
         if spring_ball:
             install_spring_ball(editor, dol_version, spring_ball_button)
+        if move_while_scanning:
+            install_move_while_scanning(editor)
         with contextlib.ExitStack() as patches:
             if warp_to_start:
                 patches.enter_context(
@@ -372,6 +480,12 @@ def patch_iso_with_ap(
                 )
             if show_item_locations:
                 patches.enter_context(item_map_icons_always_visible())
+            if sky_temple_keys_required != 9:
+                patches.enter_context(sky_temple_keys_required_installed(sky_temple_keys_required))
+            if goal != constants.GOAL_BOTH_BOSSES:
+                patches.enter_context(goal_warp_installed(goal))
+            if translator_lore_colors:
+                patches.enter_context(translator_lore_colors_installed(translator_lore_colors))
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)
 
         def _write_callback(bytes_written: int, total_bytes: int) -> None:

@@ -18,7 +18,7 @@ from BaseClasses import Item
 from . import constants
 from .items import ITEM_TABLE
 from .locations import LOCATION_TABLE
-from .options import SkyTempleKeys
+from .options import SkyTempleKeysLocations
 
 if TYPE_CHECKING:
     from . import MetroidPrime2World
@@ -78,25 +78,50 @@ def _guardian_location_names() -> list[str]:
     return [LOCATION_TABLE[index].name for index in _GUARDIAN_PICKUP_INDICES]
 
 
-def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
-    """Implements the sky_temple_keys option modes (PLAN.md section F):
+def sky_temple_keys_present_count(world: MetroidPrime2World) -> int:
+    """Number of Sky Temple Keys that are real, findable items under the
+    current ``sky_temple_keys`` value -- the rest are precollected for
+    free. This is just ``sky_temple_keys`` itself: regardless of
+    ``sky_temple_keys_locations``, exactly that many keys end up locked
+    onto a location or in the general pool, and the remainder (9 minus
+    that many) are precollected. Shared with ``logic/regions.py`` (the Sky
+    Temple Gateway gate rule) and ``patch_data.py``/``__init__.py`` (the
+    physical gate patch, ``sky_temple_keys_required``) so "present" means
+    the same thing in the pool, the logic, and the patched ISO.
+    """
+    return world.options.sky_temple_keys.value
 
-    - numeric N: keys 1..N go into the general pool, keys N+1..9 are
-      precollected (start already owned).
-    - all_bosses: all 9 keys are locked, in order, onto the 9 boss/
-      guardian pickup locations (sorted by pickup_index); none are
-      precollected or enter the general pool.
-    - all_guardians: keys 1-3 are locked onto the 3 dark temple guardian
-      locations (pickup_index 43, 79, 115); keys 4-9 are precollected.
-    - all_guardians_plus_6: same placement as all_guardians, but keys 4-9
-      are shuffled into the general pool instead of precollected.
+
+def sky_temple_keys_required_count(world: MetroidPrime2World) -> int:
+    """Resolved ``sky_temple_keys_required`` value: the option's raw value
+    clamped to ``sky_temple_keys_present_count`` (a seed can never require
+    more keys than could possibly be held)."""
+    return min(world.options.sky_temple_keys_required.value, sky_temple_keys_present_count(world))
+
+
+def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
+    """Implements the sky_temple_keys/sky_temple_keys_locations options
+    (PLAN.md section F). ``n = sky_temple_keys`` keys are findable, keys
+    n+1..9 are precollected (start already owned); ``generate_early``
+    validates the ``sky_temple_keys_locations`` preconditions below before
+    this ever runs.
+
+    - locations=off: the ``n`` findable keys go straight into the general
+      pool.
+    - locations=all_bosses (requires n == 9): all 9 keys are locked, in
+      order, onto the 9 boss/guardian pickup locations (sorted by
+      pickup_index); none enter the general pool.
+    - locations=all_guardians (requires n >= 3): keys 1-3 are locked onto
+      the 3 dark temple guardian locations (pickup_index 43, 79, 115);
+      keys 4..n are shuffled into the general pool like locations=off.
     """
     multiworld = world.multiworld
     world.sky_temple_key_locations = []
 
-    mode = world.options.sky_temple_keys.value
+    n = world.options.sky_temple_keys.value
+    locations_mode = world.options.sky_temple_keys_locations.value
 
-    if mode == SkyTempleKeys.option_all_bosses:
+    if locations_mode == SkyTempleKeysLocations.option_all_bosses:
         boss_locations = _boss_locations_in_pickup_order()
         assert len(boss_locations) == 9, f"expected 9 boss locations, got {len(boss_locations)}"
         for key_name, location_name in zip(STK_ITEM_NAMES, boss_locations, strict=False):
@@ -105,22 +130,19 @@ def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
             world.sky_temple_key_locations.append(location_name)
         return
 
-    if mode in (SkyTempleKeys.option_all_guardians, SkyTempleKeys.option_all_guardians_plus_6):
+    if locations_mode == SkyTempleKeysLocations.option_all_guardians:
         guardian_locations = _guardian_location_names()
         assert len(guardian_locations) == 3, f"expected 3 guardian locations, got {len(guardian_locations)}"
         for key_name, location_name in zip(STK_ITEM_NAMES[:3], guardian_locations, strict=False):
             location = world.get_location(location_name)
             location.place_locked_item(world.create_item(key_name))
             world.sky_temple_key_locations.append(location_name)
-        if mode == SkyTempleKeys.option_all_guardians_plus_6:
-            pool.extend(world.create_item(key_name) for key_name in STK_ITEM_NAMES[3:])
-        else:
-            for key_name in STK_ITEM_NAMES[3:]:
-                multiworld.push_precollected(world.create_item(key_name))
+        pool.extend(world.create_item(key_name) for key_name in STK_ITEM_NAMES[3:n])
+        for key_name in STK_ITEM_NAMES[n:]:
+            multiworld.push_precollected(world.create_item(key_name))
         return
 
-    # Numeric mode: 0..9 keys in the pool, the rest precollected.
-    n = int(mode)
+    # locations=off: the n findable keys go into the pool, the rest are precollected.
     pool.extend(world.create_item(key_name) for key_name in STK_ITEM_NAMES[:n])
     for key_name in STK_ITEM_NAMES[n:]:
         multiworld.push_precollected(world.create_item(key_name))

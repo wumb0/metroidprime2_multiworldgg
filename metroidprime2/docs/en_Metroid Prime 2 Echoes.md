@@ -41,6 +41,45 @@ The "Sky Temple Keys" option controls how the 9 keys are handled:
 
 Keys placed this way (All Bosses / All Guardians) are recorded in the spoiler log.
 
+The "Sky Temple Keys Required" option separately controls how many of the 9 keys must actually be held to unlock
+the Sky Temple Gateway's ring of columns and proceed to Dark Samus -- a real difficulty reduction, not just a
+relocation. With the default "Sky Temple Keys" of 9 (every key a normal pickup) and "Sky Temple Keys Required" at,
+say, 6, only 6 of the 9 key locations ever need to be found before the Gateway opens; the other 3 keys still exist
+and can still be found, they simply stop being necessary. Vanilla (and this option's default) requires all 9. A
+value higher than however many keys "Sky Temple Keys" actually makes obtainable is clamped down to that count,
+since it's impossible to hold more keys than exist.
+
+### Sky Temple Key hints
+
+The 9 Luminoth pillars in Sky Temple Gateway can tell you where each Sky Temple Key actually is, controlled by the
+"Sky Temple Key Hints" option:
+
+- **Scanned** (default): scan a pillar to see where that key is -- your own world or another player's -- and the
+  hint is sent to the multiworld server for everyone to see, the same as any other in-game hint. Nothing is
+  reported to the server until the scan actually finishes; a partial scan tells you nothing.
+- **Precollected**: every key's hint is already known and sent to the server as soon as the game begins, without
+  needing to scan anything.
+- **Disabled**: the pillars' text is replaced with a generic "lost somewhere in Aether" message instead of a real
+  hint, since the vanilla riddles describe vanilla key locations and would be misleading once keys are shuffled.
+
+### Translator lore hints
+
+The 22 colored Luminoth lore holograms scattered across the light regions can also each point at one progression
+item, controlled by the "Translator Lore Hints" option:
+
+- **My Items** (default): each hologram names where one of your own progression items is, in any player's world.
+- **Any**: the pool also includes other players' progression items that landed in your own world.
+- **Off**: holograms keep their vanilla lore text; nothing is hinted.
+
+You need the hologram's translator to read it. Bulk items such as expansions are never hinted, and each item is
+hinted at most once. Same as the Sky Temple Key pillars, scanning a hologram to completion sends the hint to the
+multiworld server.
+Your own Sky Temple Keys are left to the pillars above and never duplicated here, unless "Sky Temple Key Hints" is
+Disabled. If there are fewer eligible items than holograms, the extras just say there's nothing more to tell.
+
+The "Translator Lore Randomization" option can also give each hologram a random translator color instead of its
+region's usual one. The hologram and its glow are recolored to match, so you can still see which translator you need.
+
 ## What does the logic that places my items know about?
 
 Reachability is computed from Randovania's Metroid Prime 2: Echoes logic database -- the same data the standalone
@@ -95,6 +134,18 @@ Yes, if the `spring_ball` option is enabled. Once you have Morph Ball Bombs, pre
 `spring_ball_button` (C-Stick up by default) while rolling on the ground in Morph Ball jumps as high as a bomb jump,
 without laying a bomb. Holding the button keeps jumping each time you land, after a short cooldown. It doesn't work
 in mid-air, on Spider Ball tracks or during Screw Attack. Logic never requires it.
+
+## Do I have to scan elevators before using them?
+
+Not by default. With `pre_scan_elevators` enabled (the default), every elevator starts pre-scanned so you can step
+onto the platform and go without scanning the hologram pillar first. Disable it to require the scan, as in vanilla.
+This is purely cosmetic -- elevators are never logically gated on Scan Visor either way.
+
+## Can I move while scanning?
+
+Not by default. With `move_while_scanning` enabled, you can move around freely while Scan Visor is locked onto a
+scan point, instead of the game freezing you in place for the duration of the scan. This is purely cosmetic --
+logic never assumes you can move during a scan either way.
 
 ## What are the known limitations of this randomizer?
 

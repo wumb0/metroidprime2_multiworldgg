@@ -27,13 +27,22 @@ randovania's prime2_opr starter preset ships as "removed" -- Temple
 Grounds/Hive Transport Area and Temple Grounds/Industrial Site -- which is
 why they are excluded from randomization here; see
 ``randomizable_gate_ids``.
+
+The 22 translator lore holograms (``hint_scans.TRANSLATOR_LORE_HINT_SCANS``)
+get the same treatment under ``translator_lore_rando``
+(``build_translator_lore_assignment``), minus the "unlocked" outcome. A
+hologram is a dead-end hint node, never a location or a route, so recoloring
+one can't affect solvability at all -- ``logic/regions.py`` still applies
+the reassigned color to the node's requirement so the graph matches the
+patched game, and ``client/lore_translator_patch.py`` does the in-ISO half.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ..options import TranslatorGateRando
+from ..hint_scans import TRANSLATOR_LORE_HINT_SCANS
+from ..options import TranslatorGateRando, TranslatorLoreRando
 from .db_reader import GameDatabase, NodeId, load_game_database
 
 if TYPE_CHECKING:
@@ -47,6 +56,12 @@ TRANSLATOR_COLORS: tuple[str, ...] = ("Violet", "Amber", "Emerald", "Cobalt")
 # One entry per configurable_node gate; ``None`` means "unlocked" (Scan
 # Visor only, no translator required at all).
 TranslatorGateAssignment = dict[NodeId, str | None]
+
+# One entry per translator lore hologram whose color was reassigned, keyed by
+# the hologram's STRG id (``HintScan.strg_id`` -- also the vendored DB hint
+# node's ``extra.string_asset_id``). Holograms with no entry keep their
+# vanilla color (``HintScan.translator``).
+TranslatorLoreAssignment = dict[int, str]
 
 
 def build_translator_gate_assignment(world: MetroidPrime2World) -> TranslatorGateAssignment:
@@ -97,3 +112,14 @@ def randomizable_gate_ids(db: GameDatabase) -> list[NodeId]:
         for node in db.all_nodes()
         if node.node_type == "configurable_node" and db.vanilla_translator_gates[node.id] is not None
     ]
+
+
+def build_translator_lore_assignment(world: MetroidPrime2World) -> TranslatorLoreAssignment:
+    """``{strg_id: color}`` for every one of the 22 translator lore
+    holograms, empty when ``translator_lore_rando`` is left at "Vanilla"
+    (its default). The "Vanilla" branch makes no ``world.random`` draws, so
+    leaving the option off keeps an existing seed's generation bit-for-bit
+    unchanged."""
+    if world.options.translator_lore_rando.value == TranslatorLoreRando.option_vanilla:
+        return {}
+    return {hint_scan.strg_id: world.random.choice(TRANSLATOR_COLORS) for hint_scan in TRANSLATOR_LORE_HINT_SCANS}

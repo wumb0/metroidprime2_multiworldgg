@@ -81,18 +81,29 @@ class TestReferencedNames(unittest.TestCase):
     def test_primary_locations_and_items_exist(self) -> None:
         for name, test in _all_specs():
             entries = list(test.plando)
+            companions = {companion.name: companion.game for companion in test.companions}
             for variant in test.variants.values():
                 if variant.plando is not None:
                     entries.extend(variant.plando)
+                for companion in variant.companions or []:
+                    companions[companion.name] = companion.game
             for entry in entries:
                 item = entry.get("item") or entry.get("items")
                 location = entry.get("location") or entry.get("locations")
+                # A "world" entry places one of our items into a companion's
+                # world, so its location belongs to that companion's game.
+                if "world" in entry:
+                    self.assertIn(entry["world"], companions, f"{name}: plando targets unknown world")
+                    game = companions[entry["world"]]
+                    valid_locations = AutoWorldRegister.world_types[game].location_name_to_id
+                else:
+                    game, valid_locations = "Metroid Prime 2: Echoes", location_name_to_id
                 if location:
                     locations = [location] if isinstance(location, str) else location
                     for loc in locations:
                         with self.subTest(module=name, location=loc):
-                            self.assertIn(loc, location_name_to_id, f"{name}: unknown location {loc!r}")
-                if item and "world" not in entry:
+                            self.assertIn(loc, valid_locations, f"{name}: unknown {game} location {loc!r}")
+                if item:
                     items = [item] if isinstance(item, str) else list(item)
                     for it in items:
                         with self.subTest(module=name, item=it):

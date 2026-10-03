@@ -100,6 +100,7 @@ class Node:
 
     hint_kind: str | None = None
     requirement_to_collect: dict | None = None
+    string_asset_id: int | None = None
 
     teleporter_instance_id: int | None = None
     scan_asset_id: int | None = None
@@ -376,6 +377,7 @@ def _parse_node(region: str, area: str, node_name: str, raw: dict) -> Node:
         vanilla_color=extra.get("vanilla_color"),
         hint_kind=raw.get("kind"),
         requirement_to_collect=raw.get("requirement_to_collect"),
+        string_asset_id=extra.get("string_asset_id"),
         teleporter_instance_id=extra.get("teleporter_instance_id"),
         scan_asset_id=extra.get("scan_asset_id"),
         dock_name=extra.get("dock_name"),

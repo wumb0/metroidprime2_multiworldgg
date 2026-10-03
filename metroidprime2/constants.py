@@ -82,6 +82,12 @@ BITS_PER_COUNTER = 30
 # smaller number than vanilla's would only ever lower it for no benefit.
 COUNTER_MAX_CAPACITY = 0x7FFFFFFF
 
+# Energy Tank (item 42) ceiling. Retail's `powerup_max` caps tanks at this
+# value; the ``max_energy_tanks`` option raises it (client/patcher_runner.py
+# writes the table) and every place that clamps tank counts follows it.
+ENERGY_TANK_ITEM = 42
+DEFAULT_MAX_ENERGY_TANKS = 14
+
 # Written into options.json at generation time (__init__.py generate_output)
 # and checked by client/patcher_runner.py before patching an ISO: the
 # per-pickup resource mapping is baked into config.json at generation time
@@ -112,6 +118,44 @@ PICKUP_ENCODING_VERSION = "bitmask-v1"
 # means the game was beaten; accepting all five keeps the check from
 # depending on catching one particular ending segment in a 0.5s poll window.
 GAME_END_AREA_INDICES = frozenset({47, 50, 53, 56, 58})
+
+# ``options.py``'s ``Goal`` choice controls which of three conditions
+# ``client.py``'s ``_handle_check_goal`` accepts, and (for the two
+# boss-skipping ones) whether ``client/goal_warp_patch.py`` patches a warp to
+# the Credits into the ISO. Named here (not just inlined as 0/1/2 in
+# options.py) because client.py deliberately does not import options.py (see
+# options.py's own note next to ``Goal``) and needs the same values to
+# compare ``slot_data["goal"]`` against.
+GOAL_BOTH_BOSSES = 0  # vanilla: Credits only (GAME_END_AREA_INDICES above)
+GOAL_EMPEROR_ING = 1  # Credits, warped to on returning to Sky Temple Gateway after Ing
+GOAL_KEYS = 2  # Credits, warped to on reaching Sky Temple Energy Controller
+
+# Great Temple / Sky Temple share one MLVL (REGION_MLVL_IDS below); indices
+# verified the same way GAME_END_AREA_INDICES was cross-checked above --
+# parsing the shipped NTSC ISO's MLVL directly with retro_data_structures
+# (``Mlvl.areas``' ``.index`` matches ``CStateManager::m_nextAreaId`` 1:1,
+# confirmed against Temple Grounds' already-verified indices) -- rather
+# than derived from the randovania logic database, which only carries MREA
+# asset ids, not TAreaId order.
+GREAT_TEMPLE_SKY_TEMPLE_MLVL = 2252328306
+# Reachable only through the Sky Temple Gateway's key-count gate
+# (``sky_temple_keys_required``) -- there is no other door into Sky Temple.
+SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX = 9
+# The same room's MREA asset id, for ``client/goal_warp_patch.py``'s SCLY
+# edit (the index above is a TAreaId, which only the client's memory read
+# uses; patching goes by asset id).
+SKY_TEMPLE_ENERGY_CONTROLLER_MREA = 0x7B4AFA6F
+
+# The two boss-skip goals' warp patch (``client/goal_warp_patch.py``) also
+# writes this amount onto ``GOAL_MARKER_ITEM`` (74, PersistentCounter8 --
+# "Multiworld", unused since PLAN.md section P) as it starts the warp, and
+# the client reports the goal when it reads the counter at or above it.
+# That is a plain inventory read, so it needs no area-id match and cannot be
+# missed by a poll that lands between rooms. The amount sits above the
+# largest value the retired shared-counter pickup encoding could ever have
+# left on an old save (7140) and below the item's 65536 max capacity.
+GOAL_MARKER_ITEM = 74
+GOAL_MARKER_AMOUNT = 16384
 
 # --- asset ids ---------------------------------------------------------------
 # Temple Grounds region MLVL and its Landing Site / Credits area MREAs.
@@ -219,6 +263,17 @@ STATIC_VERSIONS = {
 
 # Items pushed via push_precollected regardless of options (the vanilla
 # starting inventory at Landing Site / Save Station).
+# Items whose pool size the client's tracker shows as the "total" in its
+# acquired/total counters (sent in slot_data as ``expansion_totals``).
+TRACKED_EXPANSIONS = (
+    "Energy Tank",
+    "Missile Expansion",
+    "Power Bomb Expansion",
+    "Dark Ammo Expansion",
+    "Light Ammo Expansion",
+    "Beam Ammo Expansion",
+)
+
 DEFAULT_STARTING_ITEMS = (
     "Power Beam",
     "Charge Beam",
@@ -331,3 +386,8 @@ OPR_MODEL_NAMES = frozenset(
         "SkyTempleKey",
     }
 )
+
+# Datastorage key the client writes the current area to (``"<mlvl hex>:<area
+# index>"``); UT's map tab watches it to follow the player between regions.
+# ``tracker_data.py`` owns the consumer side.
+AREA_DATASTORAGE_KEY = "metroidprime2_area_{team}_{slot}"
