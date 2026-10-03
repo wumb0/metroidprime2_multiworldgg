@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from .. import constants
 from ..items import PROGRESSIVE_ITEMS
 from .receive_items import compute_desired_capacities
 
@@ -27,7 +28,6 @@ UNLIMITED = "∞"
 # Counters with a fixed maximum are clamped to it: the server can resend items
 # (e.g. the collect on goal completion), and a counter must never read past
 # its max.
-ENERGY_TANKS_TOTAL = 14
 SKY_TEMPLE_KEYS_TOTAL = 9
 DARK_TEMPLE_KEYS_TOTAL = 3
 
@@ -144,6 +144,8 @@ def compute_panel_state(received_names: Iterable[str], slot_data: dict[str, Any]
     concrete = _resolve_progressive(names)
     have = set(concrete)
 
+    max_energy_tanks = int(slot_data.get("max_energy_tanks", constants.DEFAULT_MAX_ENERGY_TANKS))
+
     # Launcher/Power Bomb unlocks and ammo totals come from the same model
     # that drives what the client actually grants, so the panel can't
     # disagree with the game.
@@ -152,6 +154,7 @@ def compute_panel_state(received_names: Iterable[str], slot_data: dict[str, Any]
         0,
         bool(slot_data.get("missile_expansions_unlock_launcher", False)),
         bool(slot_data.get("power_bomb_expansions_unlock_power_bombs", False)),
+        max_energy_tanks,
     )
 
     state = PanelState()
@@ -176,9 +179,11 @@ def compute_panel_state(received_names: Iterable[str], slot_data: dict[str, Any]
         acquired = sum(concrete.count(item) for item in item_names)
         total = sum(totals.get(item, 0) for item in item_names)
         if counter == "energy_tanks":
-            # The game caps tanks at 14 however many are received.
-            total = total or ENERGY_TANKS_TOTAL
-            acquired = min(acquired, ENERGY_TANKS_TOTAL)
+            # The game caps tanks at max_energy_tanks (14 in vanilla)
+            # however many are in the pool or received, so the pool size
+            # isn't a meaningful denominator.
+            total = max_energy_tanks
+            acquired = min(acquired, max_energy_tanks)
         state.counters[counter] = f"{min(acquired, total)}/{total}" if total else str(acquired)
 
     # Keys are unique items, so count distinct names: a repeated delivery of

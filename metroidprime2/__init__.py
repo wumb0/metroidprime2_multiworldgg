@@ -312,6 +312,9 @@ class MetroidPrime2World(World):
                 "warp_to_start": bool(self.options.warp_to_start),
                 "move_while_scanning": bool(self.options.move_while_scanning),
                 "spring_ball": bool(self.options.spring_ball),
+                # Raises the DOL's Energy Tank powerup_max (client/
+                # patcher_runner.py); no RandoConfiguration field exists.
+                "max_energy_tanks": int(self.options.max_energy_tanks.value),
                 "spring_ball_button": self.options.spring_ball_button.current_key,
                 "show_item_locations": bool(
                     self.options.map_visibility.value == MapVisibility.option_full_map_and_items

@@ -1559,6 +1559,151 @@ If it fails, look at:
 * `test/test_goal_detection.py::TestBossSkipGoals`
 * `test/test_goal_warp_patch.py`
 
+### MT18_MAX_ENERGY_TANKS -- `mt18_max_energy_tanks` (P2)
+
+*Proves: max_energy_tanks rewrites the game's Energy Tank cap, and the client, tracker panel and starting inventory all clamp to that same value*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt18_max_energy_tanks --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `energy_per_tank=100`, `max_energy_tanks=20`, `portal_rando=False`, `translator_gate_rando=vanilla`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Notes / derived values:
+* EXPERIMENTAL: vanilla caps Energy Tanks at 14 (`powerup_max[42]`); whether the game copes with more is untested. If tanks past 14 never appear, check that write first.
+* Cosmetic HUD limits (tank icons past 14) are expected and are not test failures.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt18_max_energy_tanks --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt18_max_energy_tanks/mt18_max_energy_tanks.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt18_max_energy_tanks/mt18_max_energy_tanks.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Connect the client and run `/mp2_debug_inventory`.
+   **Expect:** Item 42 (Energy Tank) reads 14/14. The tracker panel's tank counter reads 14/20.
+2. **Do:** Look at the HUD with full health.
+   **Expect:** The energy readout is 1499 (99 + 14 x 100).
+   *(exercises: base health is energy_per_tank - 1, plus energy_per_tank per tank.)*
+3. **Do:** From the server console, run `/send <player> Energy Tank` six times, waiting for the notification each time.
+   **Expect:** Each send raises the tank count by one and the max health by 100. After the sixth, `/mp2_debug_inventory` reads item 42 as 20/20, the panel reads 20/20, and full health is 2099. Health tops up when each tank is granted.
+   *(exercises: powerup_max[42] is 20, so the game accepts tanks 15 through 20.)*
+4. **Do:** Note how many tank icons the HUD draws, then send two more Energy Tanks.
+   **Expect:** Item 42 and the panel stay at 20 and full health stays 2099: the extra tanks are dropped, not stored.
+   *(exercises: HUD icon count is cosmetic: the HUD is laid out for 14, so icons past 14 may be clipped, overlap or be missing. That is expected and not a failure.)*
+5. **Do:** Take some damage (a Dark Aether area works), then pause and check the energy readout.
+   **Expect:** Health drops normally from the 2099 maximum and the number is correct (no wraparound or negative values).
+6. **Do:** Save at a save station, quit to the main menu, reload the save and reconnect the client.
+   **Expect:** Item 42 still reads 20/20 and full health is still 2099.
+
+Pass if:
+* With the default cap variant, tanks stop at 14 exactly as in vanilla.
+* With max_energy_tanks 20, tanks 15-20 are accepted (item 42, panel and max health all agree) and a 21st is not.
+* Full health equals 99 + 100 x tanks at every step, and survives a save and reload.
+* With max_energy_tanks 30 the game stays stable and health values are correct.
+
+If it fails, look at:
+* `client/patcher_runner.py` (the `powerup_max` write for item 42)
+* `client/receive_items.py::compute_desired_capacities` (`max_energy_tanks` clamp)
+* `patch_data.py` (starting-inventory clamp)
+* `client/item_panel.py` (panel counter)
+
+### MT18_MAX_ENERGY_TANKS -- `mt18_max_energy_tanks_default_cap` (P2)
+
+*Proves: max_energy_tanks rewrites the game's Energy Tank cap, and the client, tracker panel and starting inventory all clamp to that same value*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt18_max_energy_tanks --iso <vanilla.iso> --variant default_cap
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `energy_per_tank=100`, `max_energy_tanks=14`, `portal_rando=False`, `translator_gate_rando=vanilla`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x20, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Notes / derived values:
+* EXPERIMENTAL: vanilla caps Energy Tanks at 14 (`powerup_max[42]`); whether the game copes with more is untested. If tanks past 14 never appear, check that write first.
+* Cosmetic HUD limits (tank icons past 14) are expected and are not test failures.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt18_max_energy_tanks --iso <vanilla.iso> --variant default_cap
+2. Host       python MultiServer.py manual_tests/mt18_max_energy_tanks_default_cap/mt18_max_energy_tanks_default_cap.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt18_max_energy_tanks_default_cap/mt18_max_energy_tanks_default_cap.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Connect the client and run `/mp2_debug_inventory`.
+   **Expect:** Item 42 reads 14/14 although 20 tanks were given at the start. The panel reads 14/14 and full health is 1499.
+   *(exercises: the starting inventory is clamped to the cap.)*
+2. **Do:** From the server console, run `/send <player> Energy Tank` twice.
+   **Expect:** Nothing changes: item 42 stays 14/14 and full health stays 1499. This is vanilla behavior, unchanged by the option.
+
+Pass if:
+* With the default cap variant, tanks stop at 14 exactly as in vanilla.
+* With max_energy_tanks 20, tanks 15-20 are accepted (item 42, panel and max health all agree) and a 21st is not.
+* Full health equals 99 + 100 x tanks at every step, and survives a save and reload.
+* With max_energy_tanks 30 the game stays stable and health values are correct.
+
+If it fails, look at:
+* `client/patcher_runner.py` (the `powerup_max` write for item 42)
+* `client/receive_items.py::compute_desired_capacities` (`max_energy_tanks` clamp)
+* `patch_data.py` (starting-inventory clamp)
+* `client/item_panel.py` (panel counter)
+
+### MT18_MAX_ENERGY_TANKS -- `mt18_max_energy_tanks_high` (P2)
+
+*Proves: max_energy_tanks rewrites the game's Energy Tank cap, and the client, tracker panel and starting inventory all clamp to that same value*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt18_max_energy_tanks --iso <vanilla.iso> --variant high
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `energy_per_tank=100`, `max_energy_tanks=30`, `portal_rando=False`, `translator_gate_rando=vanilla`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x30, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Varia Suit` x1, `Violet Translator` x1
+
+Notes / derived values:
+* EXPERIMENTAL: vanilla caps Energy Tanks at 14 (`powerup_max[42]`); whether the game copes with more is untested. If tanks past 14 never appear, check that write first.
+* Cosmetic HUD limits (tank icons past 14) are expected and are not test failures.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt18_max_energy_tanks --iso <vanilla.iso> --variant high
+2. Host       python MultiServer.py manual_tests/mt18_max_energy_tanks_high/mt18_max_energy_tanks_high.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt18_max_energy_tanks_high/mt18_max_energy_tanks_high.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Connect the client and run `/mp2_debug_inventory`.
+   **Expect:** Item 42 reads 30/30. The panel reads 30/30 and full health is 3099.
+2. **Do:** Walk around, open the pause screen and the map, and take some damage.
+   **Expect:** No crash, freeze or garbled energy readout. The four-digit energy number (3099) is displayed and decreases correctly. Missing tank icons past 14 are cosmetic and not a failure.
+   *(exercises: this is the stress case for the HUD and the health float.)*
+
+Pass if:
+* With the default cap variant, tanks stop at 14 exactly as in vanilla.
+* With max_energy_tanks 20, tanks 15-20 are accepted (item 42, panel and max health all agree) and a 21st is not.
+* Full health equals 99 + 100 x tanks at every step, and survives a save and reload.
+* With max_energy_tanks 30 the game stays stable and health values are correct.
+
+If it fails, look at:
+* `client/patcher_runner.py` (the `powerup_max` write for item 42)
+* `client/receive_items.py::compute_desired_capacities` (`max_energy_tanks` clamp)
+* `patch_data.py` (starting-inventory clamp)
+* `client/item_panel.py` (panel counter)
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).

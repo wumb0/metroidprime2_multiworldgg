@@ -88,6 +88,7 @@ class StaticContext:
     absent_items: frozenset[str] = field(default_factory=frozenset)
     missile_expansions_unlock_launcher: bool = False
     power_bomb_expansions_unlock_power_bombs: bool = False
+    max_energy_tanks: int = constants.DEFAULT_MAX_ENERGY_TANKS
 
 
 def build_static_context(
@@ -102,6 +103,7 @@ def build_static_context(
     absent_items: frozenset[str] = DEFAULT_ABSENT_ITEMS,
     missile_expansions_unlock_launcher: bool = False,
     power_bomb_expansions_unlock_power_bombs: bool = False,
+    max_energy_tanks: int = constants.DEFAULT_MAX_ENERGY_TANKS,
 ) -> StaticContext:
     """Build a ``StaticContext`` from resolved option values.
 
@@ -124,6 +126,7 @@ def build_static_context(
         absent_items=frozenset(absent_items),
         missile_expansions_unlock_launcher=missile_expansions_unlock_launcher,
         power_bomb_expansions_unlock_power_bombs=power_bomb_expansions_unlock_power_bombs,
+        max_energy_tanks=max_energy_tanks,
     )
 
 
@@ -384,11 +387,13 @@ class RequirementCompiler:
         reductions = self._reductions_for(name)
         player = self.ctx.player
         energy_per_tank = self.ctx.energy_per_tank
+        max_energy_tanks = self.ctx.max_energy_tanks
 
         def rule(
             s,
             _amt=amt,
             _e=energy_per_tank,
+            _max_tanks=max_energy_tanks,
             _p=player,
             _reductions=reductions,
         ) -> bool:
@@ -398,7 +403,7 @@ class RequirementCompiler:
                 if count_fn is None or count_fn(s) >= quantity
             ]
             reduction = min(mults) if mults else 1.0
-            energy = (_e - 1) + _e * s.count("Energy Tank", _p)
+            energy = (_e - 1) + _e * min(s.count("Energy Tank", _p), _max_tanks)
             return math.ceil(reduction * _amt) < energy
 
         return rule

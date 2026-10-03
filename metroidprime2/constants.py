@@ -82,6 +82,12 @@ BITS_PER_COUNTER = 30
 # smaller number than vanilla's would only ever lower it for no benefit.
 COUNTER_MAX_CAPACITY = 0x7FFFFFFF
 
+# Energy Tank (item 42) ceiling. Retail's `powerup_max` caps tanks at this
+# value; the ``max_energy_tanks`` option raises it (client/patcher_runner.py
+# writes the table) and every place that clamps tank counts follows it.
+ENERGY_TANK_ITEM = 42
+DEFAULT_MAX_ENERGY_TANKS = 14
+
 # Written into options.json at generation time (__init__.py generate_output)
 # and checked by client/patcher_runner.py before patching an ISO: the
 # per-pickup resource mapping is baked into config.json at generation time

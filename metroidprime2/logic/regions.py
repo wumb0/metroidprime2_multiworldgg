@@ -362,6 +362,7 @@ def create_regions(world: MetroidPrime2World) -> None:
         trick_levels=world.trick_levels,
         damage_strictness=damage_strictness_multiplier(world.options),
         energy_per_tank=world.options.energy_per_tank.value,
+        max_energy_tanks=world.options.max_energy_tanks.value,
         dark_aether_damage=dark_damage_per_second(world.options.dark_aether_damage.value),
         dark_suit_damage=dark_damage_per_second(world.options.dark_suit_damage.value),
         progressive_suit=bool(world.options.progressive_suit),

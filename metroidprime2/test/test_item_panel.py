@@ -135,6 +135,12 @@ class TestComputePanelState(unittest.TestCase):
         state = compute_panel_state(["Energy Tank"] * 3, {"expansion_totals": {"Energy Tank": 14}})
         self.assertEqual("3/14", state.counters["energy_tanks"])
 
+    def test_energy_tanks_follow_max_energy_tanks(self) -> None:
+        state = compute_panel_state(["Energy Tank"] * 25, {"max_energy_tanks": 20})
+        self.assertEqual("20/20", state.counters["energy_tanks"])
+        state = compute_panel_state(["Energy Tank"] * 3, {"max_energy_tanks": 20, "expansion_totals": {"Energy Tank": 42}})
+        self.assertEqual("3/20", state.counters["energy_tanks"])
+
 
 @unittest.skipUnless(importlib.util.find_spec("kivymd") is not None, "kivymd not installed")
 class TestTooltipPosition(unittest.TestCase):

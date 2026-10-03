@@ -176,6 +176,12 @@ class TestEnergyTankCap(unittest.TestCase):
         desired = compute_desired_capacities(_received(*(["Energy Tank"] * 20)), 0)
         self.assertEqual(14, desired[42])
 
+    def test_raised_cap(self) -> None:
+        received = _received(*(["Energy Tank"] * 30))
+        self.assertEqual(20, compute_desired_capacities(received, 0, max_energy_tanks=20)[42])
+        self.assertEqual(30, compute_desired_capacities(received, 0, max_energy_tanks=99)[42])
+        self.assertEqual(14, compute_desired_capacities(received, 0)[42])
+
 
 class TestProgressiveStages(unittest.TestCase):
     def test_progressive_suit_stages(self) -> None:
