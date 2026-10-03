@@ -329,9 +329,25 @@ class TestGoalMarker(unittest.TestCase):
     def test_marker_declares_both_boss_skip_goals(self) -> None:
         for goal in (constants.GOAL_EMPEROR_ING, constants.GOAL_KEYS):
             ctx = self._ctx(goal)
+            _run_goal(ctx, self._marker_inventory(0))  # seen absent first
+            self.assertFalse(ctx.finished_game)
             _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
             self.assertTrue(ctx.finished_game, f"goal {goal} ignored the marker")
             self.assertEqual(1, len(ctx.sent_msgs))
+
+    def test_marker_already_present_on_first_read_is_stale(self) -> None:
+        # Leftover memory under the title screen / an old save: never seen
+        # absent by this client, so it must not report.
+        for goal in (constants.GOAL_EMPEROR_ING, constants.GOAL_KEYS):
+            ctx = self._ctx(goal)
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            self.assertFalse(ctx.finished_game, f"goal {goal} reported a stale marker")
+            self.assertEqual([], ctx.sent_msgs)
+            # ...but a fresh game clearing it and then setting it again does.
+            _run_goal(ctx, self._marker_inventory(0))
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            self.assertTrue(ctx.finished_game)
 
     def test_marker_ignored_for_the_vanilla_goal(self) -> None:
         for goal in (None, constants.GOAL_BOTH_BOSSES):

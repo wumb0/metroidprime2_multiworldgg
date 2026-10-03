@@ -203,6 +203,8 @@ class MetroidPrime2Context(CommonContext):
     mp2_iso: str | None = None
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
+    # See _handle_check_goal: set once a read shows the goal marker absent.
+    goal_marker_armed: bool = False
     debug_enabled: bool = False
     hint_scans: dict[int, tuple[int, int, int]] = {}  # noqa: RUF012 -- reassigned wholesale in on_package, never mutated in place
     sent_hint_scans: set[int] = set()  # noqa: RUF012 -- same as hint_scans above
@@ -252,6 +254,7 @@ class MetroidPrime2Context(CommonContext):
 
         if cmd == "Connected":
             self.slot_data = args["slot_data"]
+            self.goal_marker_armed = False
             self.expected_uuid = self.slot_data.get("world_uuid")
             self.game_interface.expected_uuid = self.expected_uuid
             self.hint_scans = decode_hint_scans(self.slot_data.get("hint_scans"))
@@ -485,7 +488,9 @@ async def _handle_check_goal(
     ``constants.GOAL_MARKER_ITEM`` as it starts the warp, and ``inventory``
     (the caller's read of it, None when unreadable) is checked for that.
     This is the route that does not depend on the area-id read matching,
-    which in play it did not after the warp.
+    which in play it did not after the warp. Only an absent -> present
+    change counts (see ``goal_marker_armed`` below), so a stale marker in
+    memory at connect time reports nothing.
 
     A harder condition always satisfies an easier one too, so continuing
     to play past your goal still ends the slot correctly."""
@@ -503,11 +508,18 @@ async def _handle_check_goal(
         and mlvl == constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL
         and area == constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX
     )
-    marker_set = (
-        goal != constants.GOAL_BOTH_BOSSES
-        and inventory is not None
-        and inventory.get(constants.GOAL_MARKER_ITEM, (0, 0))[0] >= constants.GOAL_MARKER_AMOUNT
-    )
+    # The marker only counts as an absent -> present transition seen by this
+    # client: one already present on the first read (stale memory from a
+    # finished run still sitting under the title screen, a leftover save)
+    # must not report anything. ``goal_marker_armed`` is set the first time
+    # a read shows it absent.
+    marker_set = False
+    if goal != constants.GOAL_BOTH_BOSSES and inventory is not None:
+        marker_present = inventory.get(constants.GOAL_MARKER_ITEM, (0, 0))[0] >= constants.GOAL_MARKER_AMOUNT
+        if not marker_present:
+            ctx.goal_marker_armed = True
+        else:
+            marker_set = getattr(ctx, "goal_marker_armed", False)
     if not (reached_credits or reached_keys or marker_set):
         return
 
