@@ -52,8 +52,13 @@ PADDING = 60
 ROOM_SHRINK = 0.6
 ROOM_MIN_HALF = 5.0
 ROOM_GAP = 6.0
-LABEL_FONT_SIZE = 34
-LABEL_STROKE = 5
+# A label goes inside its room at the largest of these sizes that fits;
+# a room too small for even the last one gets a LABEL_FONT_SIZE_OUTSIDE label
+# beside it instead. Small outside labels are what keep dense maps readable:
+# one big size made every cramped room's label collide with its neighbours'.
+LABEL_FONT_SIZES_INSIDE = (30, 27, 24)
+LABEL_FONT_SIZE_OUTSIDE = 22
+LABEL_STROKE = 4
 LOCATION_SIZE = 26
 LOCATION_BORDER = 3
 
@@ -205,7 +210,7 @@ def _balanced_label(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTy
     """One line if the name is short, otherwise split into two lines of as
     even a width as possible."""
     words = text.split()
-    if len(words) < 2 or draw.textlength(text, font=font) <= 200:
+    if len(words) < 2 or draw.textlength(text, font=font) <= 5.8 * font.size:
         return text
     candidates = [" ".join(words[:i]) + "\n" + " ".join(words[i:]) for i in range(1, len(words))]
     return min(candidates, key=lambda c: max(draw.textlength(line, font=font) for line in c.split("\n")))
@@ -214,15 +219,16 @@ def _balanced_label(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTy
 def _place_labels(
     draw: ImageDraw.ImageDraw,
     rooms: list[tuple[str, tuple[int, int, int, int]]],
-    font: ImageFont.FreeTypeFont,
+    fonts: dict[int, ImageFont.FreeTypeFont],
     image_size: tuple[int, int],
-) -> list[tuple[str, str, tuple[float, float]]]:
-    """Picks a label position per room (centered in the room if it fits
-    without touching another label, otherwise just outside one of its
-    sides), largest rooms first so they keep the center spots. A label that
-    would run off the image (and be clipped) is the costliest of all."""
+) -> list[tuple[str, str, tuple[float, float], int]]:
+    """Picks a label (text, position, font size) per room, largest rooms
+    first so they keep the center spots: inside the room at the largest size
+    in ``LABEL_FONT_SIZES_INSIDE`` that fits without touching another label,
+    otherwise small and just outside one of its sides. A label that would
+    run off the image (and be clipped) is the costliest of all."""
     placed: list[tuple[float, float, float, float]] = []
-    result: list[tuple[str, str, tuple[float, float]]] = []
+    result: list[tuple[str, str, tuple[float, float], int]] = []
 
     def overlap(box: tuple[float, float, float, float], others: Iterable[tuple[float, ...]]) -> float:
         total = 0.0
@@ -233,42 +239,58 @@ def _place_labels(
                 total += w * h
         return total
 
+    def measure(name: str, size: int) -> tuple[str, float, float]:
+        label = _balanced_label(draw, name, fonts[size])
+        left, top, right, bottom = draw.multiline_textbbox((0, 0), label, font=fonts[size], stroke_width=LABEL_STROKE)
+        return label, right - left + 4, bottom - top + 4
+
     boxes = {name: box for name, box in rooms}
     for name, (x0, y0, x1, y1) in sorted(rooms, key=lambda r: -(r[1][2] - r[1][0]) * (r[1][3] - r[1][1])):
-        label = _balanced_label(draw, name, font)
-        left, top, right, bottom = draw.multiline_textbbox((0, 0), label, font=font, stroke_width=LABEL_STROKE)
-        w, h = right - left + 4, bottom - top + 4
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-        candidates = [(cx, cy)]
-        # Rings of positions around the room, nearest first (min() keeps the
-        # first of equally good candidates, so near spots win ties).
-        for ring in range(3):
-            gap = 2 + ring * (h + 4)
-            ex, ey = (x1 - x0) / 2 + w / 2 + gap, (y1 - y0) / 2 + h / 2 + gap
-            candidates += [
-                (cx, cy - ey),
-                (cx, cy + ey),
-                (cx + ex, cy),
-                (cx - ex, cy),
-                (cx + ex, cy - ey),
-                (cx - ex, cy - ey),
-                (cx + ex, cy + ey),
-                (cx - ex, cy + ey),
-            ]
-        foreign = [box for other, box in boxes.items() if other != name]
 
-        def cost(c: tuple[float, float]) -> float:
-            box = (c[0] - w / 2, c[1] - h / 2, c[0] + w / 2, c[1] + h / 2)
-            # Colliding with another label is worst; sitting on another room
-            # makes the label look like that room's, so it costs too; and
-            # the farther from its own room, the less obviously its own.
-            distance = abs(c[0] - cx) + abs(c[1] - cy)
-            clipped = w * h - overlap(box, [(0, 0, *image_size)])
-            return 100 * clipped + 20 * overlap(box, placed) + overlap(box, foreign) + 8 * distance
+        chosen: tuple[str, tuple[float, float], int, float, float] | None = None
+        for size in LABEL_FONT_SIZES_INSIDE:
+            label, w, h = measure(name, size)
+            box = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+            if w <= x1 - x0 and h <= y1 - y0 and not overlap(box, placed):
+                chosen = (label, (cx, cy), size, w, h)
+                break
 
-        best = min(candidates, key=cost)
-        placed.append((best[0] - w / 2, best[1] - h / 2, best[0] + w / 2, best[1] + h / 2))
-        result.append((name, label, best))
+        if chosen is None:
+            label, w, h = measure(name, LABEL_FONT_SIZE_OUTSIDE)
+            candidates = [(cx, cy)]
+            # Rings of positions around the room, nearest first (min() keeps
+            # the first of equally good candidates, so near spots win ties).
+            for ring in range(3):
+                gap = 2 + ring * (h + 4)
+                ex, ey = (x1 - x0) / 2 + w / 2 + gap, (y1 - y0) / 2 + h / 2 + gap
+                candidates += [
+                    (cx, cy - ey),
+                    (cx, cy + ey),
+                    (cx + ex, cy),
+                    (cx - ex, cy),
+                    (cx + ex, cy - ey),
+                    (cx - ex, cy - ey),
+                    (cx + ex, cy + ey),
+                    (cx - ex, cy + ey),
+                ]
+            foreign = [box for other, box in boxes.items() if other != name]
+
+            def cost(c: tuple[float, float], w: float = w, h: float = h) -> float:
+                box = (c[0] - w / 2, c[1] - h / 2, c[0] + w / 2, c[1] + h / 2)
+                # Colliding with another label is worst; sitting on another
+                # room makes the label look like that room's, so it costs
+                # too; and the farther from its own room, the less obviously
+                # its own.
+                distance = abs(c[0] - cx) + abs(c[1] - cy)
+                clipped = w * h - overlap(box, [(0, 0, *image_size)])
+                return 100 * clipped + 20 * overlap(box, placed) + overlap(box, foreign) + 8 * distance
+
+            chosen = (label, min(candidates, key=cost), LABEL_FONT_SIZE_OUTSIDE, w, h)
+
+        label, position, size, w, h = chosen
+        placed.append((position[0] - w / 2, position[1] - h / 2, position[0] + w / 2, position[1] + h / 2))
+        result.append((name, label, position, size))
     return result
 
 
@@ -278,7 +300,9 @@ def draw_map(region: str, areas: dict[str, dict], projection: Projection) -> Ima
     image = Image.new("RGB", (projection.width, projection.height), (26, 18, 36) if dark else (18, 22, 30))
     draw = ImageDraw.Draw(image, "RGBA")
     title_font = ImageFont.load_default(size=34)
-    label_font = ImageFont.load_default(size=LABEL_FONT_SIZE)
+    label_fonts = {
+        size: ImageFont.load_default(size=size) for size in (*LABEL_FONT_SIZES_INSIDE, LABEL_FONT_SIZE_OUTSIDE)
+    }
 
     grid = 100
     x = (projection.min_x // grid + 1) * grid
@@ -308,19 +332,19 @@ def draw_map(region: str, areas: dict[str, dict], projection: Projection) -> Ima
     # Labels go in a pass of their own, on top of every room and outlined, so
     # a neighbour's fill can never hide one. A label that had to leave its
     # room is tied back to it with a leader line (drawn first, under all text).
-    placed = _place_labels(draw, rooms, label_font, image.size)
+    placed = _place_labels(draw, rooms, label_fonts, image.size)
     room_boxes = dict(rooms)
-    for name, _, position in placed:
+    for name, _, position, _ in placed:
         x0, y0, x1, y1 = room_boxes[name]
         if not (x0 <= position[0] <= x1 and y0 <= position[1] <= y1):
             center = ((x0 + x1) / 2, (y0 + y1) / 2)
             draw.line([center, position], fill=(255, 255, 255, 150), width=2)
             draw.ellipse((center[0] - 5, center[1] - 5, center[0] + 5, center[1] + 5), fill=(255, 255, 255, 220))
-    for _, label, position in placed:
+    for _, label, position, size in placed:
         draw.multiline_text(
             position,
             label,
-            font=label_font,
+            font=label_fonts[size],
             fill=(255, 255, 255, 255),
             stroke_width=LABEL_STROKE,
             stroke_fill=(0, 0, 0, 235),
