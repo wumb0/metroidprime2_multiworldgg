@@ -20,7 +20,7 @@ TEST = ManualTest(
         presets.NO_RANDO_OPTIONS,
         presets.FAST_RETRY_OPTIONS,
         presets.GOD_MODE_OPTIONS,
-        {"map_visibility": "full_map", "item_map_dots": True, "unvisited_room_names": True},
+        {"map_visibility": "full_map", "item_map_dots": "on", "unvisited_room_names": True},
     ),
     # Every upgrade from the start so any room can be reached; the in-game
     # pickups still hold their items (start_inventory, not _from_pool).
@@ -60,11 +60,27 @@ TEST = ManualTest(
     variants={
         "off": Variant(
             config_sha256="7f465e17f631505b768160837f09e398ae60894df3eb2923e363f6724e4cd9d9",
-            options={"item_map_dots": False},
+            options={"item_map_dots": "off"},
             steps=[
                 Step(
                     "Load the game, walk into GFMC Compound and look at the minimap and pause map.",
                     "No item dots anywhere, in any room, even after visiting it.",
+                ),
+            ],
+        ),
+        "always": Variant(
+            config_sha256="66855660e22a6e8fe1a226a29b4f7b3b8b95dab36b197b3ef63b4c6d4855bdea",
+            options={"item_map_dots": "always"},
+            steps=[
+                Step(
+                    "Load the game and open the pause map without leaving Landing Site. Move the "
+                    "map over to GFMC Compound.",
+                    "GFMC Compound already shows its two dots although you have never been there. "
+                    "Every other drawn room with items shows its dots too.",
+                ),
+                Step(
+                    "Go to GFMC Compound and collect the Missile Launcher location's item.",
+                    "Its dot disappears; the ship's dot stays.",
                 ),
             ],
         ),
@@ -74,11 +90,13 @@ TEST = ManualTest(
         "not before (even with the full map revealed).",
         "A collected item's dot disappears and stays gone after a save and reload.",
         "With the off variant no dot is ever drawn.",
+        "With the always variant every drawn room shows its dots from the start.",
     ],
     on_failure=[
         "No dots at all: `client/item_map_dots_patch.py` (jump table entry for type 0x12 and the "
         "cave), and that `pickup_map_icon.TXTR` made it into GGuiSys.pak",
-        "Dots in unvisited rooms: `MAP_STATION_OR_VISIT` / `pickup_icon_visibility_installed`",
+        "Dots in unvisited rooms (or missing from them with always): the mode passed to "
+        "`pickup_icon_visibility_installed`",
         "Dots that never go away: the pickup's `TranslatorDoorLocation` SpecialFunction "
         "(open-prime-rando `pickups/location.py`) or the cave's editor id argument",
         "Dots that come back after reloading: the world's SAVW `unmappable_objects`",

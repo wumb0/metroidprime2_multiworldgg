@@ -18,6 +18,7 @@ import unittest
 import zipfile
 from dataclasses import dataclass
 
+from .. import constants
 from ..client import item_map_dots_patch, spring_ball_patch, versions
 from .bases import MP2TestBase
 from .test_spring_ball_patch import _OPR_FREE_SPACE, _branch_target, _FakeDol, _write_vanilla_hook_site
@@ -157,21 +158,28 @@ class TestItemMapDotsInstalled(unittest.TestCase):
 
         for echoes_version in (EchoesVersion.NTSC_J, EchoesVersion.TRILOGY_NTSC):
             with self.subTest(echoes_version.name), self.assertRaises(ValueError):
-                with item_map_dots_installed(object(), FakeDolVersion(echoes_version)):
+                with item_map_dots_installed(object(), FakeDolVersion(echoes_version), constants.ITEM_MAP_DOTS_ON):
+                    pass
+
+    def test_rejects_an_unknown_mode(self) -> None:
+        from ..client.patcher_runner import item_map_dots_installed
+
+        for mode in (constants.ITEM_MAP_DOTS_OFF, 3):
+            with self.subTest(mode), self.assertRaises(ValueError):
+                with item_map_dots_installed(object(), object(), mode):
                     pass
 
 
 @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
 class TestPickupIconVisibility(unittest.TestCase):
-    """``pickup_icon_visibility_installed`` swaps open-prime-rando's
-    hardcoded visibility (1, which Echoes treats as "always") for
-    ``MAP_STATION_OR_VISIT``."""
+    """``pickup_icon_visibility_installed`` replaces open-prime-rando's
+    hardcoded visibility with the requested mode."""
 
     def test_wraps_and_restores_add_map_icon(self) -> None:
         from open_prime_rando.echoes.pickups import pickup_editing
 
         original = pickup_editing._add_map_icon
-        with item_map_dots_patch.pickup_icon_visibility_installed():
+        with item_map_dots_patch.pickup_icon_visibility_installed(item_map_dots_patch.MAP_STATION_OR_VISIT):
             self.assertIsNot(pickup_editing._add_map_icon, original)
         self.assertIs(pickup_editing._add_map_icon, original)
 
@@ -180,20 +188,20 @@ class TestPickupIconVisibility(unittest.TestCase):
 
         original = pickup_editing._add_map_icon
         with self.assertRaises(RuntimeError):
-            with item_map_dots_patch.pickup_icon_visibility_installed():
+            with item_map_dots_patch.pickup_icon_visibility_installed(item_map_dots_patch.MAP_STATION_OR_VISIT):
                 raise RuntimeError("boom")
         self.assertIs(pickup_editing._add_map_icon, original)
 
-    def test_sets_appended_icons_to_map_station_or_visit(self) -> None:
+    def test_sets_appended_icons_to_the_requested_mode(self) -> None:
         # The stub "original" reproduces the one side effect the wrapper
-        # relies on (appending to area.mapa.mappable_objects), with OPR's
-        # own hardcoded value, so the assertion proves the wrapper changed it.
+        # relies on (appending to area.mapa.mappable_objects), starting from
+        # a value neither mode uses, so the assertion proves the wrapper set it.
         from open_prime_rando.echoes.pickups import pickup_editing
         from retro_data_structures.formats.mapa import ObjectVisibility
 
         class _FakeMappable:
             def __init__(self) -> None:
-                self.visibility_mode = ObjectVisibility.AreaVisitOrMapStation
+                self.visibility_mode = ObjectVisibility(0)
 
         class _FakeMapa:
             def __init__(self) -> None:
@@ -203,22 +211,23 @@ class TestPickupIconVisibility(unittest.TestCase):
             def __init__(self) -> None:
                 self.mapa = _FakeMapa()
 
-        area = _FakeArea()
-
         def _stub_original_add_map_icon(editor, mlvl, area, instances) -> None:
             area.mapa.mappable_objects.append(_FakeMappable())
 
-        original = pickup_editing._add_map_icon
-        pickup_editing._add_map_icon = _stub_original_add_map_icon
-        try:
-            with item_map_dots_patch.pickup_icon_visibility_installed():
-                pickup_editing._add_map_icon("editor", "mlvl", area, "instances")
-        finally:
-            pickup_editing._add_map_icon = original
+        for mode in (item_map_dots_patch.MAP_STATION_OR_VISIT, item_map_dots_patch.ALWAYS):
+            with self.subTest(mode):
+                area = _FakeArea()
+                original = pickup_editing._add_map_icon
+                pickup_editing._add_map_icon = _stub_original_add_map_icon
+                try:
+                    with item_map_dots_patch.pickup_icon_visibility_installed(mode):
+                        pickup_editing._add_map_icon("editor", "mlvl", area, "instances")
+                finally:
+                    pickup_editing._add_map_icon = original
 
-        existing, added = area.mapa.mappable_objects
-        self.assertEqual(int(added.visibility_mode), item_map_dots_patch.MAP_STATION_OR_VISIT)
-        self.assertEqual(existing.visibility_mode, ObjectVisibility.AreaVisitOrMapStation, "existing icon untouched")
+                existing, added = area.mapa.mappable_objects
+                self.assertEqual(int(added.visibility_mode), mode)
+                self.assertEqual(int(existing.visibility_mode), 0, "existing icon untouched")
 
     def test_opr_still_adds_pickup_icons_the_way_this_patch_expects(self) -> None:
         # The cave keys on OPR's custom type and the dot texture's name; a
@@ -239,7 +248,7 @@ class _ItemMapDotsOptionTest(MP2TestBase):
     ``RandoConfiguration``, so it travels in options.json, where
     ``patcher_runner.patch_iso_with_ap`` reads it back from."""
 
-    expected: bool
+    expected: int
 
     def test_lands_in_options_json(self) -> None:
         if type(self) is _ItemMapDotsOptionTest:
@@ -255,9 +264,30 @@ class _ItemMapDotsOptionTest(MP2TestBase):
 
 
 class TestItemMapDotsDefault(_ItemMapDotsOptionTest):
-    expected = True
+    expected = constants.ITEM_MAP_DOTS_ON
 
 
 class TestItemMapDotsOff(_ItemMapDotsOptionTest):
-    options = {"item_map_dots": False}
-    expected = False
+    options = {"item_map_dots": "off"}
+    expected = constants.ITEM_MAP_DOTS_OFF
+
+
+class TestItemMapDotsAlways(_ItemMapDotsOptionTest):
+    options = {"item_map_dots": "always"}
+    expected = constants.ITEM_MAP_DOTS_ALWAYS
+
+
+class TestItemMapDotsToggleSpellings(unittest.TestCase):
+    """``item_map_dots`` was a Toggle; old YAMLs say true/false."""
+
+    def test_toggle_values_still_parse(self) -> None:
+        from ..options import ItemMapDots
+
+        for value, expected in (
+            (True, constants.ITEM_MAP_DOTS_ON),
+            (False, constants.ITEM_MAP_DOTS_OFF),
+            ("true", constants.ITEM_MAP_DOTS_ON),
+            ("false", constants.ITEM_MAP_DOTS_OFF),
+        ):
+            with self.subTest(value):
+                self.assertEqual(ItemMapDots.from_any(value).value, expected)

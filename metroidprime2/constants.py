@@ -130,6 +130,13 @@ GOAL_BOTH_BOSSES = 0  # vanilla: Credits only (GAME_END_AREA_INDICES above)
 GOAL_EMPEROR_ING = 1  # Credits, warped to on returning to Sky Temple Gateway after Ing
 GOAL_KEYS = 2  # Credits, warped to on reaching Sky Temple Energy Controller
 
+# ``options.py``'s ``ItemMapDots`` choice, read back by
+# ``client/patcher_runner.py`` from options.json (client code doesn't import
+# options.py, as with the goals above).
+ITEM_MAP_DOTS_OFF = 0
+ITEM_MAP_DOTS_ON = 1  # rooms visited or revealed by a map station
+ITEM_MAP_DOTS_ALWAYS = 2  # every drawn room
+
 # Great Temple / Sky Temple share one MLVL (REGION_MLVL_IDS below); indices
 # verified the same way GAME_END_AREA_INDICES was cross-checked above --
 # parsing the shipped NTSC ISO's MLVL directly with retro_data_structures

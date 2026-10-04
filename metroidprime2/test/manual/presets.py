@@ -85,7 +85,7 @@ FAST_RETRY_OPTIONS: dict[str, Any] = {
 # map-station-revealed rooms.
 MAP_OPTIONS: dict[str, Any] = {
     "map_visibility": "full_map",
-    "item_map_dots": True,
+    "item_map_dots": "on",
     "unvisited_room_names": True,
 }
 

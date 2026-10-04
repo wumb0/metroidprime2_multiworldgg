@@ -516,16 +516,27 @@ class MapVisibility(Choice):
     default = 0
 
 
-class ItemMapDots(DefaultOnToggle):
-    """If enabled, every item location shows as a dot on the map and
-    minimap once its room has been visited or revealed by a map station
-    (the same rule door icons follow). A dot disappears once its item is
-    collected. A map revealed from the start by `map_visibility` doesn't
-    reveal the dots.
+class ItemMapDots(Choice):
+    """Item locations shown as dots on the map and minimap. A dot
+    disappears once its item is collected.
 
-    If disabled, no item dots are ever shown."""
+    `off`: no item dots are ever shown.
+
+    `on`: dots show in rooms you have visited or that a map station has
+    revealed (the same rule door icons follow).
+
+    `always`: dots show in every room the map draws. Only differs from `on`
+    with `map_visibility: full_map`; otherwise the map doesn't draw a room
+    (or its dots) until it is visited or revealed by a map station."""
 
     display_name = "Item Map Dots"
+    option_off = constants.ITEM_MAP_DOTS_OFF
+    option_on = constants.ITEM_MAP_DOTS_ON
+    option_always = constants.ITEM_MAP_DOTS_ALWAYS
+    # Was a Toggle; keep its YAML spellings working.
+    alias_false = constants.ITEM_MAP_DOTS_OFF
+    alias_true = constants.ITEM_MAP_DOTS_ON
+    default = option_on
 
 
 class RevealMapRemoved(FreeText):

@@ -317,7 +317,7 @@ class MetroidPrime2World(World):
                 "spring_ball_button": self.options.spring_ball_button.current_key,
                 # client/item_map_dots_patch.py: a DOL cave plus a MAPA
                 # visibility rewrite, neither of which config.json can carry.
-                "item_map_dots": bool(self.options.item_map_dots),
+                "item_map_dots": int(self.options.item_map_dots.value),
                 # PLAN.md section S: physically rewires the Sky Temple
                 # Gateway's key-count gate (client/sky_temple_key_gate_
                 # patch.py) -- open-prime-rando has no field for this, so

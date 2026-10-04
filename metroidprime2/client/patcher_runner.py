@@ -249,25 +249,32 @@ def translator_lore_colors_installed(colors: dict[int, str]):
 
 
 @contextlib.contextmanager
-def item_map_dots_installed(editor: Any, dol_version: Any):
+def item_map_dots_installed(editor: Any, dol_version: Any, mode: int):
     """Context manager installing both halves of item map dots
     (``client/item_map_dots_patch.py``) for the duration of one
     ``_apply_patches`` call: the DOL cave that makes the renderer draw
     open-prime-rando's pickup map icons, and the ``_add_map_icon`` wrapper
-    that limits them to visited/map-station-revealed rooms.
+    that sets their visibility for ``mode`` (``constants.ITEM_MAP_DOTS_ON``
+    or ``ITEM_MAP_DOTS_ALWAYS``).
 
     The cave is requested up front, like spring ball's; it only has to be
     queued before ``_apply_patches`` calls ``fulfill_requests()``.
     """
     from . import item_map_dots_patch
 
+    visibility_modes = {
+        constants.ITEM_MAP_DOTS_ON: item_map_dots_patch.MAP_STATION_OR_VISIT,
+        constants.ITEM_MAP_DOTS_ALWAYS: item_map_dots_patch.ALWAYS,
+    }
+    if mode not in visibility_modes:
+        raise ValueError(f"Unknown item map dots mode {mode!r}")
     version_info = _client_version_info(dol_version, "Item map dots", "Item Map Dots")
     item_map_dots_patch.apply_dol_patches(
         editor.code_cave,
         version_info.item_map_dots,
         editor.resolve_asset_id(item_map_dots_patch.PICKUP_ICON_TEXTURE),
     )
-    with item_map_dots_patch.pickup_icon_visibility_installed():
+    with item_map_dots_patch.pickup_icon_visibility_installed(visibility_modes[mode]):
         yield
 
 
@@ -385,7 +392,8 @@ def patch_iso_with_ap(
     _check_pickup_encoding_compatibility(apmp2_options)
     warp_to_start = bool(apmp2_options.get("warp_to_start", False))
     move_while_scanning = bool(apmp2_options.get("move_while_scanning", False))
-    item_map_dots = bool(apmp2_options.get("item_map_dots", False))
+    # int(): .apmp2 files from before the "always" mode carry a bool here.
+    item_map_dots = int(apmp2_options.get("item_map_dots", constants.ITEM_MAP_DOTS_OFF))
     max_energy_tanks = int(apmp2_options.get("max_energy_tanks", constants.DEFAULT_MAX_ENERGY_TANKS))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
@@ -437,8 +445,8 @@ def patch_iso_with_ap(
                 patches.enter_context(
                     warp_to_start_installed(dol_version, configuration.starting_area)
                 )
-            if item_map_dots:
-                patches.enter_context(item_map_dots_installed(editor, dol_version))
+            if item_map_dots != constants.ITEM_MAP_DOTS_OFF:
+                patches.enter_context(item_map_dots_installed(editor, dol_version, item_map_dots))
             if sky_temple_keys_required != 9:
                 patches.enter_context(sky_temple_keys_required_installed(sky_temple_keys_required))
             if goal != constants.GOAL_BOTH_BOSSES:

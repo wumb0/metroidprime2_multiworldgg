@@ -25,10 +25,11 @@ set. The cave sets up that case's lookup arguments for the pickup's own
 editor id and branches to the case's ``bl``, so the vanilla code that
 follows handles the "collected" check.
 
-Visibility is the MAPA object's ``visibility_mode``. OPR hardcodes 1, which
-in Echoes is *Always*: the dot would show in any drawn room, including
-every room of a map revealed at the start. ``pickup_icon_visibility_installed``
-rewrites it to ``MAP_STATION_OR_VISIT``, the mode every vanilla door uses.
+Visibility is the MAPA object's ``visibility_mode``, which
+``pickup_icon_visibility_installed`` sets for every pickup icon:
+``MAP_STATION_OR_VISIT`` (the mode every vanilla door uses) for
+``item_map_dots: on``, ``ALWAYS`` for ``always``. Either way the game only
+draws a room's icons while it draws the room itself.
 """
 
 from __future__ import annotations
@@ -57,14 +58,19 @@ PICKUP_ICON_TEXTURE = "pickup_map_icon.TXTR"
 ``echoes.patcher.add_pickup_map_icon``. ``resolve_asset_id`` turns the name
 into the same id OPR registers it under."""
 
+# Echoes ``CMappableObject::EVisMode`` values, read off
+# ``CMappableObject::GetIsVisibleToAutoMapper`` (NTSC ``fn_800BB53C``): 0 never,
+# 1 always, 2 visited/mapped/map station, 3 door visited, 4 visited.
+# retro-data-structures' ``ObjectVisibility`` uses Prime 1's names for these
+# values, so 2 is ``ObjectVisibility.DoorVisit`` there and OPR's hardcoded
+# ``AreaVisitOrMapStation`` is actually 1 (always).
+
+ALWAYS = 1
+"""Visible whenever the room is drawn."""
+
 MAP_STATION_OR_VISIT = 2
-"""Echoes ``CMappableObject::EVisMode`` 2: visible once the room is
-visited or mapped, or (light world only) once the world's map station has
-been used. Read off ``CMappableObject::GetIsVisibleToAutoMapper`` (NTSC
-``fn_800BB53C``): 0 never, 1 always, 2 this, 3 door visited, 4 visited.
-retro-data-structures' ``ObjectVisibility`` uses Prime 1's names for these
-values, so this one is ``ObjectVisibility.DoorVisit`` there and OPR's
-``AreaVisitOrMapStation`` is actually 1 (always)."""
+"""Visible once the room is visited or mapped, or (light world only) once
+the world's map station has been used."""
 
 _EDITOR_ID_OFFSET = 0x8
 """``CMappableObject::mObjId``."""
@@ -136,9 +142,10 @@ def apply_dol_patches(cave: CodeCaveTracker, addresses: ItemMapDotAddresses, tex
 
 
 @contextlib.contextmanager
-def pickup_icon_visibility_installed() -> Iterator[None]:
+def pickup_icon_visibility_installed(visibility_mode: int) -> Iterator[None]:
     """For its duration, every pickup map icon open-prime-rando adds gets
-    ``MAP_STATION_OR_VISIT`` instead of OPR's hardcoded 1 (always).
+    ``visibility_mode`` (``ALWAYS`` or ``MAP_STATION_OR_VISIT``) instead of
+    OPR's hardcoded value.
 
     ``_add_map_icon`` has one call site, ``patch_simple_pickup``, which
     ``patch_complex_pickup`` delegates to. The call is an unqualified
@@ -156,7 +163,7 @@ def pickup_icon_visibility_installed() -> Iterator[None]:
         before = len(area.mapa.mappable_objects)
         original_add_map_icon(editor, mlvl, area, instances)
         for mappable in area.mapa.mappable_objects[before:]:
-            mappable.visibility_mode = ObjectVisibility(MAP_STATION_OR_VISIT)
+            mappable.visibility_mode = ObjectVisibility(visibility_mode)
 
     pickup_editing._add_map_icon = _add_map_icon
     try:

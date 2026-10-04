@@ -427,11 +427,13 @@ requires:
   # Options: vanilla, full_map
   map_visibility: vanilla
 
-  # A dot on the map and minimap at every item location, in rooms you've
-  # visited or that a map station has revealed. A collected item's dot
-  # disappears. false: no item dots ever.
-  # Options: true, false
-  item_map_dots: true
+  # A dot on the map and minimap at every item location; a collected
+  # item's dot disappears. off: no item dots ever. on: dots in rooms you've
+  # visited or that a map station has revealed. always: dots in every room
+  # the map draws (every dot from the start with map_visibility: full_map;
+  # same as on with vanilla, since unvisited rooms aren't drawn).
+  # Options: off, on, always
+  item_map_dots: on
 
   # Show room names on the map for rooms not yet visited.
   # Options: true, false
