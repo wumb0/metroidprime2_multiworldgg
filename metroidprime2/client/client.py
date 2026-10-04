@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import multiprocessing
 import os
 import subprocess
@@ -55,6 +56,11 @@ except ImportError:
 if TYPE_CHECKING:
     pass
 
+# ISO patching status goes to this logger rather than the "Client" one: the
+# client UI only displays "Client" (and its children), whereas this one
+# propagates to the root logger's console/file handlers.
+patch_logger = logging.getLogger("MetroidPrime2Patcher")
+
 GOAL_COMPLETE_MESSAGE = "Goal complete!"
 
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
@@ -88,7 +94,7 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
             logger.info("Existing patched ISO detected; deleting so it will be regenerated...")
             os.remove(output_path)
 
-        Utils.async_start(patch_and_run_game(self.ctx.apmp2_file, self.ctx.mp2_iso))
+        Utils.async_start(patch_and_run_game(self.ctx.apmp2_file, self.ctx.mp2_iso, self.ctx.verbose))
 
     def _cmd_status(self, *_args: list[Any]) -> None:
         """Display the current Dolphin connection status."""
@@ -206,6 +212,8 @@ class MetroidPrime2Context(CommonContext):
     # See _handle_check_goal: set once a read shows the goal marker absent.
     goal_marker_armed: bool = False
     debug_enabled: bool = False
+    # Set by the client's -v/--verbose flag: log ISO patching progress to the console.
+    verbose: bool = False
     hint_scans: dict[int, tuple[int, int, int]] = {}  # noqa: RUF012 -- reassigned wholesale in on_package, never mutated in place
     sent_hint_scans: set[int] = set()  # noqa: RUF012 -- same as hint_scans above
 
@@ -330,7 +338,7 @@ async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
         pass
 
     if ctx.apmp2_file:
-        Utils.async_start(patch_and_run_game(ctx.apmp2_file, ctx.mp2_iso))
+        Utils.async_start(patch_and_run_game(ctx.apmp2_file, ctx.mp2_iso, ctx.verbose))
 
     logger.info("Starting Dolphin Connector, attempting to connect to emulator...")
 
@@ -753,7 +761,7 @@ async def run_game(romfile: str, mp2_settings: Any) -> None:
     )
 
 
-async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> None:
+async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None, verbose: bool = False) -> None:
     from ..settings import cosmetics_dict
     from .patcher_runner import patch_iso_with_ap
 
@@ -767,13 +775,18 @@ async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> Non
             raise Exception(f"Invalid apmp2 file: {apmp2_file}")
 
         def _progress(text: str, percent: float) -> None:
-            logger.info(f"[{percent * 100:5.1f}%] {text}")
+            patch_logger.info(f"[{percent * 100:5.1f}%] {text}")
+
+        if verbose:
+            patch_logger.setLevel(logging.INFO)
+        else:
+            patch_logger.setLevel(logging.WARNING)
 
         try:
-            logger.info("--------------")
-            logger.info(f"Input ISO Path: {input_iso_path}")
-            logger.info(f"Output ISO Path: {output_path}")
-            logger.info("Patching ISO...")
+            patch_logger.info("--------------")
+            patch_logger.info(f"Input ISO Path: {input_iso_path}")
+            patch_logger.info(f"Output ISO Path: {output_path}")
+            logger.info("Patching ISO... Please wait")
             cosmetics = cosmetics_dict(mp2_settings)
             try:
                 output_path = await asyncio.to_thread(
@@ -786,11 +799,11 @@ async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> Non
                 # that the os.path.exists check above would then trust).
                 logger.info("Client closing; waiting for ISO patching to finish first...")
                 raise
-            logger.info("Patching Complete")
+            patch_logger.info("Patching Complete")
         except BaseException as e:
             logger.error(f"Failed to patch ISO: {e}")
             raise RuntimeError(f"Failed to patch ISO: {e}") from e
-        logger.info("--------------")
+        patch_logger.info("--------------")
 
     Utils.async_start(run_game(output_path, mp2_settings))
 
@@ -831,7 +844,7 @@ def main(*args: str) -> None:
     Utils.init_logging("MetroidPrime2Client")
 
     async def _main(
-        connect: str | None, password: str | None, apmp2_file: str | None, iso: str | None
+        connect: str | None, password: str | None, apmp2_file: str | None, iso: str | None, verbose: bool
     ) -> None:
         setup_libs()
 
@@ -840,6 +853,7 @@ def main(*args: str) -> None:
 
         ctx = MetroidPrime2Context(connect, password, apmp2_file, iso)
         ctx.debug_enabled = bool(get_settings()["metroidprime2_options"]["debug"])
+        ctx.verbose = verbose
 
         if apmp2_file:
             options = get_options_from_apmp2(apmp2_file)
@@ -873,10 +887,19 @@ def main(*args: str) -> None:
     parser = get_base_parser()
     parser.add_argument("apmp2_file", default="", type=str, nargs="?", help="Path to an apmp2 file")
     parser.add_argument("iso", default="", type=str, nargs="?", help="Path to a Metroid Prime 2: Echoes iso")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Log ISO patching progress to the console.")
     parser_args = parser.parse_args(args)
 
     import colorama
 
     colorama.init()
-    asyncio.run(_main(parser_args.connect, parser_args.password, parser_args.apmp2_file, parser_args.iso))
+    asyncio.run(
+        _main(
+            parser_args.connect,
+            parser_args.password,
+            parser_args.apmp2_file,
+            parser_args.iso,
+            parser_args.verbose,
+        )
+    )
     colorama.deinit()
