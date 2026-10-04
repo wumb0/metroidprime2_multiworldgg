@@ -422,14 +422,16 @@ requires:
   display_nonlocal_items: match_game
 
   # How much of the in-game map is revealed from the start. vanilla:
-  # fills in as you explore, item dots wait for their room to be visited
-  # or a map station used. full_map: every room is drawn from the start
-  # (rooms still need to be visited for name/details), but item dots
-  # still wait for their room. full_map_and_items: as full_map, plus a
-  # dot at every item location from the start, mirroring the Metroid
-  # Prime 1 randomizer.
-  # Options: vanilla, full_map, full_map_and_items
+  # fills in as you explore. full_map: every room is drawn from the start
+  # (rooms still need to be visited for name/details).
+  # Options: vanilla, full_map
   map_visibility: vanilla
+
+  # A dot on the map and minimap at every item location, in rooms you've
+  # visited or that a map station has revealed. A collected item's dot
+  # disappears. false: no item dots ever.
+  # Options: true, false
+  item_map_dots: true
 
   # Show room names on the map for rooms not yet visited.
   # Options: true, false

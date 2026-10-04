@@ -160,7 +160,7 @@ class TestSkyTempleKeysRequiredInstalled(unittest.TestCase):
     """``sky_temple_keys_required_installed`` wraps the open-prime-rando
     hook and must restore it just as carefully -- it nests inside one
     ``_apply_patches`` call alongside every other hook (e.g.
-    ``warp_to_start_installed``, ``item_map_icons_always_visible``)."""
+    ``warp_to_start_installed``, ``item_map_dots_installed``)."""
 
     def test_wraps_and_restores_register_world_changes(self) -> None:
         from open_prime_rando.echoes import patcher as opr_patcher

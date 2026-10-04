@@ -249,67 +249,26 @@ def translator_lore_colors_installed(colors: dict[int, str]):
 
 
 @contextlib.contextmanager
-def item_map_icons_always_visible():
-    """Context manager: for its duration, every pickup's map icon is
-    explicitly set to ``ObjectVisibility.AreaVisitOrMapStation``, matching
-    open-prime-rando's own hardcoded default for pickup icons and
-    implementing the player-facing ``map_visibility`` option's
-    ``full_map_and_items`` value -- delivered here as ``options.json``'s
-    ``show_item_locations`` flag, the internal patch-time setting derived
-    from it (PLAN.md section M).
+def item_map_dots_installed(editor: Any, dol_version: Any):
+    """Context manager installing both halves of item map dots
+    (``client/item_map_dots_patch.py``) for the duration of one
+    ``_apply_patches`` call: the DOL cave that makes the renderer draw
+    open-prime-rando's pickup map icons, and the ``_add_map_icon`` wrapper
+    that limits them to visited/map-station-revealed rooms.
 
-    ``ObjectVisibility.Always`` was tried first, but grepping the pinned
-    open-prime-rando release shows no code path -- upstream or in
-    Randovania -- ever assigns it to any mappable object, for any object
-    type, in any game; every real usage only ever sets
-    ``AreaVisitOrMapStation``/``AreaVisitOrMapStation2``. That makes
-    ``Always`` untested territory the reverse-engineered enum names may
-    not accurately describe, and matches the reported symptom (map icons
-    setting enabled, no dots ever rendered). ``AreaVisitOrMapStation`` is
-    open-prime-rando's own proven default for pickup icons
-    (``open_prime_rando.echoes.pickups.pickup_editing._add_map_icon``, a
-    ``MappableObject`` of custom ``object_type=0x12``) -- the dot shows
-    once the room has been visited or a map station used, same as every
-    real Randovania-generated Echoes game. OPR's own
-    ``map_visibility.unvisited_map_icons`` setting does not cover these
-    regardless: ``general_changes.py``'s ``objects_to_reveal`` set (the
-    object types that setting forces visible) lists only Elevator/
-    SaveStation/Portal/LightTeleporter/TranslatorGate/Up-DownArrow, not
-    pickups.
-
-    ``_add_map_icon`` is called from exactly one place,
-    ``patch_simple_pickup`` (an unqualified global lookup resolved against
-    the module's namespace at call time, the same mechanism
-    ``warp_to_start_installed`` above relies on for
-    ``register_world_changes``); ``patch_complex_pickup`` delegates to
-    ``patch_simple_pickup``, so replacing the module attribute here covers
-    every pickup regardless of stage count. The wrapper calls the original
-    to append the icon exactly as before, then walks the mappable objects
-    it just added (tracked by a before/after length -- the append is the
-    only mutation ``_add_map_icon`` makes to ``area.mapa.mappable_objects``)
-    and flips ``visibility_mode``, whose ``Field`` descriptor
-    (``retro_data_structures.construct_extensions.wrapper_classes.Field``)
-    has a working ``__set__``, exactly as
-    ``open_prime_rando.echoes.general_changes``'s own
-    ``mappable.visibility_mode = ObjectVisibility.AreaVisitOrMapStation``
-    line relies on.
+    The cave is requested up front, like spring ball's; it only has to be
+    queued before ``_apply_patches`` calls ``fulfill_requests()``.
     """
-    from open_prime_rando.echoes.pickups import pickup_editing
-    from retro_data_structures.formats.mapa import ObjectVisibility
+    from . import item_map_dots_patch
 
-    original_add_map_icon = pickup_editing._add_map_icon
-
-    def _add_map_icon_always_visible(editor, mlvl, area, instances) -> None:
-        before = len(area.mapa.mappable_objects)
-        original_add_map_icon(editor, mlvl, area, instances)
-        for mappable in area.mapa.mappable_objects[before:]:
-            mappable.visibility_mode = ObjectVisibility.AreaVisitOrMapStation
-
-    pickup_editing._add_map_icon = _add_map_icon_always_visible
-    try:
+    version_info = _client_version_info(dol_version, "Item map dots", "Item Map Dots")
+    item_map_dots_patch.apply_dol_patches(
+        editor.code_cave,
+        version_info.item_map_dots,
+        editor.resolve_asset_id(item_map_dots_patch.PICKUP_ICON_TEXTURE),
+    )
+    with item_map_dots_patch.pickup_icon_visibility_installed():
         yield
-    finally:
-        pickup_editing._add_map_icon = original_add_map_icon
 
 
 # --------------------------------------------------------------------------
@@ -426,7 +385,7 @@ def patch_iso_with_ap(
     _check_pickup_encoding_compatibility(apmp2_options)
     warp_to_start = bool(apmp2_options.get("warp_to_start", False))
     move_while_scanning = bool(apmp2_options.get("move_while_scanning", False))
-    show_item_locations = bool(apmp2_options.get("show_item_locations", False))
+    item_map_dots = bool(apmp2_options.get("item_map_dots", False))
     max_energy_tanks = int(apmp2_options.get("max_energy_tanks", constants.DEFAULT_MAX_ENERGY_TANKS))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
@@ -478,8 +437,8 @@ def patch_iso_with_ap(
                 patches.enter_context(
                     warp_to_start_installed(dol_version, configuration.starting_area)
                 )
-            if show_item_locations:
-                patches.enter_context(item_map_icons_always_visible())
+            if item_map_dots:
+                patches.enter_context(item_map_dots_installed(editor, dol_version))
             if sky_temple_keys_required != 9:
                 patches.enter_context(sky_temple_keys_required_installed(sky_temple_keys_required))
             if goal != constants.GOAL_BOTH_BOSSES:

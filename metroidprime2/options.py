@@ -498,33 +498,34 @@ class UnvisitedRoomNames(DefaultOnToggle):
 class MapVisibility(Choice):
     """How much of the in-game map is revealed from the start.
 
-    `vanilla`: the map fills in as you explore, and an item's dot appears
-    only once its room has been visited or its map station used.
+    `vanilla`: the map fills in as you explore.
 
     `full_map`: every room is drawn from the start (rooms still need to be
-    visited to show their name/details). Item dots still wait for their
-    room to be visited or a map station used -- same as `vanilla`.
+    visited to show their name/details).
 
-    `full_map_and_items`: currently identical to `full_map` for item dots.
-    open-prime-rando hardcodes every pickup's map icon to only ever appear
-    once its room is visited or a map station used, with no supported way
-    to reveal it earlier (PLAN.md section M) -- unlike the Metroid Prime 1
-    randomizer, which this option was originally meant to mirror. Kept as
-    a distinct choice (rather than merged into `full_map`) so that if
-    open-prime-rando ever adds real pre-visit item reveal, this value can
-    pick it up without a player-facing option rename.
-
-    These are one setting rather than two toggles because an item dot needs
-    its room drawn to be visible at all -- "item dots without the revealed
-    map" would be indistinguishable from `vanilla`.
+    Item dots are a separate option, `item_map_dots`. `full_map_and_items`
+    is still accepted, as an alias of `full_map`.
     """
 
     display_name = "Map Visibility"
     option_vanilla = 0
     option_full_map = 1
-    option_full_map_and_items = 2
+    # Was its own value, meant to show every item dot from the start; it
+    # never drew anything (PLAN.md section M). Kept so old YAMLs generate.
+    alias_full_map_and_items = 1
     default = 0
 
+
+class ItemMapDots(DefaultOnToggle):
+    """If enabled, every item location shows as a dot on the map and
+    minimap once its room has been visited or revealed by a map station
+    (the same rule door icons follow). A dot disappears once its item is
+    collected. A map revealed from the start by `map_visibility` doesn't
+    reveal the dots.
+
+    If disabled, no item dots are ever shown."""
+
+    display_name = "Item Map Dots"
 
 
 class RevealMapRemoved(FreeText):
@@ -553,8 +554,7 @@ class RevealMapRemoved(FreeText):
         if str(value).strip().lower() not in self._NOTHING_TO_SAY:
             raise Exception(
                 "`reveal_map` has been replaced by `map_visibility`: use "
-                "`map_visibility: full_map`, or `full_map_and_items` to also show "
-                "every item location on the map. Then delete the `reveal_map` line."
+                "`map_visibility: full_map`. Then delete the `reveal_map` line."
             )
         super().__init__("")
 
@@ -827,6 +827,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
     display_nonlocal_items: DisplayNonLocalItems
     map_visibility: MapVisibility
+    item_map_dots: ItemMapDots
     unvisited_room_names: UnvisitedRoomNames
 
     death_link: DeathLink
@@ -932,7 +933,7 @@ OPTION_GROUPS: list[OptionGroup] = [
     ),
     OptionGroup(
         "Cosmetic",
-        [DisplayNonLocalItems, MapVisibility, UnvisitedRoomNames],
+        [DisplayNonLocalItems, MapVisibility, ItemMapDots, UnvisitedRoomNames],
     ),
 ]
 

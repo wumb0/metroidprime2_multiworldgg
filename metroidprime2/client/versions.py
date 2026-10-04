@@ -99,6 +99,43 @@ class SpringBallAddresses:
 
 
 @dataclass(frozen=True)
+class ItemMapDotAddresses:
+    """Addresses the item map dot patch needs (``client/item_map_dots_patch.py``).
+
+    Everything here is inside ``CMappableObject::Draw`` (unnamed in
+    PrimeDecomp/echoes: NTSC ``fn_800BB924``, PAL 0x800BB9B8), whose icon
+    switch covers object types 0x10..0x19 through a 10-entry jump table.
+    NTSC was read off the disassembly; PAL was found through the jump table
+    open-prime-rando already lists for it (``map_icon_jumptable``) and checked
+    case by case against NTSC. Same code, but a different register allocation.
+    """
+
+    icon_jump_table: int
+    """The icon switch's jump table, indexed by ``object_type - 0x10``."""
+
+    no_icon_case: int
+    """Where the table sends the types with no icon (0x12, 0x13, 0x16):
+    texture -1, so nothing is drawn. The table entry for open-prime-rando's
+    pickup type 0x12 must still point here before it's patched."""
+
+    flag_lookup_call: int
+    """The translator gate case's ``bl`` to ``object_flag_lookup``, followed
+    by the case's own tail: skip drawing if the flag is set. The cave
+    branches here."""
+
+    object_flag_lookup: int
+    """``CMapWorldInfo``'s per-editor-id flag lookup (NTSC ``fn_8010F654``),
+    set by a ``TranslatorDoorLocation`` SpecialFunction on ``DECR``."""
+
+    object_register: int
+    """The GPR holding ``this`` (the ``CMappableObject*``) inside Draw."""
+
+    map_world_info_register: int
+    """The GPR holding the ``CMapWorldInfo&`` inside Draw; the lookup's first
+    argument."""
+
+
+@dataclass(frozen=True)
 class EchoesVersionInfo:
     name: str
     game_id: bytes
@@ -113,6 +150,7 @@ class EchoesVersionInfo:
     powerup_max: int
     warp_to_start: WarpToStartAddresses
     spring_ball: SpringBallAddresses
+    item_map_dots: ItemMapDotAddresses
 
 
 # --------------------------------------------------------------------------
@@ -250,6 +288,14 @@ NTSC = EchoesVersionInfo(
         set_velocity_wr=0x800EA404,
         set_move_state=0x80187370,
     ),
+    item_map_dots=ItemMapDotAddresses(
+        icon_jump_table=0x803B3638,
+        no_icon_case=0x800BBAE0,
+        flag_lookup_call=0x800BBACC,
+        object_flag_lookup=0x8010F654,
+        object_register=9,
+        map_world_info_register=3,
+    ),
 )
 
 PAL = EchoesVersionInfo(
@@ -287,6 +333,14 @@ PAL = EchoesVersionInfo(
         bomb_jump=0x80186B1C,
         set_velocity_wr=0x800EA4EC,
         set_move_state=0x80187658,
+    ),
+    item_map_dots=ItemMapDotAddresses(
+        icon_jump_table=0x803B4A80,
+        no_icon_case=0x800BBB70,
+        flag_lookup_call=0x800BBB5C,
+        object_flag_lookup=0x8010F808,
+        object_register=28,
+        map_world_info_register=29,
     ),
 )
 

@@ -233,7 +233,7 @@ class TestWarpToStartDisabled(_WarpToStartOptionTest):
 class TestWarpToStartInstalled(unittest.TestCase):
     """``warp_to_start_installed`` wraps the open-prime-rando hook and must
     restore it just as carefully -- it nests inside one ``_apply_patches``
-    call alongside every other hook (e.g. ``item_map_icons_always_visible``)."""
+    call alongside every other hook (e.g. ``item_map_dots_installed``)."""
 
     def _dol_version(self, echoes_version: object) -> object:
         @dataclass(frozen=True)

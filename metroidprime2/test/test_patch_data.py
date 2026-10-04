@@ -703,120 +703,22 @@ class TestDetectIsoVersion(unittest.TestCase):
             detect_iso_version(self._write_fake_iso(b"GM8E01"))
 
 
-class TestItemMapIconsAlwaysVisible(unittest.TestCase):
-    """``item_map_icons_always_visible`` (client/patcher_runner.py):
-    implements ``map_visibility``'s ``full_map_and_items`` value -- carried
-    to the client as ``options.json``'s ``show_item_locations`` flag -- by
-    explicitly setting every pickup map icon open-prime-rando adds to
-    ``ObjectVisibility.AreaVisitOrMapStation``, matching open-prime-rando's
-    own hardcoded default (PLAN.md section M; ``ObjectVisibility.Always``
-    was tried first but is never used by any real upstream code path for
-    any object type, so it was dropped as untested territory)."""
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_wraps_and_restores_add_map_icon(self) -> None:
-        from open_prime_rando.echoes.pickups import pickup_editing
-
-        from ..client.patcher_runner import item_map_icons_always_visible
-
-        original = pickup_editing._add_map_icon
-        with item_map_icons_always_visible():
-            self.assertIsNot(pickup_editing._add_map_icon, original)
-        self.assertIs(pickup_editing._add_map_icon, original)
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_restores_even_on_exception(self) -> None:
-        from open_prime_rando.echoes.pickups import pickup_editing
-
-        from ..client.patcher_runner import item_map_icons_always_visible
-
-        original = pickup_editing._add_map_icon
-        with self.assertRaises(RuntimeError):
-            with item_map_icons_always_visible():
-                raise RuntimeError("boom")
-        self.assertIs(pickup_editing._add_map_icon, original)
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_forces_appended_mappable_objects_to_always_visible(self) -> None:
-        # Exercises the real wrapper (not a reimplementation of it), against
-        # a stub "original" _add_map_icon and a fake area/mapa, so this
-        # doesn't need a real ISO/MREA to run. The stub reproduces the one
-        # real side effect the wrapper depends on -- appending exactly one
-        # MappableObject-shaped stand-in to area.mapa.mappable_objects --
-        # and this asserts the *real* item_map_icons_always_visible code
-        # (before/after length diffing, then setting visibility_mode) is
-        # what turns that into ObjectVisibility.AreaVisitOrMapStation, not
-        # a test double. The stub starts at ``Never`` so the assertion
-        # proves the wrapper actively sets the value rather than leaving a
-        # coincidentally-matching default untouched.
-        from open_prime_rando.echoes.pickups import pickup_editing
-        from retro_data_structures.formats.mapa import ObjectVisibility
-
-        from ..client.patcher_runner import item_map_icons_always_visible
-
-        class _FakeMappable:
-            def __init__(self) -> None:
-                self.visibility_mode = ObjectVisibility.Never
-
-        class _FakeMapa:
-            def __init__(self) -> None:
-                self.mappable_objects: list[_FakeMappable] = []
-
-        class _FakeArea:
-            def __init__(self) -> None:
-                self.mapa = _FakeMapa()
-
-        area = _FakeArea()
-        stub_calls = []
-
-        def _stub_original_add_map_icon(editor, mlvl, area, instances) -> None:
-            stub_calls.append((editor, mlvl, area, instances))
-            area.mapa.mappable_objects.append(_FakeMappable())
-
-        original = pickup_editing._add_map_icon
-        pickup_editing._add_map_icon = _stub_original_add_map_icon
-        try:
-            with item_map_icons_always_visible():
-                pickup_editing._add_map_icon("editor", "mlvl", area, "instances")
-        finally:
-            pickup_editing._add_map_icon = original
-
-        self.assertEqual(1, len(stub_calls))
-        self.assertEqual(1, len(area.mapa.mappable_objects))
-        self.assertEqual(ObjectVisibility.AreaVisitOrMapStation, area.mapa.mappable_objects[0].visibility_mode)
-
-
 class _MapVisibilityOptionTest(MP2TestBase):
-    """Same rationale as test_warp_patch.py's ``_WarpToStartOptionTest``:
-    show_item_locations is a patch-time setting with no home in OPR's
-    RandoConfiguration (config.json is validated ``extra="forbid"``), so it
-    has to travel in options.json instead -- which is exactly where
-    ``patcher_runner.patch_iso_with_ap`` reads it back from.
-
-    ``map_visibility`` (options.py) is a single Choice covering both flags
-    at once, because an item dot needs its room drawn to be visible at all
-    -- ``full_map_and_items`` implies ``reveal_map_at_start`` is also true.
-    Each subclass below asserts the full pair for one Choice value."""
+    """``map_visibility`` (options.py) lands in config.json's
+    ``map_visibility.reveal_map_at_start``. ``full_map_and_items`` is an alias
+    of ``full_map`` now that item dots are their own option."""
 
     expected_reveal_map_at_start: bool
-    expected_show_item_locations: bool
 
-    def _generate_container(self) -> tuple[dict[str, object], dict[str, object]]:
+    def test_lands_in_config_json(self) -> None:
+        if type(self) is _MapVisibilityOptionTest:
+            self.skipTest("base class")
         with tempfile.TemporaryDirectory() as output_directory:
             self.world.generate_output(output_directory)
             containers = list(pathlib.Path(output_directory).glob("*.apmp2"))
             self.assertEqual(len(containers), 1)
             with zipfile.ZipFile(containers[0]) as container:
-                options = json.loads(container.read("options.json"))
                 config = json.loads(container.read("config.json"))
-        self.assertNotIn("show_item_locations", config)
-        return options, config
-
-    def test_flags_land_in_options_json_and_config_json(self) -> None:
-        if type(self) is _MapVisibilityOptionTest:
-            self.skipTest("base class")
-        options, config = self._generate_container()
-        self.assertEqual(options["show_item_locations"], self.expected_show_item_locations)
         self.assertEqual(
             config["map_visibility"]["reveal_map_at_start"], self.expected_reveal_map_at_start
         )
@@ -825,19 +727,16 @@ class _MapVisibilityOptionTest(MP2TestBase):
 class TestMapVisibilityVanilla(_MapVisibilityOptionTest):
     options = {"map_visibility": "vanilla"}
     expected_reveal_map_at_start = False
-    expected_show_item_locations = False
 
 
 class TestMapVisibilityFullMap(_MapVisibilityOptionTest):
     options = {"map_visibility": "full_map"}
     expected_reveal_map_at_start = True
-    expected_show_item_locations = False
 
 
-class TestMapVisibilityFullMapAndItems(_MapVisibilityOptionTest):
+class TestMapVisibilityFullMapAndItemsAlias(_MapVisibilityOptionTest):
     options = {"map_visibility": "full_map_and_items"}
     expected_reveal_map_at_start = True
-    expected_show_item_locations = True
 
 
 class TestRevealMapRemovedShim(unittest.TestCase):

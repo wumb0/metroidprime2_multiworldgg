@@ -80,11 +80,12 @@ FAST_RETRY_OPTIONS: dict[str, Any] = {
 # MAP
 # --------------------------------------------------------------------------
 
-# Every manual test is easier to navigate with the full map visible: item
-# dots at every location from the start, and room names shown before the
-# room has been visited.
+# Every manual test is easier to navigate with the full map visible, room
+# names shown before the room has been visited, and item dots in visited or
+# map-station-revealed rooms.
 MAP_OPTIONS: dict[str, Any] = {
-    "map_visibility": "full_map_and_items",
+    "map_visibility": "full_map",
+    "item_map_dots": True,
     "unvisited_room_names": True,
 }
 

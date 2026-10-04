@@ -73,7 +73,7 @@ python -m worlds.metroidprime2.test.manual.mt01_smoke_vanilla --iso <vanilla.iso
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
 
 Run:
 ```
@@ -117,7 +117,7 @@ python -m worlds.metroidprime2.test.manual.mt02_goal_credits --iso <vanilla.iso>
 
 What the build contains:
 * starting room: `Sky Temple/Sanctum/Door to Sanctum Access`
-* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
@@ -163,7 +163,7 @@ python -m worlds.metroidprime2.test.manual.mt03_goal_area_poke --iso <vanilla.is
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
 
 Notes / derived values:
 * NTSC: the current area's TAreaId lives at `0x803DB6E0 + 0x16A0` (write a u32 `53`, a member of `constants.GAME_END_AREA_INDICES`).
@@ -206,7 +206,7 @@ python -m worlds.metroidprime2.test.manual.mt04_warp_to_start_save_station --iso
 
 What the build contains:
 * starting room: `Temple Grounds/Hive Save Station/Save Station`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Run:
@@ -251,7 +251,7 @@ python -m worlds.metroidprime2.test.manual.mt04_warp_to_start_save_station --iso
 
 What the build contains:
 * starting room: `Temple Grounds/Hive Save Station/Save Station`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=False`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=False`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Run:
@@ -288,7 +288,7 @@ python -m worlds.metroidprime2.test.manual.mt05_warp_to_start_remote_room --iso 
 
 What the build contains:
 * starting room: `Temple Grounds/Windchamber Gateway/Door to Path of Eyes`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `starting_room=anywhere`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `starting_room=anywhere`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Run:
@@ -324,7 +324,7 @@ python -m worlds.metroidprime2.test.manual.mt06_item_grant_capacities --iso <van
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `energy_per_tank=250`, `map_visibility=full_map_and_items`, `progressive_grapple=True`, `progressive_suit=True`, `unvisited_room_names=True`
+* options: `energy_per_tank=250`, `item_map_dots=True`, `map_visibility=full_map`, `progressive_grapple=True`, `progressive_suit=True`, `unvisited_room_names=True`
 
 Notes / derived values:
 * Non-tested items are granted via `start_inventory` so the plando bench can't make the seed unfillable; the tested items below are all collected in-game.
@@ -364,7 +364,7 @@ python -m worlds.metroidprime2.test.manual.mt06_item_grant_capacities --iso <van
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `energy_per_tank=250`, `map_visibility=full_map_and_items`, `missile_expansions_unlock_launcher=False`, `power_bomb_expansions_unlock_power_bombs=False`, `progressive_grapple=True`, `progressive_suit=True`, `split_beam_ammo=True`, `unvisited_room_names=True`
+* options: `energy_per_tank=250`, `item_map_dots=True`, `map_visibility=full_map`, `missile_expansions_unlock_launcher=False`, `power_bomb_expansions_unlock_power_bombs=False`, `progressive_grapple=True`, `progressive_suit=True`, `split_beam_ammo=True`, `unvisited_room_names=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Beam` x1, `Light Suit` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * plando: 14 placement(s):
   * `Missile Expansion` -> `Temple Grounds: Hive Chamber A - Pickup (Missile)`
@@ -438,7 +438,7 @@ python -m worlds.metroidprime2.test.manual.mt06_item_grant_capacities --iso <van
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `energy_per_tank=250`, `map_visibility=full_map_and_items`, `missile_expansions_unlock_launcher=True`, `power_bomb_expansions_unlock_power_bombs=True`, `progressive_grapple=True`, `progressive_suit=True`, `split_beam_ammo=False`, `unvisited_room_names=True`
+* options: `energy_per_tank=250`, `item_map_dots=True`, `map_visibility=full_map`, `missile_expansions_unlock_launcher=True`, `power_bomb_expansions_unlock_power_bombs=True`, `progressive_grapple=True`, `progressive_suit=True`, `split_beam_ammo=False`, `unvisited_room_names=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Beam` x1, `Light Suit` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * plando: 14 placement(s):
   * `Missile Expansion` -> `Temple Grounds: Hive Chamber A - Pickup (Missile)`
@@ -512,7 +512,7 @@ python -m worlds.metroidprime2.test.manual.mt07_counter_persistence --iso <vanil
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * plando: 3 placement(s):
   * `Missile Expansion` -> `Temple Grounds: Hive Chamber A - Pickup (Missile)`
@@ -557,7 +557,7 @@ python -m worlds.metroidprime2.test.manual.mt08_missed_checks --iso <vanilla.iso
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * plando: 7 placement(s):
   * `Missile Expansion` -> `Temple Grounds: Hive Chamber A - Pickup (Missile)`
@@ -616,7 +616,7 @@ python -m worlds.metroidprime2.test.manual.mt09_remote_items_reconnect --iso <va
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * companion slots: Filler1 (Clique)
 
@@ -665,7 +665,7 @@ python -m worlds.metroidprime2.test.manual.mt10_cross_game_models --iso <vanilla
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `display_nonlocal_items=match_game`, `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* options: `display_nonlocal_items=match_game`, `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * companion slots: MetroidPrime (Metroid Prime), MetroidZeroMission (Metroid: Zero Mission)
 
@@ -725,7 +725,7 @@ python -m worlds.metroidprime2.test.manual.mt11_death_link --iso <vanilla.iso>
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `death_link=True`, `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* options: `death_link=True`, `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * companion slots: DeathLinkPartner (Metroid Prime 2: Echoes)
 
@@ -765,7 +765,7 @@ python -m worlds.metroidprime2.test.manual.mt12_session_lifecycle --iso <vanilla
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
 
 Run:
 ```
@@ -811,7 +811,7 @@ python -m worlds.metroidprime2.test.manual.mt12_session_lifecycle --iso <vanilla
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
 
 Run:
 ```
@@ -857,7 +857,7 @@ python -m worlds.metroidprime2.test.manual.mt13_pal_parity --iso <vanilla.iso> -
 
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
 
 Notes / derived values:
 * This is not a separate build: it is a checklist to re-run the per-build-address tests with `--pal`.
@@ -1075,7 +1075,7 @@ python -m worlds.metroidprime2.test.manual.mt15_sky_temple_key_hints --iso <vani
 
 What the build contains:
 * starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_key_hints=scanned`, `sky_temple_keys=7`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `sky_temple_key_hints=scanned`, `sky_temple_keys=7`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * plando: 2 placement(s):
   * `Sky Temple Key 1` -> `The Button`
@@ -1142,7 +1142,7 @@ python -m worlds.metroidprime2.test.manual.mt15_sky_temple_key_hints --iso <vani
 
 What the build contains:
 * starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_key_hints=disabled`, `sky_temple_keys=7`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `sky_temple_key_hints=disabled`, `sky_temple_keys=7`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * plando: 2 placement(s):
   * `Sky Temple Key 1` -> `The Button`
@@ -1189,7 +1189,7 @@ python -m worlds.metroidprime2.test.manual.mt15_sky_temple_key_hints --iso <vani
 
 What the build contains:
 * starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_key_hints=precollected`, `sky_temple_keys=7`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `sky_temple_key_hints=precollected`, `sky_temple_keys=7`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * plando: 2 placement(s):
   * `Sky Temple Key 1` -> `The Button`
@@ -1239,7 +1239,7 @@ python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <van
 
 What the build contains:
 * starting room: `Temple Grounds/Meeting Grounds/Door to Service Access`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=my_items`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=my_items`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * companion slots: Filler1 (Clique)
 
@@ -1296,7 +1296,7 @@ python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <van
 
 What the build contains:
 * starting room: `Temple Grounds/Meeting Grounds/Door to Service Access`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=any`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=any`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * companion slots: Filler1 (Clique)
 
@@ -1341,7 +1341,7 @@ python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <van
 
 What the build contains:
 * starting room: `Temple Grounds/Meeting Grounds/Door to Service Access`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=my_items`, `translator_lore_rando=full_random`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=my_items`, `translator_lore_rando=full_random`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * companion slots: Filler1 (Clique)
 
@@ -1385,7 +1385,7 @@ python -m worlds.metroidprime2.test.manual.mt16_translator_lore_hints --iso <van
 
 What the build contains:
 * starting room: `Temple Grounds/Meeting Grounds/Door to Service Access`
-* options: `door_lock_rando=False`, `elevator_rando=False`, `map_visibility=full_map_and_items`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=off`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `translator_lore_hints=off`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x0, `Sky Temple Key 2` x0, `Sky Temple Key 3` x0, `Sky Temple Key 4` x0, `Sky Temple Key 5` x0, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 * companion slots: Filler1 (Clique)
 
@@ -1423,7 +1423,7 @@ python -m worlds.metroidprime2.test.manual.mt17_goal_boss_skip --iso <vanilla.is
 
 What the build contains:
 * starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
-* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
@@ -1475,7 +1475,7 @@ python -m worlds.metroidprime2.test.manual.mt17_goal_boss_skip --iso <vanilla.is
 
 What the build contains:
 * starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
-* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `goal=emperor_ing`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `goal=emperor_ing`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
@@ -1525,7 +1525,7 @@ python -m worlds.metroidprime2.test.manual.mt17_goal_boss_skip --iso <vanilla.is
 
 What the build contains:
 * starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
-* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `goal=keys`, `map_visibility=full_map_and_items`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `goal=keys`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `sky_temple_keys=9`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
@@ -1703,6 +1703,96 @@ If it fails, look at:
 * `client/receive_items.py::compute_desired_capacities` (`max_energy_tanks` clamp)
 * `patch_data.py` (starting-inventory clamp)
 * `client/item_panel.py` (panel counter)
+
+### MT19_ITEM_MAP_DOTS -- `mt19_item_map_dots` (P1)
+
+*Proves: item_map_dots draws a dot on the map and minimap at each item location once its room has been visited or revealed by a map station, hides the dot once the item is collected, and keeps it hidden across a save and reload*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt19_item_map_dots --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=True`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* A crash or garbled icon when opening the map points at the cave first (wrong register for the object or CMapWorldInfo on this DOL version); run MT13 on PAL too.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt19_item_map_dots --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt19_item_map_dots/mt19_item_map_dots.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt19_item_map_dots/mt19_item_map_dots.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Load the game and open the map (pause, Map) in Landing Site. Move the map over to GFMC Compound without going there.
+   **Expect:** Every Temple Grounds room is drawn (full_map), but GFMC Compound shows no item dots: you haven't visited it and no map station has revealed it.
+   *(exercises: dots use the same rule as door icons, so a map revealed from the start doesn't reveal them.)*
+2. **Do:** Walk into GFMC Compound and look at the minimap, then the pause map.
+   **Expect:** Two white dots: one at the Missile Launcher pickup and one on the crashed ship (the second Missile). Both show on the minimap and on the pause map.
+3. **Do:** Collect the Missile Launcher location's item, then look at the minimap and pause map again.
+   **Expect:** Its dot is gone. The ship's dot is still there.
+4. **Do:** Save at a save station, quit to the main menu, reload the save and look at GFMC Compound on the map.
+   **Expect:** Still exactly one dot (the ship's).
+   *(exercises: the collected flag is saved with the world's map data.)*
+5. **Do:** Travel to Agon Wastes and use its map station (Agon Map Station) without visiting the rooms around it. Open the map and look at light-world Agon rooms you haven't been in that hold items (e.g. Mining Station A, Central Mining Station).
+   **Expect:** Those rooms now show item dots although you have never entered them.
+
+Pass if:
+* A room's item dots appear once it is visited or its world's map station is used, and not before (even with the full map revealed).
+* A collected item's dot disappears and stays gone after a save and reload.
+* With the off variant no dot is ever drawn.
+
+If it fails, look at:
+* No dots at all: `client/item_map_dots_patch.py` (jump table entry for type 0x12 and the cave), and that `pickup_map_icon.TXTR` made it into GGuiSys.pak
+* Dots in unvisited rooms: `MAP_STATION_OR_VISIT` / `pickup_icon_visibility_installed`
+* Dots that never go away: the pickup's `TranslatorDoorLocation` SpecialFunction (open-prime-rando `pickups/location.py`) or the cave's editor id argument
+* Dots that come back after reloading: the world's SAVW `unmappable_objects`
+
+### MT19_ITEM_MAP_DOTS -- `mt19_item_map_dots_off` (P1)
+
+*Proves: item_map_dots draws a dot on the map and minimap at each item location once its room has been visited or revealed by a map station, hides the dot once the item is collected, and keeps it hidden across a save and reload*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt19_item_map_dots --iso <vanilla.iso> --variant off
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=False`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* A crash or garbled icon when opening the map points at the cave first (wrong register for the object or CMapWorldInfo on this DOL version); run MT13 on PAL too.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt19_item_map_dots --iso <vanilla.iso> --variant off
+2. Host       python MultiServer.py manual_tests/mt19_item_map_dots_off/mt19_item_map_dots_off.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt19_item_map_dots_off/mt19_item_map_dots_off.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Load the game, walk into GFMC Compound and look at the minimap and pause map.
+   **Expect:** No item dots anywhere, in any room, even after visiting it.
+
+Pass if:
+* A room's item dots appear once it is visited or its world's map station is used, and not before (even with the full map revealed).
+* A collected item's dot disappears and stays gone after a save and reload.
+* With the off variant no dot is ever drawn.
+
+If it fails, look at:
+* No dots at all: `client/item_map_dots_patch.py` (jump table entry for type 0x12 and the cave), and that `pickup_map_icon.TXTR` made it into GGuiSys.pak
+* Dots in unvisited rooms: `MAP_STATION_OR_VISIT` / `pickup_icon_visibility_installed`
+* Dots that never go away: the pickup's `TranslatorDoorLocation` SpecialFunction (open-prime-rando `pickups/location.py`) or the cave's editor id argument
+* Dots that come back after reloading: the world's SAVW `unmappable_objects`
 
 ## Suggested runs
 

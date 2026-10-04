@@ -41,7 +41,6 @@ from .logic.translator_gate_rando import (
 )
 from .options import (
     OPTION_GROUPS,
-    MapVisibility,
     MetroidPrime2Options,
     SkyTempleKeyHints,
     SkyTempleKeysLocations,
@@ -316,9 +315,9 @@ class MetroidPrime2World(World):
                 # patcher_runner.py); no RandoConfiguration field exists.
                 "max_energy_tanks": int(self.options.max_energy_tanks.value),
                 "spring_ball_button": self.options.spring_ball_button.current_key,
-                "show_item_locations": bool(
-                    self.options.map_visibility.value == MapVisibility.option_full_map_and_items
-                ),
+                # client/item_map_dots_patch.py: a DOL cave plus a MAPA
+                # visibility rewrite, neither of which config.json can carry.
+                "item_map_dots": bool(self.options.item_map_dots),
                 # PLAN.md section S: physically rewires the Sky Temple
                 # Gateway's key-count gate (client/sky_temple_key_gate_
                 # patch.py) -- open-prime-rando has no field for this, so
