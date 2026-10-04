@@ -51,7 +51,8 @@ _OPR_AVAILABLE = importlib.util.find_spec("open_prime_rando") is not None
 _TRANSLATOR_COLORS = frozenset({"violet", "amber", "emerald", "cobalt"})
 
 # The vanilla starting inventory (PLAN.md section F DEFAULT_STARTING_ITEMS
-# / section H's "mandatory six"), by OPR PlayerItemEnum id.
+# / section H's mandatory five, plus Varia Suit, which is always granted but
+# is not an AP item), by OPR PlayerItemEnum id.
 _MANDATORY_STARTING_ITEM_IDS = (12, 8, 9, 0, 22, 15)
 
 

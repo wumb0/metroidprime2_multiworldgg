@@ -274,12 +274,13 @@ TRACKED_EXPANSIONS = (
     "Beam Ammo Expansion",
 )
 
+# Varia Suit is not listed: it is not an AP item at all (see items.py), but
+# the ISO's starting inventory and the client still pin its slot (12) to 1.
 DEFAULT_STARTING_ITEMS = (
     "Power Beam",
     "Charge Beam",
     "Combat Visor",
     "Scan Visor",
-    "Varia Suit",
     "Morph Ball",
 )
 

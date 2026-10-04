@@ -71,14 +71,14 @@ _MANDATORY_STARTING_ITEM_IDS: dict[int, int] = {
     22: 1,  # Charge Beam
     8: 1,  # Combat Visor
     9: 1,  # Scan Visor
-    12: 1,  # Varia Suit
     15: 1,  # Morph Ball
 }
 
-# Varia Suit (item 12) doubles as open-prime-rando's "Defense Up" patch
-# counter, whose max capacity defaults to 1 (PLAN.md Context fact / risk
-# L7); giving it any other starting capacity would desync that counter, so
-# this is enforced unconditionally rather than merely defaulted.
+# Varia Suit (item 12) is the default suit, not an AP item: the player always
+# has it. Its slot doubles as open-prime-rando's "Defense Up" patch counter,
+# whose max capacity defaults to 1 (PLAN.md Context fact / risk L7); giving
+# it any other starting capacity would desync that counter, so it is always
+# written as exactly 1 rather than merely defaulted.
 _VARIA_ITEM_ID = 12
 _VARIA_STARTING_CAPACITY = 1
 
@@ -124,8 +124,8 @@ def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
     (``multiworld.precollected_items[player]``), summing ``gains_for``
     across however many copies of each item were precollected -- the k-th
     copy of a progressive item (0-based) applies that item's k-th stage --
-    plus the mandatory six, then clamps Varia Suit to exactly 1 and Energy
-    Tank to at most 14 (PLAN.md section H).
+    plus the mandatory five, then always grants Varia Suit at exactly 1 and
+    clamps Energy Tank to at most 14 (PLAN.md section H).
 
     With ``missile_expansions_unlock_launcher`` on, also sets the Missile
     Launcher flag (id 73) if any missile capacity was precollected, so the

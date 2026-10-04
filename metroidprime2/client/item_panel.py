@@ -48,7 +48,6 @@ UPGRADES: tuple[tuple[str, str], ...] = (
     ("scanvisor", "Scan Visor"),
     ("darkvisor", "Dark Visor"),
     ("echovisor", "Echo Visor"),
-    ("variasuit", "Varia Suit"),
     ("darksuit", "Dark Suit"),
     ("lightsuit", "Light Suit"),
     ("morphball", "Morph Ball"),

@@ -157,14 +157,10 @@ class TestBeamAmmo(unittest.TestCase):
 
 class TestVariaSuitClamp(unittest.TestCase):
     def test_varia_capacity_always_exactly_one(self) -> None:
-        # Even with nothing received (Varia is a starting item skipped by
-        # first_non_starting_item_index in real play), the client must
-        # never let OPR's Defense Up counter (item 12) exceed capacity 1.
-        desired_empty = compute_desired_capacities([], 0)
-        self.assertEqual(1, desired_empty[12])
-
-        desired_received = compute_desired_capacities(_received("Varia Suit"), 0)
-        self.assertEqual(1, desired_received[12])
+        # Varia is not an AP item, so nothing received can affect it: the
+        # client always pins OPR's Defense Up counter (item 12) to exactly 1.
+        self.assertEqual(1, compute_desired_capacities([], 0)[12])
+        self.assertEqual(1, compute_desired_capacities(_received("Power Beam"), 0)[12])
 
 
 class TestEnergyTankCap(unittest.TestCase):

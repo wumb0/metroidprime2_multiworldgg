@@ -103,12 +103,12 @@ _ROWS: tuple[ItemData, ...] = (
     _entry(10, "Scan Visor", PROG, ((9, 1),), "ScanVisor", 0),
     _entry(11, "Dark Visor", PROG, ((10, 1),), "DarkVisor", 1),
     _entry(12, "Echo Visor", PROG, ((11, 1),), "EchoVisor", 1),
-    # default_pool_count=0: always a starting item (constants.
-    # DEFAULT_STARTING_ITEMS), never actually placed as a pickup, so its
-    # "VariaSuit" model is never rendered in practice -- see the
-    # "Progressive Suit" entry below for why that model crashes the game
-    # if a location's item ever does use it.
-    _entry(13, "Varia Suit", PROG, ((12, 1),), "VariaSuit", 0),
+    # No "Varia Suit" entry (AP id 13 is deliberately retired): Varia is the
+    # default suit and the player always has it, so it is neither an item
+    # nor a pickup. Its inventory slot (12) is OPR's Defense Up counter and
+    # is pinned to capacity 1 by patch_data.starting_items_config and
+    # client/receive_items.py. See the "Progressive Suit" entry below for
+    # why the "VariaSuit" model must never be placed as a pickup.
     # Dark Suit / Light Suit / Progressive Suit: default_pool_count below
     # assumes the default progressive_suit=True (DefaultOnToggle); when
     # progressive_suit is off, item_pool.py puts Dark Suit/Light Suit (1
@@ -238,7 +238,7 @@ ITEM_GROUPS: dict[str, set[str]] = {
         "Charge Beam",
     },
     "Visors": {"Combat Visor", "Scan Visor", "Dark Visor", "Echo Visor"},
-    "Suits": {"Varia Suit", "Dark Suit", "Light Suit", "Progressive Suit"},
+    "Suits": {"Dark Suit", "Light Suit", "Progressive Suit"},
     "Translators": {
         "Violet Translator",
         "Amber Translator",

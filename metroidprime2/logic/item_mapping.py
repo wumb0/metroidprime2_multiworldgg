@@ -56,7 +56,6 @@ DB_ITEM_TO_AP_ITEM: dict[str, str] = {
     "Charge": "Charge Beam",
     "Combat": "Combat Visor",
     "Scan": "Scan Visor",
-    "Varia": "Varia Suit",
     "MorphBall": "Morph Ball",
     "Dark": "Dark Beam",
     "Light": "Light Beam",

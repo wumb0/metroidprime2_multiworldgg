@@ -305,7 +305,7 @@ Covered by `test/test_dock_rando.py`: `save_station_door_faces`'s 18-area/50-fac
 | 10 | Scan Visor | prog | (9,1) | ScanVisor | 0 start |
 | 11 | Dark Visor | prog | (10,1) | DarkVisor | 1 |
 | 12 | Echo Visor | prog | (11,1) | EchoVisor | 1 |
-| 13 | Varia Suit | prog | (12,1) | VariaSuit | 0 start, always |
+| 13 | *(retired)* | -- | -- | -- | Varia Suit is not an item (2026-10-04): it is the default suit and the player always has it; slot 12 is pinned to 1 as the Defense Up counter. AP id left unassigned. |
 | 14 | Dark Suit | prog | (13,1) | DarkSuit | 1 if not progressive_suit |
 | 15 | Light Suit | prog | (14,1) | LightSuit | 1 if not progressive_suit |
 | 16 | Progressive Suit | prog | stages [(13,1)],[(14,1)] | VariaSuit | 2 if progressive_suit |
@@ -334,7 +334,7 @@ Covered by `test/test_dock_rando.py`: `save_station_door_faces`'s 18-area/50-fac
 
 Expansions are `progression` because the logic counts them (`Missile >= 5`, `DarkAmmo >= 30`). Pool with defaults: 25 majors + 14 tanks + 61 expansions + 9 dark keys + 9 STK = 118 (randovania's starter preset also shuffles 118 and leaves one Energy Transfer Module); `item_pool.py` pads with one Missile Expansion to reach 119 locations. Item groups: `Sky Temple Keys`, `Dark Temple Keys`, `Beams`, `Visors`, `Suits`, `Translators`, `Expansions`.
 
-STK modes (`item_pool.py`): numeric N -> keys 1..N in pool, N+1..9 precollected; `all_bosses` -> 9 keys locked onto the 9 boss locations; `all_guardians` -> 3 keys locked onto 43/79/115, 6 precollected. Starting inventory: `DEFAULT_STARTING_ITEMS` (Power Beam, Charge Beam, Combat Visor, Scan Visor, Varia Suit, Morph Ball) pushed via `push_precollected`; `start_inventory` copies of those are ignored.
+STK modes (`item_pool.py`): numeric N -> keys 1..N in pool, N+1..9 precollected; `all_bosses` -> 9 keys locked onto the 9 boss locations; `all_guardians` -> 3 keys locked onto 43/79/115, 6 precollected. Starting inventory: `DEFAULT_STARTING_ITEMS` (Power Beam, Charge Beam, Combat Visor, Scan Visor, Morph Ball) pushed via `push_precollected`; `start_inventory` copies of those are ignored.
 
 ---
 
@@ -397,7 +397,7 @@ Both dark-damage options are stored in **tenths of a point per second** and conv
 `world_changes` also carries, for each of the 17 configurable nodes, an AreaChange `translator_gates` entry `{"translator": <color lowercased, or "unlocked">, **node.extra.get("gate_instances", {})}` (randovania `prime2_opr` `create_translator_gates`) -- the color/"unlocked" comes from `world.translator_gate_assignment` when `translator_gate_rando` reassigned that gate, else its vanilla color (section E.2); plus, when `door_lock_rando`/`elevator_rando`/`portal_rando` reassigned anything, `door_locks`/`elevators`/`portals` AreaChange entries from `world.dock_rando` (sections E.1/E.3), and the top-level `two_way_portals` key is `bool(world.options.portal_rando)`.
 (`beam_configuration`, `custom_items`, `game_options_defaults` left at OPR defaults.)
 
-`starting_items_config`: sum `gains` of every `precollected_items[player]` item (k-th copy of a progressive applies stage k) plus mandatory `{12:1, 8:1, 9:1, 0:1, 22:1, 15:1}`; clamp Varia to 1, Energy Tank to 14; emit `[{"item": id, "capacity": n}]`.
+`starting_items_config`: sum `gains` of every `precollected_items[player]` item (k-th copy of a progressive applies stage k) plus mandatory `{8:1, 9:1, 0:1, 22:1, 15:1}`; always write Varia (12) as exactly 1, clamp Energy Tank to 14; emit `[{"item": id, "capacity": n}]`.
 
 `world_changes`: group pickup nodes by `db.mlvl_for_region(region)` -> `WorldChange{mlvl_id, area_changes}`; per area `AreaChange{mrea_id: area.asset_id, pickups: [...]}`; per pickup:
 ```python

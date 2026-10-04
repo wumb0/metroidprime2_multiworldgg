@@ -42,7 +42,7 @@ class TestComputePanelState(unittest.TestCase):
 
     def test_starting_items_lit(self) -> None:
         state = compute_panel_state(STARTING, {})
-        for icon in ("powerbeam", "chargebeam", "combatvisor", "scanvisor", "variasuit", "morphball"):
+        for icon in ("powerbeam", "chargebeam", "combatvisor", "scanvisor", "morphball"):
             self.assertTrue(state.owned[icon], icon)
         self.assertFalse(state.owned["darkbeam"])
 
