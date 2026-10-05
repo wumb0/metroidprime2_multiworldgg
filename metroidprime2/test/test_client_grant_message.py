@@ -189,3 +189,24 @@ class TestGrantItemsHudMessage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHandleNotificationsReturn(unittest.TestCase):
+    def test_returns_true_only_when_a_message_was_sent(self) -> None:
+        sent: list[str] = []
+        manager = NotificationManager(4.0, lambda message: sent.append(message) or True)
+        self.assertFalse(manager.handle_notifications())
+
+        manager.queue_notification("hello")
+        self.assertTrue(manager.handle_notifications())
+        self.assertEqual(["hello"], sent)
+
+        # Within the cooldown: nothing sent, nothing reported.
+        manager.queue_notification("again")
+        self.assertFalse(manager.handle_notifications())
+
+    def test_returns_false_when_send_is_refused(self) -> None:
+        manager = NotificationManager(4.0, lambda _message: False)
+        manager.queue_notification("hello")
+        self.assertFalse(manager.handle_notifications())
+        self.assertEqual(["hello"], list(manager.notification_queue))

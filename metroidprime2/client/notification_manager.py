@@ -94,15 +94,20 @@ class NotificationManager:
                 return
         self.notification_queue.append(ReceivedItemsNotification(sender_name, {item_name: count}))
 
-    def handle_notifications(self):
+    def handle_notifications(self) -> bool:
+        """Sends the next due notification, if any. Returns True when a
+        message was sent (so the caller knows the game-side op slot is now
+        taken for this tick)."""
         now = time.time()
         self.time_since_last_message = now - self.last_message_time
         if len(self.notification_queue) > 0 and self.time_since_last_message >= self.message_duration:
             notification = self.notification_queue[0]
             if isinstance(notification, ReceivedItemsNotification) and now < notification.ready_at:
-                return
+                return False
             result = self.send_notification_func(str(notification))
             if result:
                 self.notification_queue.pop(0)
                 self.last_message_time = time.time()
                 self.time_since_last_message = 0
+                return True
+        return False

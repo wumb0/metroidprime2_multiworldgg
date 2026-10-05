@@ -483,6 +483,16 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
         if inventory is None:
             return
 
+        # 2b. HUD notification flush. This must come before the grant/counter
+        # step, not after it: both of those arm a remote-execution body (and
+        # so set the pending op) whenever they have work, and a large batch
+        # of received items takes many ticks to grant, so a flush gated on
+        # "nothing pending after granting" would starve until every batch was
+        # applied. Sending one message takes this tick's remote-execution
+        # slot; grants resume on the next free tick.
+        if ctx.notification_manager.handle_notifications():
+            return
+
         # 3./4. Pickup-counter protocol: any of the four pickup bitmask
         # counters being nonzero takes priority over granting received
         # items, exactly one body per tick.
@@ -492,10 +502,7 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
         else:
             await _handle_grant_items(ctx, inventory)
 
-        # 5. Idle-time notification flush + tracker datastorage.
-        if not ctx.game_interface.has_pending_op():
-            ctx.notification_manager.handle_notifications()
-
+        # 5. Tracker datastorage + hint scans.
         await _send_mlvl_datastorage(ctx)
         await _handle_hint_scans(ctx)
 
