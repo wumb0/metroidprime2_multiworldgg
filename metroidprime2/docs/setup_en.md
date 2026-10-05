@@ -137,3 +137,18 @@ metroidprime2_options:
   every half second rather than instantly on pickup; if the client isn't running and connected, nothing is
   delivered until it reconnects. `/mp2_debug_inventory` can help confirm whether a delivery actually landed in
   game memory.
+
+## Universal Tracker
+
+The client is also a [Universal Tracker](https://github.com/FarisTheAncient/Archipelago) (UT) client when UT is
+installed, so it shows which locations are in logic without needing your player yaml -- everything it needs
+(options, starting room, door / elevator / portal / translator randomization) comes from the server's slot data.
+Two things are added on top:
+
+- **Item strip** under the client window: counts for energy tanks, missiles, power bombs, dark/light ammo and
+  keys, and every beam, visor, suit and translator dimmed until you have it.
+- **Map tab** with one schematic map per region (drawn from room layouts, not game art) and a dot per location,
+  coloured by whether it is in logic. The tab follows you from region to region while you play.
+
+Seeds generated before Universal Tracker support was added do not carry the randomization data, so the
+tracker is only accurate for them if every randomization option was left at `vanilla`.

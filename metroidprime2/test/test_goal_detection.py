@@ -76,6 +76,14 @@ class _FakeGameInterface:
         return self.area
 
 
+class _FakeNotifications:
+    def __init__(self) -> None:
+        self.queued: list[str] = []
+
+    def queue_notification(self, message: str) -> None:
+        self.queued.append(message)
+
+
 class _FakeContext:
     def __init__(
         self,
@@ -83,12 +91,15 @@ class _FakeContext:
         mlvl: int | None = None,
         area: int | None = None,
         slot: int | None = 1,
+        goal: int | None = None,
     ) -> None:
         self.sent_msgs: list[list[dict[str, Any]]] = []
         self.finished_game = False
         self.game_interface = _FakeGameInterface(mlvl=mlvl, area=area)
         self.missing_locations: set[int] = missing_locations if missing_locations is not None else set()
         self.slot = slot
+        self.slot_data: dict[str, Any] = {} if goal is None else {"goal": goal}
+        self.notification_manager = _FakeNotifications()
 
     async def send_msgs(self, msgs: list[dict[str, Any]]) -> None:
         self.sent_msgs.append(msgs)
@@ -112,10 +123,10 @@ def _run(ctx: _FakeContext, inventory: dict[int, tuple[int, int]]) -> None:
     asyncio.run(_handle_pickup_counters(ctx, inventory))  # type: ignore[arg-type]
 
 
-def _run_goal(ctx: _FakeContext) -> None:
+def _run_goal(ctx: _FakeContext, inventory: dict[int, tuple[int, int]] | None = None) -> None:
     import asyncio
 
-    asyncio.run(_handle_check_goal(ctx))  # type: ignore[arg-type]
+    asyncio.run(_handle_check_goal(ctx, inventory))  # type: ignore[arg-type]
 
 
 def _goal_ctx(area: int | None = _END_AREA, mlvl: int | None = constants.TEMPLE_GROUNDS_MLVL) -> _FakeContext:
@@ -134,6 +145,11 @@ class TestMemoryGoalDetection(unittest.TestCase):
         _run_goal(ctx)
         _run_goal(ctx)
         self.assertEqual(1, len(ctx.sent_msgs))
+
+    def test_goal_queues_a_hud_message(self) -> None:
+        ctx = _goal_ctx()
+        _run_goal(ctx)
+        self.assertEqual(["Goal complete!"], ctx.notification_manager.queued)
 
     def test_non_ending_area_does_not_declare_goal(self) -> None:
         # Area index 0 (Temple Grounds, but not an ending area).
@@ -161,6 +177,73 @@ class TestMemoryGoalDetection(unittest.TestCase):
         _run_goal(ctx)
         self.assertFalse(ctx.finished_game)
         self.assertEqual([], ctx.sent_msgs)
+
+
+class TestBossSkipGoals(unittest.TestCase):
+    """``options.py``'s ``Goal`` choice (PLAN.md boss-skip addition): the
+    client side is a plain memory read of the current area; the ISO-side
+    warp to the Credits is tested in test_goal_warp_patch.py. See
+    ``_handle_check_goal``'s docstring."""
+
+    def test_keys_goal_fires_on_energy_controller(self) -> None:
+        ctx = _FakeContext(
+            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
+            area=constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX,
+            goal=constants.GOAL_KEYS,
+        )
+        _run_goal(ctx)
+        self.assertTrue(ctx.finished_game)
+
+    def test_energy_controller_does_not_satisfy_emperor_ing_goal(self) -> None:
+        ctx = _FakeContext(
+            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
+            area=constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX,
+            goal=constants.GOAL_EMPEROR_ING,
+        )
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game)
+
+    def test_energy_controller_does_not_satisfy_default_goal(self) -> None:
+        # goal=None -> slot_data has no "goal" key, defaulting to both_bosses
+        # the same way an older slot_data (predating this option) would.
+        ctx = _FakeContext(
+            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
+            area=constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX,
+        )
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game)
+
+    def test_leaving_sanctum_does_not_fire_emperor_ing_goal(self) -> None:
+        # There is no client-side proxy for Ing's death: respawning after
+        # dying in his arena also leaves it. The goal is reported through
+        # the Credits warp (client/goal_warp_patch.py) instead.
+        ctx = _FakeContext(
+            mlvl=constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL,
+            area=11,  # Sanctum
+            goal=constants.GOAL_EMPEROR_ING,
+        )
+        _run_goal(ctx)
+        ctx.game_interface.area = 10  # Sanctum Access
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game)
+
+    def test_sky_temple_gateway_alone_does_not_fire_emperor_ing_goal(self) -> None:
+        # Gateway is entered before Ing too, to open the key gate; only the
+        # patched warp onward to the Credits may end the game.
+        ctx = _FakeContext(
+            mlvl=constants.TEMPLE_GROUNDS_MLVL,
+            area=42,  # Sky Temple Gateway
+            goal=constants.GOAL_EMPEROR_ING,
+        )
+        _run_goal(ctx)
+        self.assertFalse(ctx.finished_game)
+
+    def test_credits_still_satisfies_emperor_ing_and_keys_goals(self) -> None:
+        for goal in (constants.GOAL_EMPEROR_ING, constants.GOAL_KEYS):
+            ctx = _goal_ctx()
+            ctx.slot_data = {"goal": goal}
+            _run_goal(ctx)
+            self.assertTrue(ctx.finished_game, f"goal {goal} did not accept reaching the Credits")
 
 
 class TestPickupBitmaskCounters(unittest.TestCase):
@@ -229,3 +312,57 @@ class TestPickupBitmaskCounters(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestGoalMarker(unittest.TestCase):
+    """The warp patch's inventory marker: reported regardless of what the
+    area-id read says (``client/goal_warp_patch.py`` module docstring)."""
+
+    @staticmethod
+    def _marker_inventory(amount: int) -> dict[int, tuple[int, int]]:
+        return {constants.GOAL_MARKER_ITEM: (amount, amount)}
+
+    def _ctx(self, goal: int | None) -> _FakeContext:
+        # Wherever the area read lands, it must not matter.
+        return _FakeContext(mlvl=constants.TEMPLE_GROUNDS_MLVL, area=0, goal=goal)
+
+    def test_marker_declares_both_boss_skip_goals(self) -> None:
+        for goal in (constants.GOAL_EMPEROR_ING, constants.GOAL_KEYS):
+            ctx = self._ctx(goal)
+            _run_goal(ctx, self._marker_inventory(0))  # seen absent first
+            self.assertFalse(ctx.finished_game)
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            self.assertTrue(ctx.finished_game, f"goal {goal} ignored the marker")
+            self.assertEqual(1, len(ctx.sent_msgs))
+
+    def test_marker_already_present_on_first_read_is_stale(self) -> None:
+        # Leftover memory under the title screen / an old save: never seen
+        # absent by this client, so it must not report.
+        for goal in (constants.GOAL_EMPEROR_ING, constants.GOAL_KEYS):
+            ctx = self._ctx(goal)
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            self.assertFalse(ctx.finished_game, f"goal {goal} reported a stale marker")
+            self.assertEqual([], ctx.sent_msgs)
+            # ...but a fresh game clearing it and then setting it again does.
+            _run_goal(ctx, self._marker_inventory(0))
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            self.assertTrue(ctx.finished_game)
+
+    def test_marker_ignored_for_the_vanilla_goal(self) -> None:
+        for goal in (None, constants.GOAL_BOTH_BOSSES):
+            ctx = self._ctx(goal)
+            _run_goal(ctx, self._marker_inventory(constants.GOAL_MARKER_AMOUNT))
+            self.assertFalse(ctx.finished_game)
+
+    def test_amount_below_the_marker_is_ignored(self) -> None:
+        # What the old shared-counter encoding could leave on an old save.
+        ctx = self._ctx(constants.GOAL_KEYS)
+        _run_goal(ctx, self._marker_inventory(7140))
+        self.assertFalse(ctx.finished_game)
+
+    def test_unreadable_or_missing_inventory_is_ignored(self) -> None:
+        ctx = self._ctx(constants.GOAL_EMPEROR_ING)
+        _run_goal(ctx, None)
+        _run_goal(ctx, {})
+        self.assertFalse(ctx.finished_game)

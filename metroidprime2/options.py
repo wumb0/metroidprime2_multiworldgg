@@ -53,48 +53,180 @@ from .options_tricks import (
     TrickUnderwaterDash,
     TrickWallBoost,
 )
+from . import constants
 
 # --------------------------------------------------------------------------
 # Goal / item pool options
 # --------------------------------------------------------------------------
 
 
-class SkyTempleKeys(Choice):
-    """How many Sky Temple Keys are shuffled into the general item pool
-    versus pre-placed or pre-collected.
+class Goal(Choice):
+    """Which boss(es) must fall before the multiworld considers this slot's
+    game complete.
 
-    A number N puts keys 1..N into the general pool and pre-collects keys
-    N+1..9 (0 means all 9 keys start collected -- an immediate escape to
-    the credits once the Sky Temple Gateway is reached; 9, the default,
-    puts every key into the pool like a normal item).
+    The two boss-skipping goals patch your game to warp you straight to the
+    Credits (which reports the goal) the moment they are met. Both Bosses
+    patches nothing.
 
-    All Bosses pre-places one key, in order, on each of the 9 boss/
-    guardian pickup locations (the 6 "sub-guardians" plus the 3 dark
-    temple guardians) instead of shuffling them into the pool.
+    Both Bosses (default, vanilla): complete once the Credits are reached,
+    which requires defeating both Emperor Ing (Sky Temple/Sanctum) and
+    Dark Samus 3 & 4 (Sky Temple Gateway), exactly like an unmodified
+    playthrough.
 
-    All Guardians pre-places keys 1-3 on the 3 dark temple guardians
-    (Amorbis, Chykka, Quadraxis) and pre-collects keys 4-9.
+    Emperor Ing: complete once Emperor Ing is defeated and you return to
+    Sky Temple Gateway, where you are warped to the Credits instead of
+    fighting Dark Samus 3 & 4.
 
-    All Guardians Plus 6 also pre-places keys 1-3 on the 3 dark temple
-    guardians, but shuffles keys 4-9 into the general pool instead of
-    pre-collecting them.
+    Keys: complete as soon as Sky Temple Energy Controller is reached --
+    which only requires opening the Sky Temple Gateway's key gate (see
+    ``sky_temple_keys_required``) -- without fighting either boss. You are
+    warped to the Credits from there.
+    """
+
+    display_name = "Goal"
+    option_both_bosses = constants.GOAL_BOTH_BOSSES
+    option_emperor_ing = constants.GOAL_EMPEROR_ING
+    option_keys = constants.GOAL_KEYS
+    default = option_both_bosses
+
+
+class SkyTempleKeys(Range):
+    """How many of the 9 Sky Temple Keys are real, findable items --
+    shuffled into the general pool, or pre-placed on a boss/guardian per
+    ``sky_temple_keys_locations`` -- versus starting the game already
+    pre-collected for free.
+
+    0 means all 9 keys start pre-collected -- an immediate escape to the
+    credits once the Sky Temple Gateway is reached. 9, the default, makes
+    every key findable, the same as a normal item.
     """
 
     display_name = "Sky Temple Keys"
-    option_0 = 0
-    option_1 = 1
-    option_2 = 2
-    option_3 = 3
-    option_4 = 4
-    option_5 = 5
-    option_6 = 6
-    option_7 = 7
-    option_8 = 8
-    option_9 = 9
-    option_all_bosses = 10
-    option_all_guardians = 11
-    option_all_guardians_plus_6 = 12
+    range_start = 0
+    range_end = 9
     default = 9
+
+
+class SkyTempleKeysLocations(Choice):
+    """Where the findable Sky Temple Keys (see ``sky_temple_keys``) are
+    placed.
+
+    Off (default): keys are shuffled into the general item pool like any
+    other progression item. Works with any ``sky_temple_keys`` value.
+
+    All Bosses pre-places one key, in order, on each of the 9 boss/
+    guardian pickup locations (the 6 "sub-guardians" plus the 3 dark
+    temple guardians) instead of shuffling them into the pool. Requires
+    ``sky_temple_keys`` to be 9.
+
+    All Guardians pre-places the first 3 keys on the 3 dark temple
+    guardians (Amorbis, Chykka, Quadraxis); any further findable keys
+    (``sky_temple_keys`` minus 3) are shuffled into the general pool, the
+    same as Off. Requires ``sky_temple_keys`` to be at least 3.
+    """
+
+    display_name = "Sky Temple Keys Locations"
+    option_off = 0
+    option_all_bosses = 1
+    option_all_guardians = 2
+    default = option_off
+
+
+class SkyTempleKeysRequired(Range):
+    """How many Sky Temple Keys must actually be held to unlock the Sky
+    Temple Gateway's ring of columns and proceed to the Dark Samus 3/4
+    fight, independent of where (or whether) ``sky_temple_keys`` makes
+    them findable.
+
+    Vanilla (and this option's default) requires all 9. A lower value is
+    a real difficulty reduction, not just a relocation: with
+    ``sky_temple_keys`` at 9 and this at, say, 6, only 6 of the 9 key
+    locations ever need to be found before the Gateway opens -- the
+    remaining 3 keys still exist and can still be found (nothing is
+    removed from the pool), they simply stop being necessary.
+
+    Must be no higher than ``sky_temple_keys`` -- a value higher than that
+    could never be satisfied, since it's impossible to hold more keys than
+    are findable. Silently clamped down to ``sky_temple_keys`` if higher.
+    See ``item_pool.sky_temple_keys_required_count``.
+    """
+
+    display_name = "Sky Temple Keys Required"
+    range_start = 1
+    range_end = 9
+    default = 9
+
+
+class SkyTempleKeyHints(Choice):
+    """Whether the 9 Luminoth pillars in Sky Temple Gateway hint at where
+    each Sky Temple Key really is.
+
+    Scanned (default): scanning a pillar shows where that key is (your own
+    world or another player's) and sends the hint to the server, the same
+    as any other in-game hint.
+    Precollected: every key hint is known from the start (sent to the
+    server as soon as the game begins), without needing to scan anything.
+    Disabled: the pillars' text is replaced with a non-hint
+    ("... is lost somewhere in Aether.") instead -- the vanilla riddles
+    describe vanilla key spots and would mislead once keys are shuffled.
+    """
+
+    display_name = "Sky Temple Key Hints"
+    option_disabled = 0
+    option_scanned = 1
+    option_precollected = 2
+    default = option_scanned
+    alias_false = option_disabled
+    alias_true = option_scanned
+
+
+class TranslatorLoreHints(Choice):
+    """Whether the 22 colored Luminoth lore holograms hint at where a
+    progression item can be found, the same way the Sky Temple Key
+    pillars do (``sky_temple_key_hints``) -- scanning one to completion
+    sends the hint to the server.
+
+    My Items (default): each hologram names where one of YOUR OWN
+    progression items is, in any player's world.
+    Any: the pool also includes other players' progression items that
+    landed in YOUR OWN world (the most a hologram is allowed to hint at
+    someone else's item).
+    Off: holograms keep their vanilla lore text; nothing is hinted.
+
+    Only progression items are ever chosen, excluding Missile/Power Bomb/
+    Dark/Light/Beam Ammo Expansions, Energy Tanks, and Sky Temple Keys --
+    all indistinguishable-copy bulk items where "one of them is at
+    location X" isn't useful (Sky Temple Keys are left entirely to the
+    pillars above, see `sky_temple_key_hints`). Each remaining item is
+    hinted at most once. If there are fewer eligible items than holograms,
+    the extra holograms simply say there's nothing more to tell.
+    """
+
+    display_name = "Translator Lore Hints"
+    option_off = 0
+    option_my_items = 1
+    option_any = 2
+    default = option_my_items
+
+
+class TranslatorLoreRando(Choice):
+    """How each of the 22 Luminoth lore holograms' required translator
+    color is chosen. The hologram (and its glow) is recolored to match, so
+    you can still tell at a glance which translator reads it.
+
+    Vanilla: every hologram requires its vanilla translator (Violet in
+    Temple Grounds/Great Temple, Amber in Agon Wastes, Emerald in Torvus
+    Bog, Cobalt in Sanctuary Fortress).
+    Random: every hologram independently requires a random one of the four
+    translator colors.
+
+    Only changes which translator a hologram needs; what it says is still
+    controlled by `translator_lore_hints`."""
+
+    display_name = "Translator Lore Randomization"
+    option_vanilla = 0
+    option_full_random = 1
+    default = option_vanilla
 
 
 class ProgressiveSuit(DefaultOnToggle):
@@ -353,33 +485,50 @@ class UnvisitedRoomNames(DefaultOnToggle):
 class MapVisibility(Choice):
     """How much of the in-game map is revealed from the start.
 
-    `vanilla`: the map fills in as you explore, and an item's dot appears
-    only once its room has been visited or its map station used.
+    `vanilla`: the map fills in as you explore.
 
     `full_map`: every room is drawn from the start (rooms still need to be
-    visited to show their name/details). Item dots still wait for their
-    room to be visited or a map station used -- same as `vanilla`.
+    visited to show their name/details).
 
-    `full_map_and_items`: currently identical to `full_map` for item dots.
-    open-prime-rando hardcodes every pickup's map icon to only ever appear
-    once its room is visited or a map station used, with no supported way
-    to reveal it earlier (PLAN.md section M) -- unlike the Metroid Prime 1
-    randomizer, which this option was originally meant to mirror. Kept as
-    a distinct choice (rather than merged into `full_map`) so that if
-    open-prime-rando ever adds real pre-visit item reveal, this value can
-    pick it up without a player-facing option rename.
-
-    These are one setting rather than two toggles because an item dot needs
-    its room drawn to be visible at all -- "item dots without the revealed
-    map" would be indistinguishable from `vanilla`.
+    Item dots are a separate option, `item_map_dots`. `full_map_and_items`
+    is still accepted, as an alias of `full_map`.
     """
 
     display_name = "Map Visibility"
     option_vanilla = 0
     option_full_map = 1
-    option_full_map_and_items = 2
+    # Was its own value, meant to show every item dot from the start; it
+    # never drew anything (PLAN.md section M). Kept so old YAMLs generate.
+    alias_full_map_and_items = 1
     default = 0
 
+
+class ItemMapDots(Choice):
+    """Item locations shown as dots on the map and minimap. A dot
+    disappears once its item is collected.
+
+    `off`: no item dots are ever shown.
+
+    `on`: dots show in rooms you have visited or that a map station has
+    revealed (the same rule door icons follow).
+
+    `always`: dots show in every room the map draws. Only differs from `on`
+    with `map_visibility: full_map`; otherwise the map doesn't draw a room
+    (or its dots) until it is visited or revealed by a map station.
+
+    `map_station`: dots show in every room the map draws, but only once the
+    map station of that world has been used. Visiting a room doesn't show
+    its dots, and neither do `map_visibility` or `unvisited_room_names`."""
+
+    display_name = "Item Map Dots"
+    option_off = constants.ITEM_MAP_DOTS_OFF
+    option_on = constants.ITEM_MAP_DOTS_ON
+    option_always = constants.ITEM_MAP_DOTS_ALWAYS
+    option_map_station = constants.ITEM_MAP_DOTS_MAP_STATION
+    # Was a Toggle; keep its YAML spellings working.
+    alias_false = constants.ITEM_MAP_DOTS_OFF
+    alias_true = constants.ITEM_MAP_DOTS_ON
+    default = option_on
 
 
 class RevealMapRemoved(FreeText):
@@ -408,8 +557,7 @@ class RevealMapRemoved(FreeText):
         if str(value).strip().lower() not in self._NOTHING_TO_SAY:
             raise Exception(
                 "`reveal_map` has been replaced by `map_visibility`: use "
-                "`map_visibility: full_map`, or `full_map_and_items` to also show "
-                "every item location on the map. Then delete the `reveal_map` line."
+                "`map_visibility: full_map`. Then delete the `reveal_map` line."
             )
         super().__init__("")
 
@@ -422,6 +570,28 @@ class WarpToStart(DefaultOnToggle):
     without holding L+R behaves exactly as it does in vanilla."""
 
     display_name = "Warp to Start"
+
+
+class PreScanElevators(DefaultOnToggle):
+    """If enabled, elevators start pre-scanned so you don't need to scan the
+    hologram pillar before using them. Mirrors the same feature in the
+    Metroid Prime 1 randomizer. Purely cosmetic/QoL: Scan Visor is always
+    a starting item and elevators are never logically gated on it, so
+    disabling this only affects whether you have to scan first."""
+
+    display_name = "Pre-Scan Elevators"
+
+
+class MoveWhileScanning(Toggle):
+    """If enabled, you can move while Scan Visor is locked onto a scan
+    point, instead of the game freezing your movement for the duration of
+    the scan.
+
+    Mirrors the Metroid Prime 1 randomizer's (undocumented) "move while
+    scan" setting. Purely cosmetic/QoL: logic never assumes you can move
+    during a scan either way."""
+
+    display_name = "Move While Scanning"
 
 
 class SpringBall(Toggle):
@@ -592,7 +762,13 @@ class DefenseUpDamageReduction(Range):
 class MetroidPrime2Options(PerGameCommonOptions):
     start_inventory_from_pool: StartInventoryPool
 
+    goal: Goal
     sky_temple_keys: SkyTempleKeys
+    sky_temple_keys_locations: SkyTempleKeysLocations
+    sky_temple_keys_required: SkyTempleKeysRequired
+    sky_temple_key_hints: SkyTempleKeyHints
+    translator_lore_hints: TranslatorLoreHints
+    translator_lore_rando: TranslatorLoreRando
     progressive_suit: ProgressiveSuit
     progressive_grapple: ProgressiveGrapple
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
@@ -646,11 +822,14 @@ class MetroidPrime2Options(PerGameCommonOptions):
     starting_room_light_world_only: StartingRoomLightWorldOnly
 
     warp_to_start: WarpToStart
+    pre_scan_elevators: PreScanElevators
+    move_while_scanning: MoveWhileScanning
     spring_ball: SpringBall
     spring_ball_button: SpringBallButton
 
     display_nonlocal_items: DisplayNonLocalItems
     map_visibility: MapVisibility
+    item_map_dots: ItemMapDots
     unvisited_room_names: UnvisitedRoomNames
 
     death_link: DeathLink
@@ -664,7 +843,18 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
 
 OPTION_GROUPS: list[OptionGroup] = [
-    OptionGroup("Goal", [SkyTempleKeys]),
+    OptionGroup(
+        "Goal",
+        [
+            Goal,
+            SkyTempleKeys,
+            SkyTempleKeysLocations,
+            SkyTempleKeysRequired,
+            SkyTempleKeyHints,
+            TranslatorLoreHints,
+            TranslatorLoreRando,
+        ],
+    ),
     OptionGroup(
         "Item Pool",
         [
@@ -738,10 +928,13 @@ OPTION_GROUPS: list[OptionGroup] = [
         ],
         start_collapsed=True,
     ),
-    OptionGroup("Quality of Life", [WarpToStart, SpringBall, SpringBallButton]),
+    OptionGroup(
+        "Quality of Life",
+        [WarpToStart, PreScanElevators, MoveWhileScanning, SpringBall, SpringBallButton],
+    ),
     OptionGroup(
         "Cosmetic",
-        [DisplayNonLocalItems, MapVisibility, UnvisitedRoomNames],
+        [DisplayNonLocalItems, MapVisibility, ItemMapDots, UnvisitedRoomNames],
     ),
 ]
 

@@ -123,6 +123,23 @@ def install_spring_ball(editor: Any, dol_version: Any, button: str) -> None:
     spring_ball_patch.apply_dol_patches(editor.code_cave, version_info.spring_ball, button)
 
 
+def install_move_while_scanning(editor: Any) -> None:
+    """Flips CTWK-Player's ``ScanFreezesGame`` off, mirroring randomprime's
+    (undocumented) ``moveWhileScan`` -- open-prime-rando has no field for
+    this (config.json is validated with ``extra="forbid"``), so like spring
+    ball it's applied directly here instead of via ``RandoConfiguration``.
+
+    Resource-only (a single tweak field, no DOL asm), so like spring ball
+    this needs no hook into ``_apply_patches``: the mutated tweak instance
+    just has to be on ``editor`` before ``editor.save_modifications`` runs,
+    which ``_apply_patches`` calls at its very end.
+    """
+    from retro_data_structures.properties.echoes.objects import TweakPlayer
+
+    with editor.edit_tweak(TweakPlayer) as tweak:
+        tweak.scan_visor.scan_freezes_game = False
+
+
 @contextlib.contextmanager
 def warp_to_start_installed(dol_version: Any, starting_area: Any):
     """Context manager installing both halves of warp-to-start (see
@@ -158,67 +175,111 @@ def warp_to_start_installed(dol_version: Any, starting_area: Any):
 
 
 @contextlib.contextmanager
-def item_map_icons_always_visible():
-    """Context manager: for its duration, every pickup's map icon is
-    explicitly set to ``ObjectVisibility.AreaVisitOrMapStation``, matching
-    open-prime-rando's own hardcoded default for pickup icons and
-    implementing the player-facing ``map_visibility`` option's
-    ``full_map_and_items`` value -- delivered here as ``options.json``'s
-    ``show_item_locations`` flag, the internal patch-time setting derived
-    from it (PLAN.md section M).
+def sky_temple_keys_required_installed(required: int):
+    """Context manager installing the Sky Temple Key gate rewrite
+    (``client/sky_temple_key_gate_patch.py``) for the duration of one
+    ``_apply_patches`` call.
 
-    ``ObjectVisibility.Always`` was tried first, but grepping the pinned
-    open-prime-rando release shows no code path -- upstream or in
-    Randovania -- ever assigns it to any mappable object, for any object
-    type, in any game; every real usage only ever sets
-    ``AreaVisitOrMapStation``/``AreaVisitOrMapStation2``. That makes
-    ``Always`` untested territory the reverse-engineered enum names may
-    not accurately describe, and matches the reported symptom (map icons
-    setting enabled, no dots ever rendered). ``AreaVisitOrMapStation`` is
-    open-prime-rando's own proven default for pickup icons
-    (``open_prime_rando.echoes.pickups.pickup_editing._add_map_icon``, a
-    ``MappableObject`` of custom ``object_type=0x12``) -- the dot shows
-    once the room has been visited or a map station used, same as every
-    real Randovania-generated Echoes game. OPR's own
-    ``map_visibility.unvisited_map_icons`` setting does not cover these
-    regardless: ``general_changes.py``'s ``objects_to_reveal`` set (the
-    object types that setting forces visible) lists only Elevator/
-    SaveStation/Portal/LightTeleporter/TranslatorGate/Up-DownArrow, not
-    pickups.
-
-    ``_add_map_icon`` is called from exactly one place,
-    ``patch_simple_pickup`` (an unqualified global lookup resolved against
-    the module's namespace at call time, the same mechanism
-    ``warp_to_start_installed`` above relies on for
-    ``register_world_changes``); ``patch_complex_pickup`` delegates to
-    ``patch_simple_pickup``, so replacing the module attribute here covers
-    every pickup regardless of stage count. The wrapper calls the original
-    to append the icon exactly as before, then walks the mappable objects
-    it just added (tracked by a before/after length -- the append is the
-    only mutation ``_add_map_icon`` makes to ``area.mapa.mappable_objects``)
-    and flips ``visibility_mode``, whose ``Field`` descriptor
-    (``retro_data_structures.construct_extensions.wrapper_classes.Field``)
-    has a working ``__set__``, exactly as
-    ``open_prime_rando.echoes.general_changes``'s own
-    ``mappable.visibility_mode = ObjectVisibility.AreaVisitOrMapStation``
-    line relies on.
+    Uses the same ``register_world_changes`` hook point as
+    ``warp_to_start_installed`` above (see its docstring) -- the DOL-free
+    equivalent of that mechanism, since this feature needs no DOL patch at
+    all, only one more registered SCLY function.
     """
-    from open_prime_rando.echoes.pickups import pickup_editing
-    from retro_data_structures.formats.mapa import ObjectVisibility
+    from open_prime_rando.echoes import patcher as opr_patcher
 
-    original_add_map_icon = pickup_editing._add_map_icon
+    from . import sky_temple_key_gate_patch
 
-    def _add_map_icon_always_visible(editor, mlvl, area, instances) -> None:
-        before = len(area.mapa.mappable_objects)
-        original_add_map_icon(editor, mlvl, area, instances)
-        for mappable in area.mapa.mappable_objects[before:]:
-            mappable.visibility_mode = ObjectVisibility.AreaVisitOrMapStation
+    original_register_world_changes = opr_patcher.register_world_changes
 
-    pickup_editing._add_map_icon = _add_map_icon_always_visible
+    def _register_world_changes_with_gate(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        sky_temple_key_gate_patch.register(area_patcher, required)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_gate
     try:
         yield
     finally:
-        pickup_editing._add_map_icon = original_add_map_icon
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
+def goal_warp_installed(goal: int):
+    """Context manager installing the boss-skip goal warps
+    (``client/goal_warp_patch.py``) for the duration of one
+    ``_apply_patches`` call, through the same ``register_world_changes``
+    hook as ``sky_temple_keys_required_installed`` above."""
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import goal_warp_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_goal_warp(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        goal_warp_patch.register(area_patcher, goal)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_goal_warp
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
+def translator_lore_colors_installed(colors: dict[int, str]):
+    """Context manager installing the translator lore hologram recoloring
+    (``client/lore_translator_patch.py``) for the duration of one
+    ``_apply_patches`` call, through the same ``register_world_changes``
+    hook as ``sky_temple_keys_required_installed`` above."""
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import lore_translator_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_lore(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        lore_translator_patch.register(area_patcher, colors)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_lore
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
+def item_map_dots_installed(editor: Any, dol_version: Any, mode: int):
+    """Context manager installing both halves of item map dots
+    (``client/item_map_dots_patch.py``) for the duration of one
+    ``_apply_patches`` call: the DOL cave that makes the renderer draw
+    open-prime-rando's pickup map icons, and the ``_add_map_icon`` wrapper
+    that sets their visibility for ``mode`` (``constants.ITEM_MAP_DOTS_ON``,
+    ``ITEM_MAP_DOTS_ALWAYS`` or ``ITEM_MAP_DOTS_MAP_STATION``; the last also
+    patches the visibility check to know its mode).
+
+    The cave is requested up front, like spring ball's; it only has to be
+    queued before ``_apply_patches`` calls ``fulfill_requests()``.
+    """
+    from . import item_map_dots_patch
+
+    visibility_modes = {
+        constants.ITEM_MAP_DOTS_ON: item_map_dots_patch.MAP_STATION_OR_VISIT,
+        constants.ITEM_MAP_DOTS_ALWAYS: item_map_dots_patch.ALWAYS,
+        constants.ITEM_MAP_DOTS_MAP_STATION: item_map_dots_patch.MAP_STATION,
+    }
+    if mode not in visibility_modes:
+        raise ValueError(f"Unknown item map dots mode {mode!r}")
+    version_info = _client_version_info(dol_version, "Item map dots", "Item Map Dots")
+    item_map_dots_patch.apply_dol_patches(
+        editor.code_cave,
+        version_info.item_map_dots,
+        editor.resolve_asset_id(item_map_dots_patch.PICKUP_ICON_TEXTURE),
+    )
+    if mode == constants.ITEM_MAP_DOTS_MAP_STATION:
+        item_map_dots_patch.apply_map_station_dol_patch(editor.code_cave, version_info.item_map_dots)
+    with item_map_dots_patch.pickup_icon_visibility_installed(visibility_modes[mode]):
+        yield
 
 
 # --------------------------------------------------------------------------
@@ -315,6 +376,8 @@ def patch_iso_with_ap(
     from open_prime_rando.patcher_editor import IsoFileProvider, IsoFileWriter, PatcherEditor
     from retro_data_structures.game_check import Game
 
+    from . import elevator_prescan_patch
+
     apmp2_file = os.fspath(apmp2_file)
     input_iso = os.fspath(input_iso)
     output_iso = get_output_path(apmp2_file)
@@ -334,9 +397,16 @@ def patch_iso_with_ap(
     apmp2_options = _read_apmp2_json(apmp2_file, "options.json")
     _check_pickup_encoding_compatibility(apmp2_options)
     warp_to_start = bool(apmp2_options.get("warp_to_start", False))
-    show_item_locations = bool(apmp2_options.get("show_item_locations", False))
+    move_while_scanning = bool(apmp2_options.get("move_while_scanning", False))
+    # int(): .apmp2 files from before the "always" mode carry a bool here.
+    item_map_dots = int(apmp2_options.get("item_map_dots", constants.ITEM_MAP_DOTS_OFF))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
+    sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
+    goal = int(apmp2_options.get("goal", constants.GOAL_BOTH_BOSSES))
+    translator_lore_colors = {
+        int(strg_id): str(color) for strg_id, color in apmp2_options.get("translator_lore_colors", {}).items()
+    }
 
     _report("Reading input ISO", 0.0)
     provider = IsoFileProvider(input_iso)  # type: ignore[arg-type]
@@ -365,13 +435,23 @@ def patch_iso_with_ap(
     try:
         if spring_ball:
             install_spring_ball(editor, dol_version, spring_ball_button)
+        if move_while_scanning:
+            install_move_while_scanning(editor)
         with contextlib.ExitStack() as patches:
             if warp_to_start:
                 patches.enter_context(
                     warp_to_start_installed(dol_version, configuration.starting_area)
                 )
-            if show_item_locations:
-                patches.enter_context(item_map_icons_always_visible())
+            if item_map_dots != constants.ITEM_MAP_DOTS_OFF:
+                patches.enter_context(item_map_dots_installed(editor, dol_version, item_map_dots))
+            if sky_temple_keys_required != 9:
+                patches.enter_context(sky_temple_keys_required_installed(sky_temple_keys_required))
+            if goal != constants.GOAL_BOTH_BOSSES:
+                patches.enter_context(goal_warp_installed(goal))
+            if translator_lore_colors:
+                patches.enter_context(translator_lore_colors_installed(translator_lore_colors))
+            if configuration.auto_enabled_elevators:
+                patches.enter_context(elevator_prescan_patch.installed())
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)
 
         def _write_callback(bytes_written: int, total_bytes: int) -> None:

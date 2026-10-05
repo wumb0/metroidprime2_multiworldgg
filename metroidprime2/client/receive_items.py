@@ -175,8 +175,8 @@ def compute_desired_capacities(
             # needs to combine two different amounts for the same id.
             desired[item_id] = max(desired.get(item_id, 0), amount)
 
-    # Varia Suit capacity is always exactly 1 (it's also OPR's Defense Up
-    # counter -- never grant it more).
+    # Varia Suit is not an AP item -- the player always has it, at capacity
+    # exactly 1 (it's also OPR's Defense Up counter -- never grant it more).
     desired[_VARIA_ITEM] = 1
 
     # Energy Tank: real max is 14 regardless of how many were received.

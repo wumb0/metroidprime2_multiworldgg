@@ -80,11 +80,12 @@ FAST_RETRY_OPTIONS: dict[str, Any] = {
 # MAP
 # --------------------------------------------------------------------------
 
-# Every manual test is easier to navigate with the full map visible: item
-# dots at every location from the start, and room names shown before the
-# room has been visited.
+# Every manual test is easier to navigate with the full map visible, room
+# names shown before the room has been visited, and item dots in visited or
+# map-station-revealed rooms.
 MAP_OPTIONS: dict[str, Any] = {
-    "map_visibility": "full_map_and_items",
+    "map_visibility": "full_map",
+    "item_map_dots": "on",
     "unvisited_room_names": True,
 }
 
@@ -104,10 +105,16 @@ def merge(*option_dicts: dict[str, Any]) -> dict[str, Any]:
 
 
 def merge_inventory(*inventory_dicts: dict[str, int]) -> dict[str, int]:
+    """Union of start inventories, taking the larger count per item.
+
+    Not a sum: the presets overlap (``ALL_ITEMS_START`` already holds 14
+    Energy Tanks, which is also what ``GOD_MODE_START_INVENTORY`` asks for),
+    and summing them would exceed the game's Energy Tank cap.
+    """
     result: dict[str, int] = {}
     for inventory in inventory_dicts:
         for name, count in inventory.items():
-            result[name] = result.get(name, 0) + count
+            result[name] = max(result.get(name, 0), count)
     return result
 
 

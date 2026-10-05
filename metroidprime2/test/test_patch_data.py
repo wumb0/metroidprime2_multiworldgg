@@ -15,15 +15,24 @@ import tempfile
 import unittest
 import zipfile
 
-from BaseClasses import Item, ItemClassification
+from BaseClasses import Item, ItemClassification, Location
+from NetUtils import HintStatus
 from Options import Visibility
 
 from .. import patch_data
 from ..constants import LANDING_SITE_MREA, OPR_MODEL_NAMES, PICKUP_COUNTER_ITEMS, TEMPLE_GROUNDS_MLVL
+from ..hint_scans import SKY_TEMPLE_KEY_HINT_SCANS, TRANSLATOR_LORE_HINT_SCANS, sky_temple_key_locations
+from ..item_pool import STK_ITEM_NAMES
 from ..items import ITEM_TABLE
 from ..locations import LOCATION_TABLE
 from ..logic.db_reader import load_game_database
-from ..options import DisplayNonLocalItems, MetroidPrime2Options, RevealMapRemoved
+from ..options import (
+    DisplayNonLocalItems,
+    MetroidPrime2Options,
+    RevealMapRemoved,
+    SkyTempleKeyHints,
+    TranslatorLoreHints,
+)
 from ..pickup_encoding import counter_and_amount
 from .bases import MP2TestBase
 
@@ -42,8 +51,21 @@ _OPR_AVAILABLE = importlib.util.find_spec("open_prime_rando") is not None
 _TRANSLATOR_COLORS = frozenset({"violet", "amber", "emerald", "cobalt"})
 
 # The vanilla starting inventory (PLAN.md section F DEFAULT_STARTING_ITEMS
-# / section H's "mandatory six"), by OPR PlayerItemEnum id.
+# / section H's mandatory five, plus Varia Suit, which is always granted but
+# is not an AP item), by OPR PlayerItemEnum id.
 _MANDATORY_STARTING_ITEM_IDS = (12, 8, 9, 0, 22, 15)
+
+
+_STK_STRG_IDS = frozenset(scan.strg_id for scan in SKY_TEMPLE_KEY_HINT_SCANS)
+
+
+def _stk_string_changes(config: dict) -> list[dict]:
+    """Just the Sky Temple Key pillar entries out of a full
+    ``string_changes`` list -- since section R, that list also carries up
+    to 22 translator lore hologram entries (default
+    ``translator_lore_hints="my_items"``), which most of the STK-focused
+    tests below don't care about."""
+    return [change for change in config["string_changes"] if change["strg_id"] in _STK_STRG_IDS]
 
 
 def _all_pickups(config: dict) -> list[dict]:
@@ -151,6 +173,9 @@ class TestMakeRandoConfiguration(MP2TestBase):
         self.assertEqual(1, custom_items["massive_damage_config"]["max_count"])
         self.assertEqual(0.0, custom_items["defense_up_config"]["damage_reduction_multiplier"])
         self.assertEqual(1, custom_items["defense_up_config"]["max_count"])
+
+    def test_auto_enabled_elevators_on_by_default(self) -> None:
+        self.assertTrue(self.config["auto_enabled_elevators"])
 
     def test_starting_area_is_landing_site(self) -> None:
         self.assertEqual(
@@ -413,6 +438,29 @@ class TestMakeRandoConfigurationWithPortalRando(MP2TestBase):
         RandoConfiguration.model_validate(self.config, extra="forbid")
 
 
+class TestMakeRandoConfigurationWithPreScanElevatorsOff(MP2TestBase):
+    """``pre_scan_elevators=False`` must flip the patch-side
+    ``auto_enabled_elevators`` flag off (PLAN.md section H); OPR still
+    accepts the resulting config."""
+
+    options = {"pre_scan_elevators": False}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_auto_enabled_elevators_is_disabled(self) -> None:
+        self.assertFalse(self.config["auto_enabled_elevators"])
+
+    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+    def test_validates_against_installed_rando_configuration(self) -> None:
+        from open_prime_rando.echoes.rando_configuration import RandoConfiguration
+
+        RandoConfiguration.model_validate(self.config, extra="forbid")
+
+
 class TestStartingAreaSaveStations(MP2TestBase):
     """starting_room="save_stations": config.json's starting_area must
     resolve to whichever of the 18 save-station candidates generate_early
@@ -655,120 +703,22 @@ class TestDetectIsoVersion(unittest.TestCase):
             detect_iso_version(self._write_fake_iso(b"GM8E01"))
 
 
-class TestItemMapIconsAlwaysVisible(unittest.TestCase):
-    """``item_map_icons_always_visible`` (client/patcher_runner.py):
-    implements ``map_visibility``'s ``full_map_and_items`` value -- carried
-    to the client as ``options.json``'s ``show_item_locations`` flag -- by
-    explicitly setting every pickup map icon open-prime-rando adds to
-    ``ObjectVisibility.AreaVisitOrMapStation``, matching open-prime-rando's
-    own hardcoded default (PLAN.md section M; ``ObjectVisibility.Always``
-    was tried first but is never used by any real upstream code path for
-    any object type, so it was dropped as untested territory)."""
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_wraps_and_restores_add_map_icon(self) -> None:
-        from open_prime_rando.echoes.pickups import pickup_editing
-
-        from ..client.patcher_runner import item_map_icons_always_visible
-
-        original = pickup_editing._add_map_icon
-        with item_map_icons_always_visible():
-            self.assertIsNot(pickup_editing._add_map_icon, original)
-        self.assertIs(pickup_editing._add_map_icon, original)
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_restores_even_on_exception(self) -> None:
-        from open_prime_rando.echoes.pickups import pickup_editing
-
-        from ..client.patcher_runner import item_map_icons_always_visible
-
-        original = pickup_editing._add_map_icon
-        with self.assertRaises(RuntimeError):
-            with item_map_icons_always_visible():
-                raise RuntimeError("boom")
-        self.assertIs(pickup_editing._add_map_icon, original)
-
-    @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
-    def test_forces_appended_mappable_objects_to_always_visible(self) -> None:
-        # Exercises the real wrapper (not a reimplementation of it), against
-        # a stub "original" _add_map_icon and a fake area/mapa, so this
-        # doesn't need a real ISO/MREA to run. The stub reproduces the one
-        # real side effect the wrapper depends on -- appending exactly one
-        # MappableObject-shaped stand-in to area.mapa.mappable_objects --
-        # and this asserts the *real* item_map_icons_always_visible code
-        # (before/after length diffing, then setting visibility_mode) is
-        # what turns that into ObjectVisibility.AreaVisitOrMapStation, not
-        # a test double. The stub starts at ``Never`` so the assertion
-        # proves the wrapper actively sets the value rather than leaving a
-        # coincidentally-matching default untouched.
-        from open_prime_rando.echoes.pickups import pickup_editing
-        from retro_data_structures.formats.mapa import ObjectVisibility
-
-        from ..client.patcher_runner import item_map_icons_always_visible
-
-        class _FakeMappable:
-            def __init__(self) -> None:
-                self.visibility_mode = ObjectVisibility.Never
-
-        class _FakeMapa:
-            def __init__(self) -> None:
-                self.mappable_objects: list[_FakeMappable] = []
-
-        class _FakeArea:
-            def __init__(self) -> None:
-                self.mapa = _FakeMapa()
-
-        area = _FakeArea()
-        stub_calls = []
-
-        def _stub_original_add_map_icon(editor, mlvl, area, instances) -> None:
-            stub_calls.append((editor, mlvl, area, instances))
-            area.mapa.mappable_objects.append(_FakeMappable())
-
-        original = pickup_editing._add_map_icon
-        pickup_editing._add_map_icon = _stub_original_add_map_icon
-        try:
-            with item_map_icons_always_visible():
-                pickup_editing._add_map_icon("editor", "mlvl", area, "instances")
-        finally:
-            pickup_editing._add_map_icon = original
-
-        self.assertEqual(1, len(stub_calls))
-        self.assertEqual(1, len(area.mapa.mappable_objects))
-        self.assertEqual(ObjectVisibility.AreaVisitOrMapStation, area.mapa.mappable_objects[0].visibility_mode)
-
-
 class _MapVisibilityOptionTest(MP2TestBase):
-    """Same rationale as test_warp_patch.py's ``_WarpToStartOptionTest``:
-    show_item_locations is a patch-time setting with no home in OPR's
-    RandoConfiguration (config.json is validated ``extra="forbid"``), so it
-    has to travel in options.json instead -- which is exactly where
-    ``patcher_runner.patch_iso_with_ap`` reads it back from.
-
-    ``map_visibility`` (options.py) is a single Choice covering both flags
-    at once, because an item dot needs its room drawn to be visible at all
-    -- ``full_map_and_items`` implies ``reveal_map_at_start`` is also true.
-    Each subclass below asserts the full pair for one Choice value."""
+    """``map_visibility`` (options.py) lands in config.json's
+    ``map_visibility.reveal_map_at_start``. ``full_map_and_items`` is an alias
+    of ``full_map`` now that item dots are their own option."""
 
     expected_reveal_map_at_start: bool
-    expected_show_item_locations: bool
 
-    def _generate_container(self) -> tuple[dict[str, object], dict[str, object]]:
+    def test_lands_in_config_json(self) -> None:
+        if type(self) is _MapVisibilityOptionTest:
+            self.skipTest("base class")
         with tempfile.TemporaryDirectory() as output_directory:
             self.world.generate_output(output_directory)
             containers = list(pathlib.Path(output_directory).glob("*.apmp2"))
             self.assertEqual(len(containers), 1)
             with zipfile.ZipFile(containers[0]) as container:
-                options = json.loads(container.read("options.json"))
                 config = json.loads(container.read("config.json"))
-        self.assertNotIn("show_item_locations", config)
-        return options, config
-
-    def test_flags_land_in_options_json_and_config_json(self) -> None:
-        if type(self) is _MapVisibilityOptionTest:
-            self.skipTest("base class")
-        options, config = self._generate_container()
-        self.assertEqual(options["show_item_locations"], self.expected_show_item_locations)
         self.assertEqual(
             config["map_visibility"]["reveal_map_at_start"], self.expected_reveal_map_at_start
         )
@@ -777,19 +727,16 @@ class _MapVisibilityOptionTest(MP2TestBase):
 class TestMapVisibilityVanilla(_MapVisibilityOptionTest):
     options = {"map_visibility": "vanilla"}
     expected_reveal_map_at_start = False
-    expected_show_item_locations = False
 
 
 class TestMapVisibilityFullMap(_MapVisibilityOptionTest):
     options = {"map_visibility": "full_map"}
     expected_reveal_map_at_start = True
-    expected_show_item_locations = False
 
 
-class TestMapVisibilityFullMapAndItems(_MapVisibilityOptionTest):
+class TestMapVisibilityFullMapAndItemsAlias(_MapVisibilityOptionTest):
     options = {"map_visibility": "full_map_and_items"}
     expected_reveal_map_at_start = True
-    expected_show_item_locations = True
 
 
 class TestRevealMapRemovedShim(unittest.TestCase):
@@ -833,3 +780,296 @@ class TestRevealMapRemovedShim(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual("", reveal_map_option.from_any(value).value)
 
+
+
+class TestSkyTempleKeyHintText(MP2TestBase):
+    """``patch_data._sky_temple_key_hint_text`` (PLAN.md section Q.4),
+    exercised directly against constructed ``BaseClasses.Location`` stand-
+    ins -- MP2TestBase's gen_steps stop before the real fill algorithm runs
+    (test/bases.py), so a location filled by actual generation isn't
+    available here; ``TestSkyTempleKeyStringChanges*`` below cover the
+    fully-generated ``_sky_temple_key_string_changes`` integration instead.
+    """
+
+    def test_own_world_says_your_with_no_possessive(self) -> None:
+        location = Location(self.player, "Torvus Bog: Path of Roots - Pickup (Missile Expansion)", 5033250)
+        text = patch_data._sky_temple_key_hint_text(self.world, 1, location)
+        # "your" is bare (no color markup, no "'s"); the location name is
+        # colorized (_STK_LOCATION_COLOR) but otherwise verbatim.
+        self.assertIn("is in your &push;&main-color=#FF3333;Torvus Bog: Path of Roots - Pickup (Missile Expansion)"
+                      "&pop;.", text)
+        self.assertNotIn("your's", text)
+        self.assertNotIn("your&pop;'s", text)
+
+    def test_other_player_world_uses_possessive_colored_name(self) -> None:
+        self.multiworld.player_name[2] = "OtherPlayer"
+        location = Location(2, "Agon Wastes: Mining Plaza - Pickup (Energy Tank)", 5033260)
+        text = patch_data._sky_temple_key_hint_text(self.world, 2, location)
+        self.assertIn("is in ", text)
+        # The colored player name, then a bare (uncolored) possessive "'s".
+        self.assertIn("&push;&main-color=#d4cc33;OtherPlayer&pop;'s", text)
+        self.assertIn("Agon Wastes: Mining Plaza - Pickup (Energy Tank)", text)
+
+    def test_disabled_mode_always_overwrites_even_with_a_real_location(self) -> None:
+        self.world.options.sky_temple_key_hints.value = SkyTempleKeyHints.option_disabled
+        location = Location(self.player, "Somewhere Vanilla Would Never Mention", 5033201)
+        text = patch_data._sky_temple_key_hint_text(self.world, 3, location)
+        self.assertTrue(text.endswith("is lost somewhere in Aether."), text)
+        self.assertNotIn("Somewhere Vanilla", text)
+
+    def test_none_and_not_precollected_says_lost_in_multiverse(self) -> None:
+        text = patch_data._sky_temple_key_hint_text(self.world, 4, None)
+        self.assertTrue(text.endswith("is lost somewhere in the multiverse."), text)
+
+    def test_sanitizes_unsafe_characters_in_player_and_location_names(self) -> None:
+        self.multiworld.player_name[2] = "Foo&Bar;Baz"
+        location = Location(2, "Region&Area;Node", 5033270)
+        text = patch_data._sky_temple_key_hint_text(self.world, 5, location)
+        self.assertIn("FooBarBaz&pop;'s", text)
+        self.assertIn("RegionAreaNode", text)
+        self.assertNotIn("Foo&Bar;Baz", text)
+        self.assertNotIn("Region&Area;Node", text)
+
+
+class TestSkyTempleKeyStringChanges(MP2TestBase):
+    """``_sky_temple_key_string_changes`` wired into
+    ``make_rando_configuration``'s ``string_changes`` (PLAN.md section
+    Q.4): shape/strg-id coverage, plus the default (no placement yet, none
+    precollected) wording."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_nine_string_changes_with_correct_strg_ids_and_shape(self) -> None:
+        changes = _stk_string_changes(self.config)
+        self.assertEqual(9, len(changes))
+        self.assertEqual([scan.strg_id for scan in SKY_TEMPLE_KEY_HINT_SCANS], [c["strg_id"] for c in changes])
+        for change in changes:
+            self.assertEqual(3, len(change["strings"]))
+            self.assertEqual(change["strings"][0], change["strings"][2])
+            self.assertEqual("", change["strings"][1])
+
+    def test_default_options_no_placement_says_lost_in_multiverse(self) -> None:
+        # Default sky_temple_keys=9 puts every key in the general pool, but
+        # gen_steps stops before fill runs (test/bases.py's MP2TestBase), so
+        # none of them have a real placement yet, and none are precollected
+        # either.
+        for change in _stk_string_changes(self.config):
+            self.assertTrue(change["strings"][0].endswith("is lost somewhere in the multiverse."), change)
+
+
+class TestSkyTempleKeyStringChangesPrecollectedNumeric(MP2TestBase):
+    """sky_temple_keys=3: keys 4-9 are precollected -- their pillar text
+    must say so, even though (gen_steps stopping before fill) they also
+    have no real placement, same as keys 1-3."""
+
+    options = {"sky_temple_keys": 3}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_precollected_keys_say_already_in_possession(self) -> None:
+        texts = {change["strg_id"]: change["strings"][0] for change in self.config["string_changes"]}
+        for hint_scan in SKY_TEMPLE_KEY_HINT_SCANS[3:]:
+            text = texts[hint_scan.strg_id]
+            self.assertTrue(text.endswith("is already in your possession."), text)
+        for hint_scan in SKY_TEMPLE_KEY_HINT_SCANS[:3]:
+            text = texts[hint_scan.strg_id]
+            self.assertTrue(text.endswith("is lost somewhere in the multiverse."), text)
+
+
+class TestSkyTempleKeyStringChangesDisabled(MP2TestBase):
+    """sky_temple_keys_locations="all_bosses" gives every key a real placement
+    (locked via place_locked_item during create_items, which -- unlike a
+    general-pool placement -- doesn't need the real fill algorithm to have
+    run); sky_temple_key_hints="disabled" must still overwrite all 9 with
+    the non-hint wording rather than describing that real placement."""
+
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses", "sky_temple_key_hints": "disabled"}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_all_nine_overwritten_regardless_of_real_placement(self) -> None:
+        for change in _stk_string_changes(self.config):
+            self.assertTrue(change["strings"][0].endswith("is lost somewhere in Aether."), change)
+
+
+class TestHintScansSlotDataScanned(MP2TestBase):
+    """slot_data's ``hint_scans`` (PLAN.md section Q.4/Q.5): one entry per
+    actually-placed key under the default ("scanned") mode."""
+
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses"}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.slot_data = self.world.fill_slot_data()
+
+    def test_one_entry_per_placed_key_with_right_player_and_address(self) -> None:
+        hint_scans = self.slot_data["hint_scans"]
+        locations = sky_temple_key_locations(self.world)
+        # Only the 9 Sky Temple Key entries: translator lore hints always
+        # exclude Sky Temple Keys regardless of sky_temple_key_hints
+        # (section R.3), and no other location is filled yet (gen_steps
+        # stops before fill).
+        self.assertEqual(9, len(hint_scans))
+        for hint_scan, location in zip(SKY_TEMPLE_KEY_HINT_SCANS, locations, strict=True):
+            assert location is not None
+            self.assertEqual(
+                [location.player, location.address, HintStatus.HINT_PRIORITY], hint_scans[str(hint_scan.scan_id)]
+            )
+
+
+class TestHintScansSlotDataDisabled(MP2TestBase):
+    # translator_lore_hints="off" keeps this test scoped to Q's
+    # sky_temple_key_hints="disabled" behavior -- translator lore hints
+    # always exclude Sky Temple Keys regardless (section R.3), which is
+    # covered separately in test_translator_lore_hints.py.
+    options = {
+        "sky_temple_keys": 9,
+        "sky_temple_keys_locations": "all_bosses",
+        "sky_temple_key_hints": "disabled",
+        "translator_lore_hints": "off",
+    }
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.slot_data = self.world.fill_slot_data()
+
+    def test_empty_hint_scans(self) -> None:
+        self.assertEqual({}, self.slot_data["hint_scans"])
+
+
+class TestHintScansSlotDataPrecollected(MP2TestBase):
+    """precollected mode: no client scan-detection table needed (every key
+    hint already went out via start_hints in post_fill), and every placed
+    key's item name lands in options.start_hints."""
+
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses", "sky_temple_key_hints": "precollected"}
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.world.post_fill()
+        self.slot_data = self.world.fill_slot_data()
+
+    def test_empty_hint_scans(self) -> None:
+        self.assertEqual({}, self.slot_data["hint_scans"])
+
+    def test_placed_keys_added_to_start_hints(self) -> None:
+        for key_name in STK_ITEM_NAMES:
+            self.assertIn(key_name, self.world.options.start_hints.value)
+
+
+class TestTranslatorLoreHintText(MP2TestBase):
+    """``patch_data._translator_lore_hint_text`` (PLAN.md section R.4),
+    exercised directly against constructed ``BaseClasses.Location``/
+    ``Item`` stand-ins, mirroring ``TestSkyTempleKeyHintText`` above."""
+
+    def _location_with_item(
+        self, location_player: int, location_name: str, address: int, item_player: int, item_name: str
+    ) -> Location:
+        location = Location(location_player, location_name, address)
+        location.item = Item(item_name, ItemClassification.progression, 999, item_player)
+        return location
+
+    def test_own_item_in_own_world_says_your_your(self) -> None:
+        location = self._location_with_item(
+            self.player, "Torvus Bog: Path of Roots - Pickup (Missile Expansion)", 5033250, self.player, "Grapple Beam"
+        )
+        text = patch_data._translator_lore_hint_text(self.world, location)
+        self.assertTrue(text.startswith("Your "), text)
+        self.assertIn(
+            "&push;&main-color=#FF6705B3;Grapple Beam&pop; can be found in your "
+            "&push;&main-color=#FF3333;Torvus Bog: Path of Roots - Pickup (Missile Expansion)&pop;.",
+            text,
+        )
+
+    def test_own_item_in_foreign_world_uses_possessive_location_owner(self) -> None:
+        self.multiworld.player_name[2] = "OtherPlayer"
+        location = self._location_with_item(
+            2, "Agon Wastes: Mining Plaza - Pickup (Energy Tank)", 5033260, self.player, "Boost Ball"
+        )
+        text = patch_data._translator_lore_hint_text(self.world, location)
+        self.assertTrue(text.startswith("Your "), text)
+        self.assertIn("can be found in &push;&main-color=#d4cc33;OtherPlayer&pop;'s", text)
+
+    def test_foreign_item_in_own_world_uses_possessive_item_owner(self) -> None:
+        self.multiworld.player_name[2] = "OtherPlayer"
+        location = self._location_with_item(self.player, "Somewhere In Your World", 5033261, 2, "Spider Ball")
+        text = patch_data._translator_lore_hint_text(self.world, location)
+        self.assertTrue(text.startswith("&push;&main-color=#d4cc33;OtherPlayer&pop;'s"), text)
+        self.assertIn("can be found in your ", text)
+
+    def test_none_says_nothing_more_to_tell(self) -> None:
+        text = patch_data._translator_lore_hint_text(self.world, None)
+        self.assertEqual("The Luminoth have nothing more to tell you.", text)
+
+    def test_uncolored_strips_all_markup(self) -> None:
+        self.multiworld.player_name[2] = "OtherPlayer"
+        location = self._location_with_item(self.player, "Plain Location", 5033262, 2, "Spider Ball")
+        text = patch_data._translator_lore_hint_text(self.world, location, colored=False)
+        self.assertNotIn("&push;", text)
+        self.assertNotIn("&pop;", text)
+        self.assertNotIn("#", text)
+        self.assertEqual("OtherPlayer's Spider Ball can be found in your Plain Location.", text)
+
+    def test_sanitizes_unsafe_characters(self) -> None:
+        self.multiworld.player_name[2] = "Foo&Bar;Baz"
+        location = self._location_with_item(self.player, "Region&Area;Node", 5033263, 2, "Spider Ball")
+        text = patch_data._translator_lore_hint_text(self.world, location)
+        self.assertIn("FooBarBaz&pop;'s", text)
+        self.assertIn("RegionAreaNode", text)
+        self.assertNotIn("Foo&Bar;Baz", text)
+        self.assertNotIn("Region&Area;Node", text)
+
+
+class TestTranslatorLoreStringChanges(MP2TestBase):
+    """``_translator_lore_string_changes`` wired into
+    ``make_rando_configuration``'s ``string_changes`` (PLAN.md section
+    R.4): off produces nothing; otherwise one entry per hologram with the
+    right strg ids and shape."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        if not self.constructed:
+            return
+        self.config = patch_data.make_rando_configuration(self.world)
+
+    def test_off_produces_no_lore_string_changes(self) -> None:
+        self.world.options.translator_lore_hints.value = TranslatorLoreHints.option_off
+        changes = patch_data._translator_lore_string_changes(self.world)
+        self.assertEqual([], changes)
+
+    def test_twenty_two_string_changes_with_correct_strg_ids_and_shape(self) -> None:
+        lore_strg_ids = {scan.strg_id for scan in TRANSLATOR_LORE_HINT_SCANS}
+        changes = [c for c in self.config["string_changes"] if c["strg_id"] in lore_strg_ids]
+        self.assertEqual(22, len(changes))
+        self.assertEqual([scan.strg_id for scan in TRANSLATOR_LORE_HINT_SCANS], [c["strg_id"] for c in changes])
+        for change in changes:
+            self.assertEqual(3, len(change["strings"]))
+            self.assertEqual(change["strings"][0], change["strings"][2])
+            self.assertEqual("", change["strings"][1])
+
+    def test_default_options_no_placement_says_nothing_more_to_tell(self) -> None:
+        # gen_steps stops before fill runs (MP2TestBase), so nothing is
+        # filled yet under default options -- every hologram falls back to
+        # the "nothing more" text.
+        lore_strg_ids = {scan.strg_id for scan in TRANSLATOR_LORE_HINT_SCANS}
+        for change in self.config["string_changes"]:
+            if change["strg_id"] in lore_strg_ids:
+                self.assertEqual("The Luminoth have nothing more to tell you.", change["strings"][0])

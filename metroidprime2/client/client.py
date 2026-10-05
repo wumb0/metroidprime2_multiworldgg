@@ -6,12 +6,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import multiprocessing
 import os
 import subprocess
+import threading
 import time
 import traceback
 import zipfile
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import Utils
@@ -20,6 +23,7 @@ from NetUtils import ClientStatus
 from settings import get_settings
 
 from .. import constants
+from ..hint_scans import decode_hint_scans, newly_completed_hints
 from ..pickup_encoding import decode
 from ..utils import get_apworld_version, get_output_path, setup_libs
 from .death_link import death_link_check
@@ -29,6 +33,7 @@ from .dolphin_client import (
     get_num_dolphin_instances,
 )
 from .game_interface import ConnectionState, EchoesInterface
+from .item_panel import ItemPanel, compute_panel_state, required_width_dp
 from .notification_manager import NotificationManager
 from .receive_items import compute_desired_capacities, plan_grants
 
@@ -52,6 +57,18 @@ except ImportError:
 
 if TYPE_CHECKING:
     pass
+
+# ISO patching status goes to this logger rather than the "Client" one: the
+# client UI only displays "Client" (and its children), whereas this one
+# propagates to the root logger's console/file handlers.
+patch_logger = logging.getLogger("MetroidPrime2Patcher")
+
+GOAL_COMPLETE_MESSAGE = "Goal complete!"
+
+# NetworkItem.location the server stamps on items it cheats in (!getitem,
+# /send); and the pseudo-slot CommonContext.player_names maps to "Archipelago".
+SERVER_CHEAT_LOCATION = -1
+SERVER_PLAYER_SLOT = 0
 
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
 
@@ -84,7 +101,7 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
             logger.info("Existing patched ISO detected; deleting so it will be regenerated...")
             os.remove(output_path)
 
-        Utils.async_start(patch_and_run_game(self.ctx.apmp2_file, self.ctx.mp2_iso))
+        Utils.async_start(patch_and_run_game(self.ctx.apmp2_file, self.ctx.mp2_iso, self.ctx.verbose))
 
     def _cmd_status(self, *_args: list[Any]) -> None:
         """Display the current Dolphin connection status."""
@@ -102,7 +119,8 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         logger.info("Reconnecting to Dolphin...")
         self.ctx.game_interface.connect_to_game()
         state = self.ctx.game_interface.get_connection_state()
-        update_connection_status(self.ctx, state)
+        if update_connection_status(self.ctx, state):
+            Utils.async_start(_warn_if_multiple_dolphins(), name="Multiple Dolphin check")
         if state == ConnectionState.DISCONNECTED:
             reason = self.ctx.game_interface.last_connect_error or "unknown reason"
             logger.error(f"Reconnect failed: {reason}")
@@ -171,11 +189,13 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
             )
             logger.info("Sent test DeathLink.")
         else:
-            self.ctx.on_deathlink({
-                "time": time.time(),
-                "source": self.ctx.player_names[self.ctx.slot],
-                "cause": reason,
-            })
+            self.ctx.on_deathlink(
+                {
+                    "time": time.time(),
+                    "source": self.ctx.player_names[self.ctx.slot],
+                    "cause": reason,
+                }
+            )
             logger.info("Simulated an incoming DeathLink.")
 
 
@@ -190,12 +210,22 @@ class MetroidPrime2Context(CommonContext):
     slot_data: dict[str, Any] = {}  # noqa: RUF012 -- matches CommonContext.slot_data's own unannotated convention
     expected_uuid: str | None = None
     last_sent_mlvl: int | None = None
+    last_sent_area: tuple[int, int] | None = None
+    # items_received index up to which receipts have been announced on the
+    # HUD (None = not yet synced this connection); see _handle_grant_items.
+    last_announced_index: int | None = None
     last_error_message: str | None = None
     apmp2_file: str | None = None
     mp2_iso: str | None = None
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
+    # See _handle_check_goal: set once a read shows the goal marker absent.
+    goal_marker_armed: bool = False
     debug_enabled: bool = False
+    # Set by the client's -v/--verbose flag: log ISO patching progress to the console.
+    verbose: bool = False
+    hint_scans: dict[int, tuple[int, int, int]] = {}  # noqa: RUF012 -- reassigned wholesale in on_package, never mutated in place
+    sent_hint_scans: set[int] = set()  # noqa: RUF012 -- same as hint_scans above
 
     def __init__(
         self,
@@ -242,12 +272,29 @@ class MetroidPrime2Context(CommonContext):
 
         if cmd == "Connected":
             self.slot_data = args["slot_data"]
+            self.goal_marker_armed = False
             self.expected_uuid = self.slot_data.get("world_uuid")
             self.game_interface.expected_uuid = self.expected_uuid
+            self.hint_scans = decode_hint_scans(self.slot_data.get("hint_scans"))
+            self.sent_hint_scans = set()
+            self.last_announced_index = None
+            self.last_sent_mlvl = None
+            self.last_sent_area = None
 
             if "death_link" in self.slot_data:
                 self.death_link_enabled = bool(self.slot_data["death_link"])
                 Utils.async_start(self.update_death_link(self.death_link_enabled))
+
+            self._refresh_item_panel()
+        elif cmd == "ReceivedItems":
+            self._refresh_item_panel()
+
+    def _refresh_item_panel(self) -> None:
+        panel = getattr(self.ui, "item_panel", None) if self.ui else None
+        if panel is None:
+            return
+        names = [self.item_names.lookup_in_game(network_item.item, self.game) for network_item in self.items_received]
+        panel.update(compute_panel_state(names, self.slot_data))
 
     def make_gui(self):
         from kvui import GameManager
@@ -263,14 +310,68 @@ class MetroidPrime2Context(CommonContext):
             logging_pairs = [("Client", "Archipelago")]  # noqa: RUF012 -- matches kvui GameManager's own convention
             base_title = f"Metroid Prime 2: Echoes Client {get_apworld_version()}{ut_title} | {apname}"
 
+            def build(self):
+                container = super().build()
+                # Kivy's default window (800dp wide) is narrower than the panel.
+                from kivy.core.window import Window
+                from kivy.metrics import dp
+
+                Window.size = (max(Window.width, dp(required_width_dp())), Window.height)
+                self.item_panel = ItemPanel()
+                self.grid.add_widget(self.item_panel.layout)
+                return container
+
         return MetroidPrime2Manager
 
 
-def update_connection_status(ctx: MetroidPrime2Context, status: ConnectionState) -> None:
+def update_connection_status(ctx: MetroidPrime2Context, status: ConnectionState) -> bool:
+    """Logs and records a state change; returns whether the state changed."""
     if ctx.connection_state == status:
-        return
+        return False
     logger.info(_STATUS_MESSAGES[status])
-    if get_num_dolphin_instances() > 1:
+    ctx.connection_state = status
+    return True
+
+
+async def _run_blocking[T](func: Callable[..., T], *args: Any) -> T:
+    """Runs a blocking call on a throwaway *daemon* thread and awaits it.
+
+    Kivy shares the asyncio loop with the sync task, so anything that blocks
+    the loop -- ``dolphin_memory_engine.hook()`` scanning a Dolphin that is
+    still starting up, the ``tasklist`` subprocess -- freezes the window and
+    leaves the close button unresponsive until the call returns. It must not
+    go through ``asyncio.to_thread`` either: its executor threads are joined
+    by ``asyncio.run`` on exit, so a call that never returns would keep the
+    process alive after the window has closed. A daemon thread is abandoned
+    instead, and cancelling the awaiting task (``_shutdown``'s timeout) just
+    drops the result."""
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[T] = loop.create_future()
+
+    def deliver(result: T | None, error: BaseException | None) -> None:
+        if future.done():
+            return
+        if error is not None:
+            future.set_exception(error)
+        else:
+            future.set_result(result)  # type: ignore[arg-type]
+
+    def work() -> None:
+        try:
+            result, error = func(*args), None
+        except BaseException as e:  # re-raised in the awaiting task
+            result, error = None, e
+        try:
+            loop.call_soon_threadsafe(deliver, result, error)
+        except RuntimeError:
+            pass  # loop already closed: the client is gone
+
+    threading.Thread(target=work, name=f"Blocking call: {func.__name__}", daemon=True).start()
+    return await future
+
+
+async def _warn_if_multiple_dolphins() -> None:
+    if await _run_blocking(get_num_dolphin_instances) > 1:
         # Windows only (get_num_dolphin_instances() returns 0 elsewhere).
         # dolphin-memory-engine's findPID() hooks the first Dolphin.exe it
         # sees, so with several running the client can attach to the wrong
@@ -280,7 +381,6 @@ def update_connection_status(ctx: MetroidPrime2Context, status: ConnectionState)
             "Multiple Dolphin instances detected; the client may be attached to the wrong "
             "one. Close all but the Dolphin running Metroid Prime 2: Echoes."
         )
-    ctx.connection_state = status
 
 
 async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
@@ -290,14 +390,15 @@ async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
         pass
 
     if ctx.apmp2_file:
-        Utils.async_start(patch_and_run_game(ctx.apmp2_file, ctx.mp2_iso))
+        Utils.async_start(patch_and_run_game(ctx.apmp2_file, ctx.mp2_iso, ctx.verbose))
 
     logger.info("Starting Dolphin Connector, attempting to connect to emulator...")
 
     while not ctx.exit_event.is_set():
         try:
             state = ctx.game_interface.get_connection_state()
-            update_connection_status(ctx, state)
+            if update_connection_status(ctx, state):
+                await _warn_if_multiple_dolphins()
 
             if state == ConnectionState.IN_GAME:
                 await _handle_game_ready(ctx)
@@ -313,13 +414,31 @@ async def dolphin_sync_task(ctx: MetroidPrime2Context) -> None:
                 logger.error(str(e))
             else:
                 logger.error(traceback.format_exc())
-            await asyncio.sleep(3)
+            await _sleep_unless_exiting(ctx, 3)
             continue
 
 
+async def _sleep_unless_exiting(ctx: MetroidPrime2Context, seconds: float) -> None:
+    """``asyncio.sleep`` that returns early once the client is closing, so
+    the sync loop notices ``exit_event`` right away instead of after its
+    current tick delay."""
+    try:
+        await asyncio.wait_for(ctx.exit_event.wait(), seconds)
+    except TimeoutError:
+        pass
+
+
+def _rehook(game_interface: EchoesInterface) -> None:
+    game_interface.disconnect_from_game()
+    game_interface.connect_to_game()
+
+
 async def _handle_game_not_ready(ctx: MetroidPrime2Context) -> None:
+    # connect_to_game() is where dolphin-memory-engine's hook() runs, so it
+    # goes through _run_blocking (see there). The sync task awaits it before
+    # touching game_interface again, so there is never concurrent access.
     if ctx.connection_state == ConnectionState.DISCONNECTED:
-        ctx.game_interface.connect_to_game()
+        await _run_blocking(ctx.game_interface.connect_to_game)
     elif ctx.connection_state == ConnectionState.WRONG_GAME:
         # The game id matched a known version but the build string didn't
         # (get_connection_state's check), which can mean the hook is reading
@@ -329,9 +448,8 @@ async def _handle_game_not_ready(ctx: MetroidPrime2Context) -> None:
         # of sitting in WRONG_GAME forever -- the sync loop only ever re-runs
         # connect_to_game() from DISCONNECTED, so without this a stale read
         # here never recovers.
-        ctx.game_interface.disconnect_from_game()
-        ctx.game_interface.connect_to_game()
-    await asyncio.sleep(1)
+        await _run_blocking(_rehook, ctx.game_interface)
+    await _sleep_unless_exiting(ctx, 1)
 
 
 _DEFAULT_TICK_DELAY = 0.5
@@ -356,39 +474,47 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
 
         # 0. Goal check is a pure memory read, so it runs before (and
         # independently of) the pending-op guard and the inventory protocol.
-        await _handle_check_goal(ctx)
+        # The inventory is read first because the boss-skip goals' marker
+        # lives in it (``constants.GOAL_MARKER_ITEM``).
+        inventory = ctx.game_interface.read_inventory()
+        await _handle_check_goal(ctx, inventory)
 
         # 1. Pending-op guard: never write over a body the game hasn't consumed yet.
         if ctx.game_interface.has_pending_op():
             delay = 0.1
             return
 
-        # 2. Inventory read.
-        inventory = ctx.game_interface.read_inventory()
+        # 2. Inventory read (done above).
         if inventory is None:
+            return
+
+        # 2b. HUD notification flush. This must come before the grant/counter
+        # step, not after it: both of those arm a remote-execution body (and
+        # so set the pending op) whenever they have work, and a large batch
+        # of received items takes many ticks to grant, so a flush gated on
+        # "nothing pending after granting" would starve until every batch was
+        # applied. Sending one message takes this tick's remote-execution
+        # slot; grants resume on the next free tick.
+        if ctx.notification_manager.handle_notifications():
             return
 
         # 3./4. Pickup-counter protocol: any of the four pickup bitmask
         # counters being nonzero takes priority over granting received
         # items, exactly one body per tick.
-        pickup_counters_pending = any(
-            inventory[item_id][0] > 0 for item_id in constants.PICKUP_COUNTER_ITEMS
-        )
+        pickup_counters_pending = any(inventory[item_id][0] > 0 for item_id in constants.PICKUP_COUNTER_ITEMS)
         if pickup_counters_pending:
             await _handle_pickup_counters(ctx, inventory)
         else:
             await _handle_grant_items(ctx, inventory)
 
-        # 5. Idle-time notification flush + tracker datastorage.
-        if not ctx.game_interface.has_pending_op():
-            ctx.notification_manager.handle_notifications()
-
+        # 5. Tracker datastorage + hint scans.
         await _send_mlvl_datastorage(ctx)
+        await _handle_hint_scans(ctx)
 
         if ctx.death_link_enabled:
             await _handle_check_deathlink(ctx)
     finally:
-        await asyncio.sleep(delay)
+        await _sleep_unless_exiting(ctx, delay)
 
 
 async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
@@ -398,23 +524,80 @@ async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
         await ctx.send_death(f"{ctx.player_names[ctx.slot]} ran out of energy.")
 
 
-async def _handle_check_goal(ctx: MetroidPrime2Context) -> None:
-    """Declares the goal once the player's current area is one of the ending
-    areas (``constants.GAME_END_AREA_INDICES``). Mirrors
-    ``worlds/metroidprime``'s "current level == End_of_Game" check: a raw
-    memory read of the current MLVL plus ``CStateManager::m_nextAreaId``,
-    with nothing the ISO has to be patched to produce (the old in-ISO
-    magic-item sentinel never fired in practice). Either read returns None
-    while disconnected or at the menu, which simply won't match."""
+async def _handle_check_goal(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]] | None = None) -> None:
+    """Declares the goal once the player's current area satisfies
+    ``slot_data["goal"]`` (``options.py``'s ``Goal`` choice, defaulting to
+    ``constants.GOAL_BOTH_BOSSES`` for slot_data predating this option).
+    Mirrors ``worlds/metroidprime``'s "current level == End_of_Game" check:
+    a raw memory read of the current MLVL plus ``CStateManager::m_nextAreaId``
+    (the old in-ISO magic-item sentinel never fired in practice). Either
+    read returns None while disconnected or at the menu, which simply won't
+    match.
+
+    ``GOAL_EMPEROR_ING`` and ``GOAL_KEYS`` additionally rely on the ISO
+    patch in ``client/goal_warp_patch.py``, which warps the player to the
+    Credits as soon as the condition is met (after Emperor Ing is dead, on
+    returning to Sky Temple Gateway; or on reaching Sky Temple Energy
+    Controller), so they report through the Credits check below like the
+    vanilla goal does.
+
+    * ``GOAL_BOTH_BOSSES`` (vanilla): current area is one of the five
+      post-Dark-Samus ``!!game_end_part*`` areas
+      (``constants.GAME_END_AREA_INDICES``).
+    * ``GOAL_EMPEROR_ING``: nothing beyond the Credits check. There is
+      deliberately no client-side proxy for his death: leaving his arena is
+      not proof of it (respawning after dying there also changes the area),
+      and the warp patch keys off the game's own state instead.
+    * ``GOAL_KEYS``: also accepts reaching Sky Temple Energy Controller
+      (``constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX``), reachable
+      only once the Sky Temple Gateway's key gate
+      (``sky_temple_keys_required``) has opened. The warp patch leaves it
+      for the Credits about a second later; this check just reports first.
+
+    Both boss-skipping goals also report on the *goal marker*: the warp
+    patch writes ``constants.GOAL_MARKER_AMOUNT`` onto
+    ``constants.GOAL_MARKER_ITEM`` as it starts the warp, and ``inventory``
+    (the caller's read of it, None when unreadable) is checked for that.
+    This is the route that does not depend on the area-id read matching,
+    which in play it did not after the warp. Only an absent -> present
+    change counts (see ``goal_marker_armed`` below), so a stale marker in
+    memory at connect time reports nothing.
+
+    A harder condition always satisfies an easier one too, so continuing
+    to play past your goal still ends the slot correctly."""
     if ctx.finished_game or not ctx.slot:
         return
-    if ctx.game_interface.current_mlvl() != constants.TEMPLE_GROUNDS_MLVL:
+
+    mlvl = ctx.game_interface.current_mlvl()
+    area = ctx.game_interface.current_area_id()
+
+    goal = ctx.slot_data.get("goal", constants.GOAL_BOTH_BOSSES)
+
+    reached_credits = mlvl == constants.TEMPLE_GROUNDS_MLVL and area in constants.GAME_END_AREA_INDICES
+    reached_keys = (
+        goal == constants.GOAL_KEYS
+        and mlvl == constants.GREAT_TEMPLE_SKY_TEMPLE_MLVL
+        and area == constants.SKY_TEMPLE_ENERGY_CONTROLLER_AREA_INDEX
+    )
+    # The marker only counts as an absent -> present transition seen by this
+    # client: one already present on the first read (stale memory from a
+    # finished run still sitting under the title screen, a leftover save)
+    # must not report anything. ``goal_marker_armed`` is set the first time
+    # a read shows it absent.
+    marker_set = False
+    if goal != constants.GOAL_BOTH_BOSSES and inventory is not None:
+        marker_present = inventory.get(constants.GOAL_MARKER_ITEM, (0, 0))[0] >= constants.GOAL_MARKER_AMOUNT
+        if not marker_present:
+            ctx.goal_marker_armed = True
+        else:
+            marker_set = getattr(ctx, "goal_marker_armed", False)
+    if not (reached_credits or reached_keys or marker_set):
         return
-    if ctx.game_interface.current_area_id() not in constants.GAME_END_AREA_INDICES:
-        return
-    logger.info("Reached the ending areas; reporting goal.")
+
+    logger.info("Goal complete! Reporting it to the server.")
     await ctx.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
     ctx.finished_game = True
+    ctx.notification_manager.queue_notification(GOAL_COMPLETE_MESSAGE)
 
 
 async def _handle_pickup_counters(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]]) -> None:
@@ -488,56 +671,128 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
     # .get default keeps older .apmp2/slot_data (generated before this option
     # existed) working, matching the flag-off behavior.
     unlock_launcher = bool(ctx.slot_data.get("missile_expansions_unlock_launcher", False))
-    unlock_power_bombs = bool(
-        ctx.slot_data.get("power_bomb_expansions_unlock_power_bombs", False)
-    )
+    unlock_power_bombs = bool(ctx.slot_data.get("power_bomb_expansions_unlock_power_bombs", False))
     desired = compute_desired_capacities(
         received, first_non_starting, unlock_launcher, unlock_power_bombs
     )
     deltas = plan_grants(desired, inventory)
+    if ctx.last_announced_index is None and not deltas:
+        # First sync this connection and the save already reflects
+        # everything received -- nothing to announce up to here.
+        ctx.last_announced_index = len(received)
+    _announce_received_items(ctx, received, first_non_starting)
     if not deltas:
         return
 
-    last_item_name, last_sender = received[-1]
-    if len(received) <= first_non_starting:
-        # Everything outstanding is still start-inventory catch-up (grant()'s
-        # per-tick remote-execution body budget can take several ticks to
-        # apply a large start_inventory block) -- there's no real "receive"
-        # to announce yet, so re-showing this message every tick would spam
-        # the HUD until catch-up finishes.
-        message = None
-    elif last_sender != ctx.slot:
-        sender_name = ctx.player_names.get(last_sender, "another world")
-        message = f"Received {last_item_name} from {sender_name}"
-    else:
-        # The game already shows its own pickup HUD message when you find
-        # one of your own items in-game; queuing another one here would
-        # double it up.
-        message = None
-
-    leftovers = ctx.game_interface.grant(deltas, message)
+    leftovers = ctx.game_interface.grant(deltas)
     if leftovers:
-        logger.debug(
-            f"{len(leftovers)} item grant(s) deferred to a later tick (remote-execution body budget)."
-        )
+        logger.debug(f"{len(leftovers)} item grant(s) deferred to a later tick (remote-execution body budget).")
+
+
+def _announce_received_items(
+    ctx: MetroidPrime2Context, received: list[tuple[str, int]], first_non_starting: int
+) -> None:
+    """Queues HUD notifications for the items received since the last
+    announcement, grouped per sender and item, so 3 Missile Expansions from
+    one player show as a single "Received 15 Missiles from X" rather than
+    three messages (NotificationManager packs each sender's items into as
+    few HUD messages as fit, merging into ones still queued).
+
+    Start-inventory catch-up (indices below ``first_non_starting``) is never
+    announced -- grant()'s per-tick body budget can take several ticks to
+    apply a large start_inventory block. Neither are this slot's own
+    pickups: the game already shows its own HUD message for those. Items
+    the server cheats in (``!getitem`` and ``/send``) carry location
+    ``SERVER_CHEAT_LOCATION`` instead of a real pickup location and are
+    announced as from "Archipelago" -- ``!getitem`` stamps this slot as the
+    sender, so the sender alone can't tell them from a self-found pickup.
+    """
+    start = max(ctx.last_announced_index or 0, first_non_starting)
+    ctx.last_announced_index = len(received)
+
+    groups: dict[tuple[int, str], int] = {}
+    for (item_name, sender), network_item in zip(received[start:], ctx.items_received[start:], strict=True):
+        if network_item.location == SERVER_CHEAT_LOCATION:
+            sender = SERVER_PLAYER_SLOT
+        elif sender == ctx.slot:
+            continue
+        groups[sender, item_name] = groups.get((sender, item_name), 0) + 1
+
+    for (sender, item_name), count in groups.items():
+        sender_name = ctx.player_names.get(sender, "another world")
+        ctx.notification_manager.queue_received_items(item_name, sender_name, count)
 
 
 async def _send_mlvl_datastorage(ctx: MetroidPrime2Context) -> None:
     mlvl = ctx.game_interface.current_mlvl()
-    if mlvl is None or mlvl == ctx.last_sent_mlvl or not ctx.slot:
+    if mlvl is None or not ctx.slot:
         return
-    ctx.last_sent_mlvl = mlvl
+    messages: list[dict[str, Any]] = []
+    if mlvl != ctx.last_sent_mlvl:
+        ctx.last_sent_mlvl = mlvl
+        messages.append(_datastorage_replace(f"metroidprime2_mlvl_{ctx.team}_{ctx.slot}", mlvl, 0))
+    # The MLVL alone can't tell a light region from its dark counterpart
+    # (they share one), so UT's map tab follows this finer-grained key.
+    area = ctx.game_interface.current_area_id()
+    if area is not None and (mlvl, area) != ctx.last_sent_area:
+        ctx.last_sent_area = (mlvl, area)
+        key = constants.AREA_DATASTORAGE_KEY.format(team=ctx.team, slot=ctx.slot)
+        messages.append(_datastorage_replace(key, f"{mlvl:X}:{area}", ""))
+    if messages:
+        await ctx.send_msgs(messages)
+
+
+def _datastorage_replace(key: str, value: Any, default: Any) -> dict[str, Any]:
+    return {
+        "cmd": "Set",
+        "key": key,
+        "default": default,
+        "want_reply": False,
+        "operations": [{"operation": "replace", "value": value}],
+    }
+
+
+async def _handle_hint_scans(ctx: MetroidPrime2Context) -> None:
+    """Sky Temple Key and translator lore hint scans (PLAN.md sections Q,
+    R): a pillar/hologram's SCAN is tracked by the game's own save data
+    regardless of anything this world patches, so detecting a completed
+    scan is a plain memory read -- unlike granting items or consuming
+    pickup counters, it never needs to arm or wait on the remote-execution
+    pending-op flag, so it doesn't need any of that protocol's bookkeeping
+    here.
+
+    Skips the Dolphin read entirely once every hint scan this slot knows
+    about (``ctx.hint_scans``, from slot_data -- empty unless
+    ``sky_temple_key_hints="scanned"``/``translator_lore_hints`` is not
+    ``"off"``) has already been reported, so an idle tick after
+    everything's sent costs nothing.
+    """
+    if set(ctx.hint_scans) <= ctx.sent_hint_scans:
+        return
+
+    scan_progress = ctx.game_interface.read_scan_progress()
+    if scan_progress is None:
+        return
+
+    newly_completed, locations_by_group = newly_completed_hints(scan_progress, ctx.hint_scans, ctx.sent_hint_scans)
+    if not newly_completed:
+        return
+
+    # One CreateHints call per (player, status) group, not just per player:
+    # section R's translator lore hints can name another player's item,
+    # which the server only allows under HINT_UNSPECIFIED, so a tick that
+    # completes both a Sky Temple Key pillar (HINT_PRIORITY) and a lore
+    # hologram naming someone else's item (HINT_UNSPECIFIED) for the same
+    # player needs two separate messages.
     await ctx.send_msgs(
         [
-            {
-                "cmd": "Set",
-                "key": f"metroidprime2_mlvl_{ctx.team}_{ctx.slot}",
-                "default": 0,
-                "want_reply": False,
-                "operations": [{"operation": "replace", "value": mlvl}],
-            }
+            {"cmd": "CreateHints", "locations": locations, "player": player, "status": status}
+            for (player, status), locations in locations_by_group.items()
         ]
     )
+    ctx.sent_hint_scans |= newly_completed
+    for scan_id in sorted(newly_completed):
+        logger.info(f"Hint scan complete (scan {scan_id:#x}); sent the hint to the server.")
 
 
 def get_options_from_apmp2(apmp2_file: str) -> dict[str, Any]:
@@ -554,7 +809,7 @@ async def run_game(romfile: str, mp2_settings: Any) -> None:
     if not auto_start:
         return
 
-    if not assert_no_running_dolphin():
+    if not await _run_blocking(assert_no_running_dolphin):
         # Windows only: a Dolphin is already running, so launching another
         # one would leave the client's hook free to attach to either instance
         # (findPID() takes the first Dolphin.exe it sees). Use the one
@@ -570,7 +825,7 @@ async def run_game(romfile: str, mp2_settings: Any) -> None:
     )
 
 
-async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> None:
+async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None, verbose: bool = False) -> None:
     from ..settings import cosmetics_dict
     from .patcher_runner import patch_iso_with_ap
 
@@ -584,31 +839,104 @@ async def patch_and_run_game(apmp2_file: str, mp2_iso: str | None = None) -> Non
             raise Exception(f"Invalid apmp2 file: {apmp2_file}")
 
         def _progress(text: str, percent: float) -> None:
-            logger.info(f"[{percent * 100:5.1f}%] {text}")
+            patch_logger.info(f"[{percent * 100:5.1f}%] {text}")
+
+        if verbose:
+            patch_logger.setLevel(logging.INFO)
+        else:
+            patch_logger.setLevel(logging.WARNING)
 
         try:
-            logger.info("--------------")
-            logger.info(f"Input ISO Path: {input_iso_path}")
-            logger.info(f"Output ISO Path: {output_path}")
-            logger.info("Patching ISO...")
+            patch_logger.info("--------------")
+            patch_logger.info(f"Input ISO Path: {input_iso_path}")
+            patch_logger.info(f"Output ISO Path: {output_path}")
+            logger.info("Patching ISO... Please wait")
             cosmetics = cosmetics_dict(mp2_settings)
-            output_path = await asyncio.to_thread(
-                patch_iso_with_ap, apmp2_file, input_iso_path, cosmetics, _progress
-            )
-            logger.info("Patching Complete")
+            _iso_patch_running.set()
+            try:
+                output_path = await asyncio.to_thread(
+                    patch_iso_with_ap, apmp2_file, input_iso_path, cosmetics, _progress
+                )
+            except asyncio.CancelledError:
+                # The patch thread itself can't be interrupted, and asyncio.run
+                # waits for it before the process exits -- which is what we
+                # want (killing it mid-write would leave a partial output ISO
+                # that the os.path.exists check above would then trust).
+                logger.info("Client closing; waiting for ISO patching to finish first...")
+                raise
+            patch_logger.info("Patching Complete")
         except BaseException as e:
             logger.error(f"Failed to patch ISO: {e}")
             raise RuntimeError(f"Failed to patch ISO: {e}") from e
-        logger.info("--------------")
+        finally:
+            _iso_patch_running.clear()
+        patch_logger.info("--------------")
 
     Utils.async_start(run_game(output_path, mp2_settings))
+
+
+_SHUTDOWN_TIMEOUT = 5.0
+_EXIT_WATCHDOG_DELAY = 10.0
+
+# True while the patch thread is writing the output ISO, so the exit watchdog
+# below doesn't kill the process mid-write.
+_iso_patch_running = threading.Event()
+
+
+def _arm_exit_watchdog(delay: float = _EXIT_WATCHDOG_DELAY) -> None:
+    """Force the process to exit if it is still alive ``delay`` seconds after
+    shutdown finished. The client has nothing left to save at that point, but
+    a stray non-daemon thread (or an executor thread stuck in a native call)
+    would otherwise leave the process running with no window. Skipped while
+    an ISO patch is writing -- a hard exit then would leave a partial output
+    ISO that ``patch_and_run_game`` would trust on the next start."""
+
+    def force_exit() -> None:
+        if _iso_patch_running.is_set():
+            return
+        logger.warning("Client didn't exit cleanly; forcing exit.")
+        logging.shutdown()
+        os._exit(0)
+
+    timer = threading.Timer(delay, force_exit)
+    timer.daemon = True
+    timer.start()
+
+
+async def _shutdown(ctx: MetroidPrime2Context) -> None:
+    """Bounded version of worlds/metroidprime's shutdown sequence (which
+    also unconditionally slept 3s before joining the sync task).
+
+    ``CommonContext.shutdown()`` awaits ``server_task``, which can sit in a
+    pending websocket connect (a connect/auto-reconnect attempt to an
+    unreachable server: websockets' 10s open timeout) or close handshake
+    (a dead connection: 10s close timeout) -- the client window closes but
+    the process hangs around, and a connect that then fails tries to open
+    a connection-loss message box on the already-stopped UI and throws.
+    """
+    if ctx.dolphin_sync_task:
+        try:
+            await asyncio.wait_for(ctx.dolphin_sync_task, _SHUTDOWN_TIMEOUT)
+        except TimeoutError:
+            logger.warning("Dolphin sync task didn't stop in time; cancelled it.")
+
+    if ctx.server_task and not ctx.server_task.done() and ctx.server is None:
+        # Still connecting: there's no connection to close gracefully.
+        ctx.server_task.cancel()
+        await asyncio.gather(ctx.server_task, return_exceptions=True)
+        ctx.server_task = None
+
+    try:
+        await asyncio.wait_for(ctx.shutdown(), _SHUTDOWN_TIMEOUT)
+    except TimeoutError:
+        logger.warning("Server connection didn't close in time; exiting anyway.")
 
 
 def main(*args: str) -> None:
     Utils.init_logging("MetroidPrime2Client")
 
     async def _main(
-        connect: str | None, password: str | None, apmp2_file: str | None, iso: str | None
+        connect: str | None, password: str | None, apmp2_file: str | None, iso: str | None, verbose: bool
     ) -> None:
         setup_libs()
 
@@ -617,6 +945,7 @@ def main(*args: str) -> None:
 
         ctx = MetroidPrime2Context(connect, password, apmp2_file, iso)
         ctx.debug_enabled = bool(get_settings()["metroidprime2_options"]["debug"])
+        ctx.verbose = verbose
 
         if apmp2_file:
             options = get_options_from_apmp2(apmp2_file)
@@ -645,19 +974,25 @@ def main(*args: str) -> None:
         ctx.watcher_event.set()
         ctx.server_address = None
 
-        await ctx.shutdown()
-
-        if ctx.dolphin_sync_task:
-            await asyncio.sleep(3)
-            await ctx.dolphin_sync_task
+        await _shutdown(ctx)
+        _arm_exit_watchdog()
 
     parser = get_base_parser()
     parser.add_argument("apmp2_file", default="", type=str, nargs="?", help="Path to an apmp2 file")
     parser.add_argument("iso", default="", type=str, nargs="?", help="Path to a Metroid Prime 2: Echoes iso")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Log ISO patching progress to the console.")
     parser_args = parser.parse_args(args)
 
     import colorama
 
     colorama.init()
-    asyncio.run(_main(parser_args.connect, parser_args.password, parser_args.apmp2_file, parser_args.iso))
+    asyncio.run(
+        _main(
+            parser_args.connect,
+            parser_args.password,
+            parser_args.apmp2_file,
+            parser_args.iso,
+            parser_args.verbose,
+        )
+    )
     colorama.deinit()

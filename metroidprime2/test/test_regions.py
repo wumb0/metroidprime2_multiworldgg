@@ -327,3 +327,61 @@ class TestStartingRoomLightWorldOnlyStillGenerates(MP2TestBase):
         db = load_game_database()
         _light_regions, dark_regions = db.light_dark_regions()
         self.assertNotIn(self.world.starting_location.region, dark_regions)
+
+
+_VICTORY_EVENT_LOCATION = NodeId(
+    "Sky Temple Grounds", "Sky Temple Gateway", "Event - Dark Samus 3 and 4"
+).ap_name
+"""The real victory-condition event location (see
+``logic/regions.py``'s module docstring on ``CREDITS_EVENT_NODE``). Used
+directly with ``can_reach_location`` below instead of
+``multiworld.can_beat_game``, which sweeps for reachable-but-uncollected
+advancement items first -- exactly what these tests must *not* do, since
+the whole point is to check reachability with specific Sky Temple Keys
+deliberately left uncollected."""
+
+
+class TestSkyTempleKeysRequiredLowerThanNine(MP2TestBase):
+    """sky_temple_keys_required < 9 must be a real reduction: the game is
+    beatable holding only that many of the 9 keys, with the rest never
+    collected at all (not just found-late -- see
+    ``logic/regions.py``'s ``_sky_temple_key_count_rule``)."""
+
+    options = {"sky_temple_keys_required": 6}
+
+    def test_beatable_holding_only_six_of_nine_keys(self) -> None:
+        self.collect_all_but([f"Sky Temple Key {n}" for n in (7, 8, 9)])
+        self.assertTrue(self.can_reach_location(_VICTORY_EVENT_LOCATION))
+
+    def test_still_unbeatable_holding_only_five_of_nine_keys(self) -> None:
+        self.collect_all_but([f"Sky Temple Key {n}" for n in (6, 7, 8, 9)])
+        self.assertFalse(self.can_reach_location(_VICTORY_EVENT_LOCATION))
+
+
+class TestSkyTempleKeysRequiredDefaultStillNeedsAllNine(MP2TestBase):
+    """Default (9, vanilla) must still require every key -- guards against
+    the override accidentally loosening the vanilla case."""
+
+    def test_still_unbeatable_missing_one_of_nine_keys(self) -> None:
+        self.collect_all_but(["Sky Temple Key 9"])
+        self.assertFalse(self.can_reach_location(_VICTORY_EVENT_LOCATION))
+
+
+class TestSkyTempleKeysRequiredClampedToPresentCount(MP2TestBase):
+    """sky_temple_keys_required above what sky_temple_keys actually makes
+    findable must be clamped down to that count (PLAN.md section S),
+    never left needing more keys than could ever be simultaneously held.
+
+    sky_temple_keys=3 precollects keys 4-9 for free (6 keys, already held
+    from the very start -- CollectionState.__init__ processes precollected
+    items unconditionally) and shuffles only keys 1-3 into the pool;
+    clamped to 3, sky_temple_keys_required=9 is therefore already
+    satisfied by the 6 precollected keys alone, with none of the findable
+    3 ever collected. Unclamped, this would need all 9 held (6
+    precollected + all 3 findable) and fail."""
+
+    options = {"sky_temple_keys": 3, "sky_temple_keys_required": 9}
+
+    def test_beatable_without_collecting_any_of_the_three_findable_keys(self) -> None:
+        self.collect_all_but([f"Sky Temple Key {n}" for n in (1, 2, 3)])
+        self.assertTrue(self.can_reach_location(_VICTORY_EVENT_LOCATION))

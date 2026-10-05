@@ -10,30 +10,50 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any, ClassVar, TextIO
+from typing import TYPE_CHECKING, Any, ClassVar, TextIO
 
 from BaseClasses import ItemClassification, Tutorial
+from NetUtils import HintStatus
+from Options import OptionError
 from worlds.AutoWorld import WebWorld, World
 from worlds.LauncherComponents import Component, SuffixIdentifier, Type, components, icon_paths, launch
 
 from . import constants
 from .container import MetroidPrime2Container
-from .item_pool import create_item_pool
+from .hint_scans import (
+    SKY_TEMPLE_KEY_HINT_SCANS,
+    TRANSLATOR_LORE_HINT_SCANS,
+    encode_hint_scans,
+    sky_temple_key_locations,
+    translator_lore_hint_locations,
+)
+from .item_pool import STK_ITEM_NAMES, create_item_pool, sky_temple_keys_required_count
 from .items import ITEM_GROUPS, ITEM_TABLE, MetroidPrime2Item, item_name_to_id
 from .locations import LOCATION_GROUPS, location_name_to_id
 from .logic import regions as logic_regions
 from .logic.db_reader import NodeId, load_game_database
 from .logic.dock_rando import DockRandoAssignment, build_dock_rando_assignment
-from .logic.translator_gate_rando import TranslatorGateAssignment, build_translator_gate_assignment
+from .logic.translator_gate_rando import (
+    TranslatorGateAssignment,
+    TranslatorLoreAssignment,
+    build_translator_gate_assignment,
+    build_translator_lore_assignment,
+)
 from .options import (
     OPTION_GROUPS,
-    MapVisibility,
     MetroidPrime2Options,
+    SkyTempleKeyHints,
+    SkyTempleKeysLocations,
+    TranslatorLoreHints,
     trick_levels_from_options,
 )
-from .patch_data import make_rando_configuration
+from .patch_data import _translator_lore_hint_text, make_rando_configuration
 from .settings import MetroidPrime2Settings
+from .tracker_data import TRACKER_WORLD, decode_randomization, encode_randomization
 from .utils import get_apworld_version
+
+if TYPE_CHECKING:
+    from BaseClasses import Location
 
 GAME_NAME = "Metroid Prime 2: Echoes"
 
@@ -121,12 +141,19 @@ class MetroidPrime2World(World):
     origin_region_name = "Temple Grounds/Landing Site/Save Station"
     required_client_version = (0, 5, 0)
     topology_present = True
+    # Universal Tracker: slot data carries every logic-affecting option plus
+    # the randomized state (tracker_data.py), so UT can skip its first
+    # generation and regen straight from the server's slot data -- no player
+    # yaml needed.
+    ut_can_gen_without_yaml = True
+    tracker_world: ClassVar[dict[str, Any]] = TRACKER_WORLD
 
     trick_levels: dict[str, int]
     world_uuid: str
     sky_temple_key_locations: list[str]
     dock_rando: DockRandoAssignment
     translator_gate_assignment: TranslatorGateAssignment
+    translator_lore_assignment: TranslatorLoreAssignment
     starting_location: NodeId
     """The node ``origin_region_name`` was set to for this player -- one of
     ``options.starting_room``'s selected pool (the DB's own vanilla
@@ -134,6 +161,12 @@ class MetroidPrime2World(World):
     around (rather than just the derived region-name string) so
     ``patch_data.py`` can resolve its mlvl/mrea without re-deriving which
     node ``origin_region_name`` came from."""
+    _translator_lore_hints: list[Location | None] | None
+    """``hint_scans.translator_lore_hint_locations``'s cache (PLAN.md
+    section R.3) -- ``None`` until first computed, then the 22 chosen
+    locations (or ``None`` entries) for the rest of generation. Cached
+    because that function draws from its own RNG; recomputing it would
+    reshuffle the choice out from under later callers."""
 
     def generate_early(self) -> None:
         multiworld = self.multiworld
@@ -142,6 +175,7 @@ class MetroidPrime2World(World):
         # option values arrive via multiworld.re_gen_passthrough instead of
         # the normal player yaml, so apply them before anything below reads
         # self.options (e.g. trick_levels_from_options just below).
+        passthrough: dict[str, Any] | None = None
         if hasattr(multiworld, "re_gen_passthrough"):
             passthrough = multiworld.re_gen_passthrough.get(self.game)
             if passthrough:
@@ -149,12 +183,45 @@ class MetroidPrime2World(World):
                     option = getattr(self.options, key, None)
                     if option is not None:
                         option.value = value
+        # The per-seed randomized state (starting room, dock/gate/lore
+        # rando) can't be re-derived without the original seed, so a UT
+        # regen restores it from slot data (tracker_data.py) instead of
+        # re-rolling it below.
+        restored = decode_randomization(passthrough) if passthrough else None
+
+        locations_mode = self.options.sky_temple_keys_locations.value
+        sky_temple_keys = self.options.sky_temple_keys.value
+        if locations_mode == SkyTempleKeysLocations.option_all_bosses and sky_temple_keys != 9:
+            raise OptionError(
+                f"{self.player_name}'s Metroid Prime 2: Echoes world: sky_temple_keys_locations "
+                f"'all_bosses' requires sky_temple_keys to be 9 (got {sky_temple_keys})."
+            )
+        if locations_mode == SkyTempleKeysLocations.option_all_guardians and sky_temple_keys < 3:
+            raise OptionError(
+                f"{self.player_name}'s Metroid Prime 2: Echoes world: sky_temple_keys_locations "
+                f"'all_guardians' requires sky_temple_keys to be at least 3 (got {sky_temple_keys})."
+            )
+
+        # The game's powerup_max caps Energy Tanks at 14 and misbehaves past
+        # it, so refuse a start inventory that asks for more instead of
+        # silently clamping it at patch time. Main.py pushes these to
+        # precollected only after generate_early, so read the options.
+        starting_tanks = self.options.start_inventory.value.get(
+            "Energy Tank", 0
+        ) + self.options.start_inventory_from_pool.value.get("Energy Tank", 0)
+        if starting_tanks > constants.MAX_ENERGY_TANKS:
+            raise OptionError(
+                f"{self.player_name}'s Metroid Prime 2: Echoes world: start_inventory has "
+                f"{starting_tanks} Energy Tanks, but the game supports at most "
+                f"{constants.MAX_ENERGY_TANKS}."
+            )
 
         self.trick_levels = trick_levels_from_options(self.options)
         self.world_uuid = str(
             uuid.uuid5(constants.NAMESPACE_UUID, f"{multiworld.seed_name}/{self.player}")
         )
         self.sky_temple_key_locations = []
+        self._translator_lore_hints = None
 
         # Must run before create_regions (logic/regions.py) builds the
         # region graph -- it reads world.origin_region_name to find the BFS
@@ -168,7 +235,9 @@ class MetroidPrime2World(World):
         # seed's generation is bit-for-bit unaffected.
         db = load_game_database()
         starting_room_pool = self.options.starting_room.current_key
-        if starting_room_pool == "vanilla":
+        if restored is not None:
+            self.starting_location = restored.starting_location
+        elif starting_room_pool == "vanilla":
             self.starting_location = db.starting_location
         else:
             candidates = db.starting_location_candidates(
@@ -177,13 +246,18 @@ class MetroidPrime2World(World):
             self.starting_location = self.random.choice(candidates)
         self.origin_region_name = self.starting_location.ap_name
 
-        # translator_gate_assignment must be built first: dock_rando's own
-        # reject-and-retry reachability probe (logic/dock_rando.py's
-        # _meets_progression_bar) evaluates translator gate requirements
-        # through logic/regions.py's translator_gate_requirement, which
-        # reads world.translator_gate_assignment.
-        self.translator_gate_assignment = build_translator_gate_assignment(self)
-        self.dock_rando = build_dock_rando_assignment(self)
+        # translator_gate_assignment and translator_lore_assignment must be
+        # built first: dock_rando's own reject-and-retry reachability probe
+        # (logic/dock_rando.py's _meets_progression_bar) evaluates both
+        # through logic/regions.py's _leave_requirement.
+        if restored is not None:
+            self.translator_gate_assignment = restored.translator_gates
+            self.translator_lore_assignment = restored.translator_lore
+            self.dock_rando = restored.dock_rando
+        else:
+            self.translator_gate_assignment = build_translator_gate_assignment(self)
+            self.translator_lore_assignment = build_translator_lore_assignment(self)
+            self.dock_rando = build_dock_rando_assignment(self)
 
     def create_regions(self) -> None:
         logic_regions.create_regions(self)
@@ -210,6 +284,30 @@ class MetroidPrime2World(World):
         # region graph itself.
         pass
 
+    def post_fill(self) -> None:
+        # PLAN.md section Q.4: sky_temple_key_hints="precollected" means
+        # every key hint is already known at the start of the game, which
+        # AP models as start_hints -- Main.py's output-generation phase
+        # reads options.start_hints after post_fill/fill has run (the
+        # precollect_hint loop keyed on `location.item.name in
+        # multiworld.worlds[location.item.player].options.start_hints`,
+        # right after every world's fill_slot_data() has already been
+        # called), so appending here is early enough for a real generation
+        # run to pick it up.
+        if self.options.sky_temple_key_hints.value != SkyTempleKeyHints.option_precollected:
+            return
+        for item_name, location in zip(STK_ITEM_NAMES, sky_temple_key_locations(self), strict=True):
+            if location is not None:
+                self.options.start_hints.value.add(item_name)
+
+    def pre_output(self) -> None:
+        # PLAN.md section R.3: pin the translator lore hint choice before
+        # generate_output's threaded stage. translator_lore_hint_locations
+        # caches on self._translator_lore_hints, so this is also safe to
+        # call again from generate_output/fill_slot_data/write_spoiler --
+        # they all see this same result.
+        translator_lore_hint_locations(self)
+
     def generate_output(self, output_directory: str) -> None:
         # Prime 1 pattern (worlds/metroidprime/__init__.py generate_output):
         # build the patcher-format config dict, write it plus a small
@@ -225,11 +323,27 @@ class MetroidPrime2World(World):
                 # RandoConfiguration (config.json is validated with
                 # extra="forbid"), so the client reads them from here.
                 "warp_to_start": bool(self.options.warp_to_start),
+                "move_while_scanning": bool(self.options.move_while_scanning),
                 "spring_ball": bool(self.options.spring_ball),
                 "spring_ball_button": self.options.spring_ball_button.current_key,
-                "show_item_locations": bool(
-                    self.options.map_visibility.value == MapVisibility.option_full_map_and_items
-                ),
+                # client/item_map_dots_patch.py: a DOL cave plus a MAPA
+                # visibility rewrite, neither of which config.json can carry.
+                "item_map_dots": int(self.options.item_map_dots.value),
+                # PLAN.md section S: physically rewires the Sky Temple
+                # Gateway's key-count gate (client/sky_temple_key_gate_
+                # patch.py) -- open-prime-rando has no field for this, so
+                # like the settings above it travels here rather than in
+                # config.json.
+                "sky_temple_keys_required": sky_temple_keys_required_count(self),
+                # client/goal_warp_patch.py: the boss-skip goals warp to the
+                # Credits in-game (Goal's option_* values, constants.GOAL_*).
+                "goal": int(self.options.goal.value),
+                # translator_lore_rando: {str(strg_id): color} for each
+                # recolored lore hologram (client/lore_translator_patch.py);
+                # empty under "vanilla".
+                "translator_lore_colors": {
+                    str(strg_id): color.lower() for strg_id, color in self.translator_lore_assignment.items()
+                },
                 # PLAN.md section P's compatibility gate: client/patcher_runner.py
                 # refuses to patch a .apmp2 whose pickup encoding it doesn't
                 # recognize, since the per-pickup resource mapping baked into
@@ -259,7 +373,61 @@ class MetroidPrime2World(World):
         )
         slot_data["sky_temple_key_locations"] = list(self.sky_temple_key_locations)
         slot_data["starting_region"] = self.origin_region_name
+        # Pool size of each counted expansion (filler/starting copies
+        # included) for the client's "acquired/total" counters. Energy Tanks
+        # are clamped to the game's cap: start-inventory tanks sit on top of
+        # the pool's own 14, and the extras can never be used.
+        placed = [
+            location.item.name
+            for location in self.multiworld.get_locations()
+            if location.item is not None and location.item.player == self.player
+        ]
+        placed += [item.name for item in self.multiworld.precollected_items[self.player]]
+        slot_data["expansion_totals"] = {
+            name: placed.count(name) for name in constants.TRACKED_EXPANSIONS
+        }
+        slot_data["expansion_totals"]["Energy Tank"] = min(
+            slot_data["expansion_totals"]["Energy Tank"], constants.MAX_ENERGY_TANKS
+        )
+        slot_data.update(encode_randomization(self))
         slot_data["apworld_version"] = get_apworld_version()
+
+        # PLAN.md section Q.4/Q.5: {scan_id: (location_player, location_id,
+        # status)} for the client's _handle_hint_scans, only when there's
+        # actually something to scan for (sky_temple_key_hints="scanned" --
+        # disabled replaces the pillar text with a non-hint, and
+        # precollected already sent every hint via start_hints above, so
+        # neither needs a client scan-detection path). Sky Temple Key
+        # entries are always our own item, so they're always HINT_PRIORITY.
+        hint_scans: dict[int, tuple[int, int, int]] = {}
+        if self.options.sky_temple_key_hints.value == SkyTempleKeyHints.option_scanned:
+            for hint_scan, location in zip(
+                SKY_TEMPLE_KEY_HINT_SCANS, sky_temple_key_locations(self), strict=True
+            ):
+                if location is not None:
+                    hint_scans[hint_scan.scan_id] = (location.player, location.address, HintStatus.HINT_PRIORITY)
+
+        # PLAN.md section R.4: translator lore hints, added independent of
+        # sky_temple_key_hints -- translator_lore_hint_locations already
+        # returns all-None (no entries added below) under
+        # translator_lore_hints="off", so no extra option check is needed
+        # here. A hologram naming another player's item (translator_lore_
+        # hints="any") must use HINT_UNSPECIFIED: CreateHints only allows
+        # HINT_PRIORITY when the hinted item belongs to the sender.
+        for hint_scan, location in zip(
+            TRANSLATOR_LORE_HINT_SCANS, translator_lore_hint_locations(self), strict=True
+        ):
+            if location is not None:
+                assert location.item is not None
+                status = (
+                    HintStatus.HINT_PRIORITY
+                    if location.item.player == self.player
+                    else HintStatus.HINT_UNSPECIFIED
+                )
+                hint_scans[hint_scan.scan_id] = (location.player, location.address, status)
+
+        slot_data["hint_scans"] = encode_hint_scans(hint_scans)
+
         return slot_data
 
     @staticmethod
@@ -273,8 +441,23 @@ class MetroidPrime2World(World):
         if self.options.starting_room.current_key != "vanilla":
             spoiler_handle.write(f"\n\nStarting Region ({self.player_name}): {self.origin_region_name}\n")
 
-        if not self.sky_temple_key_locations:
-            return
-        spoiler_handle.write(f"\n\nSky Temple Keys ({self.player_name}):\n")
-        for location_name in self.sky_temple_key_locations:
-            spoiler_handle.write(f"    {location_name}\n")
+        if self.sky_temple_key_locations:
+            spoiler_handle.write(f"\n\nSky Temple Keys ({self.player_name}):\n")
+            for location_name in self.sky_temple_key_locations:
+                spoiler_handle.write(f"    {location_name}\n")
+
+        # PLAN.md section R.4: one line per hologram, plain text
+        # (colored=False -- the spoiler log has no STRG rich-text markup).
+        if self.options.translator_lore_hints.value != TranslatorLoreHints.option_off:
+            spoiler_handle.write(f"\n\nTranslator Lore Hints ({self.player_name}):\n")
+            for hint_scan, location in zip(
+                TRANSLATOR_LORE_HINT_SCANS, translator_lore_hint_locations(self), strict=True
+            ):
+                text = _translator_lore_hint_text(self, location, colored=False)
+                spoiler_handle.write(f"    {hint_scan.room}: {text}\n")
+
+        if self.translator_lore_assignment:
+            spoiler_handle.write(f"\n\nTranslator Lore Colors ({self.player_name}):\n")
+            for hint_scan in TRANSLATOR_LORE_HINT_SCANS:
+                color = self.translator_lore_assignment[hint_scan.strg_id]
+                spoiler_handle.write(f"    {hint_scan.room}: {color}\n")

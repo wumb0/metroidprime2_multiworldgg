@@ -99,6 +99,63 @@ class SpringBallAddresses:
 
 
 @dataclass(frozen=True)
+class ItemMapDotAddresses:
+    """Addresses the item map dot patch needs (``client/item_map_dots_patch.py``).
+
+    Everything here is inside ``CMappableObject::Draw`` (unnamed in
+    PrimeDecomp/echoes: NTSC ``fn_800BB924``, PAL 0x800BB9B8), whose icon
+    switch covers object types 0x10..0x19 through a 10-entry jump table.
+    NTSC was read off the disassembly; PAL was found through the jump table
+    open-prime-rando already lists for it (``map_icon_jumptable``) and checked
+    case by case against NTSC. Same code, but a different register allocation.
+    """
+
+    icon_jump_table: int
+    """The icon switch's jump table, indexed by ``object_type - 0x10``."""
+
+    no_icon_case: int
+    """Where the table sends the types with no icon (0x12, 0x13, 0x16):
+    texture -1, so nothing is drawn. The table entry for open-prime-rando's
+    pickup type 0x12 must still point here before it's patched."""
+
+    flag_lookup_call: int
+    """The translator gate case's ``bl`` to ``object_flag_lookup``, followed
+    by the case's own tail: skip drawing if the flag is set. The cave
+    branches here."""
+
+    object_flag_lookup: int
+    """``CMapWorldInfo``'s per-editor-id flag lookup (NTSC ``fn_8010F654``),
+    set by a ``TranslatorDoorLocation`` SpecialFunction on ``DECR``."""
+
+    object_register: int
+    """The GPR holding ``this`` (the ``CMappableObject*``) inside Draw."""
+
+    map_world_info_register: int
+    """The GPR holding the ``CMapWorldInfo&`` inside Draw; the lookup's first
+    argument."""
+
+    # ``CMappableObject::GetIsVisibleToAutoMapper`` (NTSC ``fn_800BB53C``, PAL
+    # 0x800BB5D0), which Draw's caller asks about each object. It switches on
+    # the object's visibility mode with a compare ladder; the ``item_map_dots:
+    # map_station`` mode patch hooks the ladder's "mode above 4" exit. Same
+    # code and registers on both versions, 0x94 apart.
+
+    visibility_above_four_branch: int
+    """The ladder's ``bge`` that sends every mode above 4 to
+    ``visibility_always`` (vanilla uses none of them)."""
+
+    visibility_always: int
+    """The ``li r3, 1`` tail that ``visibility_above_four_branch`` targets."""
+
+    visibility_unused_branch: int
+    """A ``b visibility_return`` the compiler left unreachable, right after
+    the mode-1 case. Free to take a jump."""
+
+    visibility_return: int
+    """The function's epilogue, entered with the result in r3."""
+
+
+@dataclass(frozen=True)
 class EchoesVersionInfo:
     name: str
     game_id: bytes
@@ -113,6 +170,7 @@ class EchoesVersionInfo:
     powerup_max: int
     warp_to_start: WarpToStartAddresses
     spring_ball: SpringBallAddresses
+    item_map_dots: ItemMapDotAddresses
 
 
 # --------------------------------------------------------------------------
@@ -185,6 +243,30 @@ ALIVE_BIT_MASK = 0x80
 """High bit of the ``ALIVE_OFFSET`` byte; see ``ALIVE_OFFSET`` docstring
 for the (unconfirmed) reasoning."""
 
+SCAN_STATES_OFFSET = 0x5A0
+"""Offset from a CPlayerState pointer of its scan-state vector header
+(PLAN.md section Q.1, disassembled from both retail NTSC and PAL DOLs):
+``CPlayerState::ScanStates()`` is ``addi r3,r3,0x59C; blr`` (NTSC
+0x800851DC, PAL 0x80085318) -- the ``rstl::vector<SScanState>`` itself, at
+CPlayerState+0x59C -- and ``GetScanTime`` (NTSC 0x80085068, PAL 0x800851A4)
+reads the element count from +0x5A0 and the data pointer from +0x5A8,
+indexing with a stride-8 (``slwi 3``) multiply and reading ``SScanState``'s
+u8 progress field at element+4. So, from a CPlayerState pointer: count at
+``SCAN_STATES_OFFSET`` (+0x5A0), capacity at +0x5A4, data pointer at +0x5A8.
+Each ``SScanState`` is 8 bytes: ``u32 scan_asset_id; u8 progress; u8 flag;
+pad[2]``, sorted ascending by id. ``progress == 255`` means the scan is
+complete (``SetScanTime`` stores ``255*t``; loading a save restores
+complete scans as 255) -- see ``hint_scans.SCAN_COMPLETE``."""
+
+SCAN_STATE_SIZE = 8
+"""Bytes per ``SScanState`` entry -- see ``SCAN_STATES_OFFSET``."""
+
+SCAN_STATES_MAX_COUNT = 2048
+"""Sanity cap on the scan-state vector's element count (retail has ~820
+entries fully unlocked); a count above this from
+``read_scan_progress`` means the pointer/offsets are wrong, not a
+legitimately huge save."""
+
 
 NTSC = EchoesVersionInfo(
     name="NTSC",
@@ -226,6 +308,18 @@ NTSC = EchoesVersionInfo(
         set_velocity_wr=0x800EA404,
         set_move_state=0x80187370,
     ),
+    item_map_dots=ItemMapDotAddresses(
+        icon_jump_table=0x803B3638,
+        no_icon_case=0x800BBAE0,
+        flag_lookup_call=0x800BBACC,
+        object_flag_lookup=0x8010F654,
+        object_register=9,
+        map_world_info_register=3,
+        visibility_above_four_branch=0x800BB5C8,
+        visibility_always=0x800BB644,
+        visibility_unused_branch=0x800BB5D8,
+        visibility_return=0x800BB648,
+    ),
 )
 
 PAL = EchoesVersionInfo(
@@ -263,6 +357,18 @@ PAL = EchoesVersionInfo(
         bomb_jump=0x80186B1C,
         set_velocity_wr=0x800EA4EC,
         set_move_state=0x80187658,
+    ),
+    item_map_dots=ItemMapDotAddresses(
+        icon_jump_table=0x803B4A80,
+        no_icon_case=0x800BBB70,
+        flag_lookup_call=0x800BBB5C,
+        object_flag_lookup=0x8010F808,
+        object_register=28,
+        map_world_info_register=29,
+        visibility_above_four_branch=0x800BB65C,
+        visibility_always=0x800BB6D8,
+        visibility_unused_branch=0x800BB66C,
+        visibility_return=0x800BB6DC,
     ),
 )
 

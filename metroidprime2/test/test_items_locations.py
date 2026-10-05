@@ -36,9 +36,20 @@ class TestLocations(unittest.TestCase):
 
 class TestItems(unittest.TestCase):
     def test_item_codes_unique_and_contiguous(self) -> None:
+        # Position 13 (Varia Suit) is deliberately retired -- the player
+        # always has Varia, so it is not an item. Its id stays unassigned
+        # rather than shifting every later item's id.
+        retired = {constants.ITEM_ID_BASE + 13}
         codes = sorted(item.code for item in ITEM_TABLE.values())
-        expected = [constants.ITEM_ID_BASE + i for i in range(len(ITEM_TABLE))]
+        expected = [
+            constants.ITEM_ID_BASE + i
+            for i in range(len(ITEM_TABLE) + len(retired))
+            if constants.ITEM_ID_BASE + i not in retired
+        ]
         self.assertEqual(expected, codes)
+
+    def test_varia_suit_is_not_an_item(self) -> None:
+        self.assertNotIn("Varia Suit", ITEM_TABLE)
 
     def test_default_pool_total(self) -> None:
         # See items.py module docstring: the literal per-row default pool
