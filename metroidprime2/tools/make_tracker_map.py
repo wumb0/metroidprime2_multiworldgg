@@ -1,8 +1,9 @@
 """Builds the Universal Tracker map pack in ``metroidprime2/tracker/``:
 one schematic top-down map image per logic-database region, a poptracker
 ``maps.json`` / ``locations.json`` placing every pickup location on its map,
-and ``area_maps.json`` (which map tab a given in-game area belongs to, for
-auto-tabbing).
+``area_maps.json`` (which map tab a given in-game area belongs to, for
+auto-tabbing), and ``room_icons.json`` plus ``images/rooms/`` (a highlight
+overlay per room, marking the player's current room).
 
 The maps are drawn from room geometry (each room's bounding box), not game
 art, so nothing copyrighted ships in the apworld. Run from the repo root::
@@ -25,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -61,6 +63,11 @@ LABEL_FONT_SIZE_OUTSIDE = 22
 LABEL_STROKE = 4
 LOCATION_SIZE = 26
 LOCATION_BORDER = 3
+# The current-room highlight (``tracker/images/rooms/``): a bright fill and
+# outline no room tint uses (those run blue -> orange / magenta).
+HIGHLIGHT_FILL = (90, 255, 110, 90)
+HIGHLIGHT_OUTLINE = (90, 255, 110, 255)
+HIGHLIGHT_OUTLINE_WIDTH = 5
 
 
 def slug(region: str) -> str:
@@ -355,6 +362,49 @@ def draw_map(region: str, areas: dict[str, dict], projection: Projection) -> Ima
     return image
 
 
+def room_box(area: dict, projection: Projection) -> tuple[int, int, int, int]:
+    """A room's rectangle on the map image (left, top, right, bottom), as
+    ``draw_map`` draws it."""
+    b = area["bounds"]
+    x0, y1 = projection.point(b[0], b[1])
+    x1, y0 = projection.point(b[3], b[4])
+    return x0, y0, x1, y1
+
+
+def draw_room_highlights(region: str, areas: dict[str, dict], projection: Projection) -> tuple[int, dict[str, dict]]:
+    """One overlay per room for the tracker's player-location icon.
+
+    UT draws a location icon as a fixed square (``location_icon_size``)
+    centred on a point, so a room-shaped highlight has to be a square image
+    with the room's rectangle drawn at its middle and transparent
+    everywhere else. Returns the square's side (one per map, in
+    ``maps.json``) and, per area index, where the overlay goes: its centre,
+    chosen so the drawn rectangle lands exactly on the room in the map."""
+    boxes = {name: room_box(area, projection) for name, area in areas.items()}
+    margin = HIGHLIGHT_OUTLINE_WIDTH
+    side = max(max(x1 - x0, y1 - y0) for x0, y0, x1, y1 in boxes.values()) + 2 * margin
+    side += side % 2  # even, so the room centres on a whole pixel
+
+    out_dir = OUT_DIR / "images" / "rooms" / slug(region)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    placements: dict[str, dict] = {}
+    for name, (x0, y0, x1, y1) in boxes.items():
+        w, h = x1 - x0, y1 - y0
+        ox, oy = (side - w) // 2, (side - h) // 2
+        image = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+        ImageDraw.Draw(image).rectangle(
+            (ox, oy, ox + w, oy + h), fill=HIGHLIGHT_FILL, outline=HIGHLIGHT_OUTLINE, width=HIGHLIGHT_OUTLINE_WIDTH
+        )
+        index = areas[name]["index"]
+        image.save(out_dir / f"{index}.png", optimize=True)
+        placements[str(index)] = {
+            "img": f"images/rooms/{slug(region)}/{index}.png",
+            "x": x0 - ox + side // 2,
+            "y": y0 - oy + side // 2,
+        }
+    return side, placements
+
+
 # --------------------------------------------------------------------------
 # Pack JSON
 # --------------------------------------------------------------------------
@@ -413,26 +463,34 @@ def main() -> None:
     maps: list[dict] = []
     locations: list[dict] = []
     area_maps: dict[str, dict[str, str]] = {}
+    room_icons: dict[str, dict[str, dict]] = {}
+    shutil.rmtree(OUT_DIR / "images" / "rooms", ignore_errors=True)
     for region in regions:
         areas = layout_areas(bounds[region]["areas"])
         projection = Projection(areas)
         draw_map(region, areas, projection).save(OUT_DIR / "images" / f"{slug(region)}.png", optimize=True)
+        icon_side, placements = draw_room_highlights(region, areas, projection)
         maps.append(
             {
                 "name": region,
                 "img": f"images/{slug(region)}.png",
                 "location_size": LOCATION_SIZE,
+                "location_icon_size": icon_side,
                 "location_border_thickness": LOCATION_BORDER,
             }
         )
         locations.append(build_locations(db, region, areas, projection))
         mlvl_areas = area_maps.setdefault(bounds[region]["mlvl"], {})
+        mlvl_icons = room_icons.setdefault(bounds[region]["mlvl"], {})
         for area in areas.values():
             mlvl_areas[str(area["index"])] = region
+        for index, placement in placements.items():
+            mlvl_icons[index] = {"map": region, **placement}
 
     (OUT_DIR / "maps" / "maps.json").write_text(json.dumps(maps, indent=2), encoding="utf-8")
     (OUT_DIR / "locations" / "locations.json").write_text(json.dumps(locations, indent=2), encoding="utf-8")
     (OUT_DIR / "area_maps.json").write_text(json.dumps(area_maps, indent=1, sort_keys=True), encoding="utf-8")
+    (OUT_DIR / "room_icons.json").write_text(json.dumps(room_icons, indent=1, sort_keys=True), encoding="utf-8")
     total = sum(len(pickup_nodes(db, region)) for region in regions)
     print(f"wrote {len(maps)} maps, {total} locations to {OUT_DIR}")
 

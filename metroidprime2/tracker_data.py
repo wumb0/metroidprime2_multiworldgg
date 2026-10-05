@@ -134,6 +134,27 @@ def map_page_index(data: Any) -> int:
         return -1
 
 
+@cache
+def _room_icons() -> dict[str, dict[str, dict[str, Any]]]:
+    return _tracker_file("room_icons.json")
+
+
+def room_icon_coords(map_id: int | None, data: Any) -> tuple[int, int, str] | None:
+    """UT ``location_icon_coords`` hook: the current room's highlight overlay
+    (``tools/make_tracker_map.py`` draws one per room, sized to the map's
+    ``location_icon_size``), or None -- no icon -- when the room is unknown
+    or belongs to a different map than the one being viewed (auto-tab off,
+    or a dark room on a light map)."""
+    try:
+        mlvl, area = str(data).split(":")
+        icon = _room_icons()[mlvl.upper()][area]
+        if map_id is None or _map_names()[map_id] != icon["map"]:
+            return None
+        return icon["x"], icon["y"], icon["img"]
+    except (ValueError, KeyError, IndexError):
+        return None
+
+
 TRACKER_WORLD: dict[str, Any] = {
     "map_page_folder": "tracker",
     "map_page_maps": "maps/maps.json",
@@ -146,4 +167,7 @@ TRACKER_WORLD: dict[str, Any] = {
     # UT substitutes {player} and {team}; the client formats {slot} itself.
     "map_page_setting_key": constants.AREA_DATASTORAGE_KEY.replace("{slot}", "{player}"),
     "map_page_index": map_page_index,
+    # Same key: the room highlight follows the player's area too.
+    "location_setting_key": constants.AREA_DATASTORAGE_KEY.replace("{slot}", "{player}"),
+    "location_icon_coords": room_icon_coords,
 }

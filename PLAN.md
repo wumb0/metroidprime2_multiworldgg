@@ -1893,9 +1893,17 @@ index it already reads for goal detection) and `tracker_data.map_page_index`
 resolves that through `tracker/area_maps.json`; unrecognized values return
 -1 (keep the current tab).
 
-Not done: a player-position marker (`location_setting_key` /
-`location_icon_coords`) -- would need the player's world coordinates read
-from memory and an icon.
+Current-room highlight: UT's location indicator (`location_setting_key` /
+`location_icon_coords`) reuses the same area key, so the client needs no
+change. UT draws that icon as a fixed `location_icon_size` square centred on
+(x, y), so a room-shaped highlight is one pre-rendered overlay per room
+(`tracker/images/rooms/<region>/<area index>.png`): a green translucent
+rectangle at the room's spot in a transparent square sized to the map's
+largest room (that side is the map's `location_icon_size` in `maps.json`).
+`tracker/room_icons.json` maps `mlvl -> area index -> {map, x, y, img}`;
+`tracker_data.room_icon_coords` returns None (no icon) when the room belongs
+to a different map than the one shown (auto-tab off) or is unknown.
+Room-level only, no in-room position. The live UT rendering is unchecked.
 
 Verification: unit tests cover the panel state, the headless kivy build of
 the strip (mock GL), every location appearing exactly once on its region's

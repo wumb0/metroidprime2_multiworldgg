@@ -3,60 +3,70 @@
     "name": "Temple Grounds",
     "img": "images/temple_grounds.png",
     "location_size": 26,
+    "location_icon_size": 240,
     "location_border_thickness": 3
   },
   {
     "name": "Great Temple",
     "img": "images/great_temple.png",
     "location_size": 26,
+    "location_icon_size": 374,
     "location_border_thickness": 3
   },
   {
     "name": "Agon Wastes",
     "img": "images/agon_wastes.png",
     "location_size": 26,
+    "location_icon_size": 216,
     "location_border_thickness": 3
   },
   {
     "name": "Torvus Bog",
     "img": "images/torvus_bog.png",
     "location_size": 26,
+    "location_icon_size": 322,
     "location_border_thickness": 3
   },
   {
     "name": "Sanctuary Fortress",
     "img": "images/sanctuary_fortress.png",
     "location_size": 26,
+    "location_icon_size": 548,
     "location_border_thickness": 3
   },
   {
     "name": "Sky Temple Grounds",
     "img": "images/sky_temple_grounds.png",
     "location_size": 26,
+    "location_icon_size": 452,
     "location_border_thickness": 3
   },
   {
     "name": "Dark Agon Wastes",
     "img": "images/dark_agon_wastes.png",
     "location_size": 26,
+    "location_icon_size": 184,
     "location_border_thickness": 3
   },
   {
     "name": "Dark Torvus Bog",
     "img": "images/dark_torvus_bog.png",
     "location_size": 26,
+    "location_icon_size": 356,
     "location_border_thickness": 3
   },
   {
     "name": "Ing Hive",
     "img": "images/ing_hive.png",
     "location_size": 26,
+    "location_icon_size": 716,
     "location_border_thickness": 3
   },
   {
     "name": "Sky Temple",
     "img": "images/sky_temple.png",
     "location_size": 26,
+    "location_icon_size": 996,
     "location_border_thickness": 3
   }
 ]

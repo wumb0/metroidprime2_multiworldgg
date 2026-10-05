@@ -24,7 +24,13 @@ from ..client.client import _send_mlvl_datastorage
 from ..locations import location_name_to_id
 from ..logic.db_reader import NodeId
 from ..options import MetroidPrime2Options
-from ..tracker_data import TRACKER_WORLD, decode_randomization, encode_randomization, map_page_index
+from ..tracker_data import (
+    TRACKER_WORLD,
+    decode_randomization,
+    encode_randomization,
+    map_page_index,
+    room_icon_coords,
+)
 from .bases import MP2TestBase
 
 _RANDOMIZED_OPTIONS: dict[str, Any] = {
@@ -202,6 +208,51 @@ class TestMapPack(unittest.TestCase):
         for garbage in ("", None, "nonsense", "1:2:3", "DEADBEEF:0", 12345):
             self.assertEqual(-1, map_page_index(garbage))
 
+    def test_every_room_has_a_highlight_on_its_map(self) -> None:
+        maps = self._json("maps", "maps.json")
+        map_names = [m["name"] for m in maps]
+        area_maps = self._json("area_maps.json")
+        room_icons = self._json("room_icons.json")
+        self.assertEqual({k: sorted(v) for k, v in area_maps.items()}, {k: sorted(v) for k, v in room_icons.items()})
+        for mlvl, areas in area_maps.items():
+            for area, map_name in areas.items():
+                map_id = map_names.index(map_name)
+                _x, _y, img = room_icon_coords(map_id, f"{mlvl}:{area}")  # type: ignore[misc]
+                self.assertEqual(room_icons[mlvl][area]["img"], img)
+                self.assertTrue((self.TRACKER_DIR / img).is_file(), img)
+                self.assertIsInstance(maps[map_id]["location_icon_size"], int)
+
+    def test_highlight_overlays_sit_inside_their_map(self) -> None:
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow not installed")
+        maps = {m["name"]: m for m in self._json("maps", "maps.json")}
+        for areas in self._json("room_icons.json").values():
+            for icon in areas.values():
+                side = maps[icon["map"]]["location_icon_size"]
+                overlay = Image.open(self.TRACKER_DIR / icon["img"])
+                self.assertEqual((side, side), overlay.size, icon["img"])
+                # UT centres the square on (x, y); the opaque part is the room.
+                left, top, right, bottom = overlay.getchannel("A").getbbox()  # type: ignore[misc]
+                map_width, map_height = Image.open(self.TRACKER_DIR / maps[icon["map"]]["img"]).size
+                self.assertGreaterEqual(icon["x"] - side // 2 + left, 0, icon["img"])
+                self.assertGreaterEqual(icon["y"] - side // 2 + top, 0, icon["img"])
+                self.assertLessEqual(icon["x"] - side // 2 + right, map_width, icon["img"])
+                self.assertLessEqual(icon["y"] - side // 2 + bottom, map_height, icon["img"])
+
+    def test_room_icon_coords_ignores_other_maps_and_garbage(self) -> None:
+        map_names = [m["name"] for m in self._json("maps", "maps.json")]
+        mlvl, areas = next(iter(self._json("area_maps.json").items()))
+        area, map_name = next(iter(areas.items()))
+        here = f"{mlvl}:{area}"
+        other = (map_names.index(map_name) + 1) % len(map_names)
+        self.assertIsNone(room_icon_coords(other, here))
+        self.assertIsNone(room_icon_coords(None, here))
+        self.assertIsNone(room_icon_coords(len(map_names), here))
+        for garbage in ("", None, "nonsense", "1:2:3", "DEADBEEF:0", 12345):
+            self.assertIsNone(room_icon_coords(0, garbage))
+
     def test_client_key_matches_tracker_setting(self) -> None:
         self.assertEqual(
             TRACKER_WORLD["map_page_setting_key"].format(team=1, player=7),
@@ -216,6 +267,8 @@ class TestMapPack(unittest.TestCase):
         data = UTMapTabData(7, 1, **TRACKER_WORLD)
         self.assertEqual("metroidprime2_area_1_7", data.map_page_setting_key)
         self.assertEqual(-1, data.map_page_index("nonsense"))
+        self.assertEqual("metroidprime2_area_1_7", data.location_setting_key)
+        self.assertIsNone(data.location_icon_coords(0, ""))
 
 
 class TestAreaDatastorage(unittest.TestCase):
