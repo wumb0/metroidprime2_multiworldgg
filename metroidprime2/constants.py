@@ -130,6 +130,7 @@ GOAL_KEYS = 2  # Credits, warped to on reaching Sky Temple Energy Controller
 ITEM_MAP_DOTS_OFF = 0
 ITEM_MAP_DOTS_ON = 1  # rooms visited or revealed by a map station
 ITEM_MAP_DOTS_ALWAYS = 2  # every drawn room
+ITEM_MAP_DOTS_MAP_STATION = 3  # every drawn room, once the world's map station is used
 
 # Great Temple / Sky Temple share one MLVL (REGION_MLVL_IDS below); indices
 # verified the same way GAME_END_AREA_INDICES was cross-checked above --

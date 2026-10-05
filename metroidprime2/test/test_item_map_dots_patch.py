@@ -36,6 +36,8 @@ def _write_vanilla_draw(dol: _FakeDol, addresses: versions.ItemMapDotAddresses) 
     entry = addresses.icon_jump_table + 4 * (item_map_dots_patch.PICKUP_OBJECT_TYPE - 0x10)
     dol.write(entry, struct.pack(">I", addresses.no_icon_case))
     dol.write_instructions(addresses.flag_lookup_call, [ppc.bl(addresses.object_flag_lookup)])
+    dol.write_instructions(addresses.visibility_above_four_branch, [ppc.bge(addresses.visibility_always)])
+    dol.write_instructions(addresses.visibility_unused_branch, [ppc.b(addresses.visibility_return)])
 
 
 def _entry(addresses: versions.ItemMapDotAddresses) -> int:
@@ -144,6 +146,77 @@ class TestCave(unittest.TestCase):
             item_map_dots_patch.apply_dol_patches(CodeCaveTracker(dol), addresses, _TEXTURE_ID)  # type: ignore[arg-type]
 
 
+@unittest.skipUnless(_OPR_AVAILABLE and _PPC_ASM_AVAILABLE, "open-prime-rando is not installed")
+class TestMapStationPatch(unittest.TestCase):
+    """The ``MAP_STATION`` visibility mode: the compare ladder's "mode above
+    4" exit, redirected through an unreachable ``b`` to a two-instruction cave."""
+
+    def _place(self, version: versions.EchoesVersionInfo) -> tuple[_FakeDol, int]:
+        from open_prime_rando.dol_patching.code_cave_tracker import CodeCaveTracker
+        from ppc_asm.assembler import ppc
+
+        dol = _FakeDol()
+        _write_vanilla_draw(dol, version.item_map_dots)
+        cave = CodeCaveTracker(dol)  # type: ignore[arg-type]
+        for start, length in _OPR_FREE_SPACE:
+            cave.add_empty_space(start, length=length)
+        cave.request_code_cave([ppc.nop()] * 11, lambda _: None)
+        item_map_dots_patch.apply_map_station_dol_patch(cave, version.item_map_dots)
+        cave.fulfill_requests()
+        unused = version.item_map_dots.visibility_unused_branch
+        return dol, _branch_target(unused, dol.word(unused))
+
+    def test_mode_is_not_a_vanilla_one(self) -> None:
+        # Vanilla modes are 0..4; 5 is the first value the ladder sends to "always".
+        self.assertEqual(item_map_dots_patch.MAP_STATION, 5)
+
+    def test_modes_above_four_reach_the_unused_branch(self) -> None:
+        for version in versions.VERSIONS:
+            with self.subTest(version.name):
+                dol, _ = self._place(version)
+                addresses = version.item_map_dots
+                word = dol.word(addresses.visibility_above_four_branch)
+                self.assertEqual(word & 0xFFFF0003, 0x40800000, "still a bge")
+                self.assertEqual(
+                    addresses.visibility_above_four_branch + _signed16(word), addresses.visibility_unused_branch
+                )
+
+    def test_unused_branch_jumps_to_the_cave(self) -> None:
+        for version in versions.VERSIONS:
+            with self.subTest(version.name):
+                dol, cave = self._place(version)
+                self.assertNotEqual(cave, version.item_map_dots.visibility_return)
+                self.assertEqual(cave % 4, 0)
+                self.assertEqual(dol.word(version.item_map_dots.visibility_unused_branch) & 0xFC000003, 0x48000000)
+
+    def test_cave_returns_the_map_station_flag(self) -> None:
+        for version in versions.VERSIONS:
+            with self.subTest(version.name):
+                dol, cave = self._place(version)
+                self.assertEqual(dol.word(cave), 0x887E0048)  # lbz r3, 0x48(r30)
+                last = cave + 4
+                word = dol.word(last)
+                self.assertEqual(word & 0xFC000003, 0x48000000, "must be a plain b")
+                self.assertEqual(_branch_target(last, word), version.item_map_dots.visibility_return)
+
+    def test_refuses_an_unexpected_ladder(self) -> None:
+        from open_prime_rando.dol_patching.code_cave_tracker import CodeCaveTracker
+
+        addresses = versions.NTSC.item_map_dots
+        for address in (addresses.visibility_above_four_branch, addresses.visibility_unused_branch):
+            with self.subTest(hex(address)):
+                dol = _FakeDol()
+                _write_vanilla_draw(dol, addresses)
+                dol.write(address, b"\x60\x00\x00\x00")  # nop
+                with self.assertRaises(ValueError):
+                    item_map_dots_patch.apply_map_station_dol_patch(CodeCaveTracker(dol), addresses)  # type: ignore[arg-type]
+
+
+def _signed16(word: int) -> int:
+    displacement = word & 0xFFFC
+    return displacement - 0x10000 if displacement & 0x8000 else displacement
+
+
 @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
 class TestItemMapDotsInstalled(unittest.TestCase):
     def test_rejects_builds_without_known_addresses(self) -> None:
@@ -164,7 +237,7 @@ class TestItemMapDotsInstalled(unittest.TestCase):
     def test_rejects_an_unknown_mode(self) -> None:
         from ..client.patcher_runner import item_map_dots_installed
 
-        for mode in (constants.ITEM_MAP_DOTS_OFF, 3):
+        for mode in (constants.ITEM_MAP_DOTS_OFF, 99):
             with self.subTest(mode), self.assertRaises(ValueError):
                 with item_map_dots_installed(object(), object(), mode):
                     pass
@@ -214,7 +287,11 @@ class TestPickupIconVisibility(unittest.TestCase):
         def _stub_original_add_map_icon(editor, mlvl, area, instances) -> None:
             area.mapa.mappable_objects.append(_FakeMappable())
 
-        for mode in (item_map_dots_patch.MAP_STATION_OR_VISIT, item_map_dots_patch.ALWAYS):
+        for mode in (
+            item_map_dots_patch.MAP_STATION_OR_VISIT,
+            item_map_dots_patch.ALWAYS,
+            item_map_dots_patch.MAP_STATION,
+        ):
             with self.subTest(mode):
                 area = _FakeArea()
                 original = pickup_editing._add_map_icon
@@ -275,6 +352,11 @@ class TestItemMapDotsOff(_ItemMapDotsOptionTest):
 class TestItemMapDotsAlways(_ItemMapDotsOptionTest):
     options = {"item_map_dots": "always"}
     expected = constants.ITEM_MAP_DOTS_ALWAYS
+
+
+class TestItemMapDotsMapStation(_ItemMapDotsOptionTest):
+    options = {"item_map_dots": "map_station"}
+    expected = constants.ITEM_MAP_DOTS_MAP_STATION
 
 
 class TestItemMapDotsToggleSpellings(unittest.TestCase):

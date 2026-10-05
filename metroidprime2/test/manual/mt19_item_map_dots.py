@@ -84,6 +84,32 @@ TEST = ManualTest(
                 ),
             ],
         ),
+        "map_station": Variant(
+            config_sha256="c662dc37e00056faa31e74a60873068c7cee9779976c8cb4cc95f4b06a7f363c",
+            options={"item_map_dots": "map_station"},
+            steps=[
+                Step(
+                    "Load the game, walk into GFMC Compound and look at the minimap and pause map.",
+                    "No dots anywhere, although you have visited GFMC Compound and the whole map is "
+                    "drawn (full_map).",
+                    why="dots wait for the world's map station, not for the room.",
+                ),
+                Step(
+                    "Travel to Agon Wastes, open the pause map and look at light-world Agon rooms you "
+                    "haven't been in that hold items (e.g. Mining Station A, Central Mining Station). "
+                    "Then use Agon Map Station and look again.",
+                    "No dots before the map station. After it, every Agon room holding an item shows "
+                    "its dot, visited or not. Collecting an item makes its dot disappear.",
+                ),
+                Step(
+                    "Go back to Temple Grounds and look at GFMC Compound on the map. Then use the "
+                    "map station in Hive Chamber A and look again.",
+                    "No dots in Temple Grounds before its own station (Agon's doesn't count). After "
+                    "Hive Chamber A's station, GFMC Compound's dots appear.",
+                    why="each world's map station only unlocks that world's dots.",
+                ),
+            ],
+        ),
     },
     pass_criteria=[
         "A room's item dots appear once it is visited or its world's map station is used, and "
@@ -91,6 +117,8 @@ TEST = ManualTest(
         "A collected item's dot disappears and stays gone after a save and reload.",
         "With the off variant no dot is ever drawn.",
         "With the always variant every drawn room shows its dots from the start.",
+        "With the map_station variant no dot shows until the world's map station is used, then "
+        "every drawn room in that world shows its dots, visited or not.",
     ],
     on_failure=[
         "No dots at all: `client/item_map_dots_patch.py` (jump table entry for type 0x12 and the "

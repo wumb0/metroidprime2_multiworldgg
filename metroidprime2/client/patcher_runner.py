@@ -254,8 +254,9 @@ def item_map_dots_installed(editor: Any, dol_version: Any, mode: int):
     (``client/item_map_dots_patch.py``) for the duration of one
     ``_apply_patches`` call: the DOL cave that makes the renderer draw
     open-prime-rando's pickup map icons, and the ``_add_map_icon`` wrapper
-    that sets their visibility for ``mode`` (``constants.ITEM_MAP_DOTS_ON``
-    or ``ITEM_MAP_DOTS_ALWAYS``).
+    that sets their visibility for ``mode`` (``constants.ITEM_MAP_DOTS_ON``,
+    ``ITEM_MAP_DOTS_ALWAYS`` or ``ITEM_MAP_DOTS_MAP_STATION``; the last also
+    patches the visibility check to know its mode).
 
     The cave is requested up front, like spring ball's; it only has to be
     queued before ``_apply_patches`` calls ``fulfill_requests()``.
@@ -265,6 +266,7 @@ def item_map_dots_installed(editor: Any, dol_version: Any, mode: int):
     visibility_modes = {
         constants.ITEM_MAP_DOTS_ON: item_map_dots_patch.MAP_STATION_OR_VISIT,
         constants.ITEM_MAP_DOTS_ALWAYS: item_map_dots_patch.ALWAYS,
+        constants.ITEM_MAP_DOTS_MAP_STATION: item_map_dots_patch.MAP_STATION,
     }
     if mode not in visibility_modes:
         raise ValueError(f"Unknown item map dots mode {mode!r}")
@@ -274,6 +276,8 @@ def item_map_dots_installed(editor: Any, dol_version: Any, mode: int):
         version_info.item_map_dots,
         editor.resolve_asset_id(item_map_dots_patch.PICKUP_ICON_TEXTURE),
     )
+    if mode == constants.ITEM_MAP_DOTS_MAP_STATION:
+        item_map_dots_patch.apply_map_station_dol_patch(editor.code_cave, version_info.item_map_dots)
     with item_map_dots_patch.pickup_icon_visibility_installed(visibility_modes[mode]):
         yield
 

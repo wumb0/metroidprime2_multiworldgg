@@ -134,6 +134,26 @@ class ItemMapDotAddresses:
     """The GPR holding the ``CMapWorldInfo&`` inside Draw; the lookup's first
     argument."""
 
+    # ``CMappableObject::GetIsVisibleToAutoMapper`` (NTSC ``fn_800BB53C``, PAL
+    # 0x800BB5D0), which Draw's caller asks about each object. It switches on
+    # the object's visibility mode with a compare ladder; the ``item_map_dots:
+    # map_station`` mode patch hooks the ladder's "mode above 4" exit. Same
+    # code and registers on both versions, 0x94 apart.
+
+    visibility_above_four_branch: int
+    """The ladder's ``bge`` that sends every mode above 4 to
+    ``visibility_always`` (vanilla uses none of them)."""
+
+    visibility_always: int
+    """The ``li r3, 1`` tail that ``visibility_above_four_branch`` targets."""
+
+    visibility_unused_branch: int
+    """A ``b visibility_return`` the compiler left unreachable, right after
+    the mode-1 case. Free to take a jump."""
+
+    visibility_return: int
+    """The function's epilogue, entered with the result in r3."""
+
 
 @dataclass(frozen=True)
 class EchoesVersionInfo:
@@ -295,6 +315,10 @@ NTSC = EchoesVersionInfo(
         object_flag_lookup=0x8010F654,
         object_register=9,
         map_world_info_register=3,
+        visibility_above_four_branch=0x800BB5C8,
+        visibility_always=0x800BB644,
+        visibility_unused_branch=0x800BB5D8,
+        visibility_return=0x800BB648,
     ),
 )
 
@@ -341,6 +365,10 @@ PAL = EchoesVersionInfo(
         object_flag_lookup=0x8010F808,
         object_register=28,
         map_world_info_register=29,
+        visibility_above_four_branch=0x800BB65C,
+        visibility_always=0x800BB6D8,
+        visibility_unused_branch=0x800BB66C,
+        visibility_return=0x800BB6DC,
     ),
 )
 

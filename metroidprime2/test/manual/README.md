@@ -1603,6 +1603,7 @@ Pass if:
 * A collected item's dot disappears and stays gone after a save and reload.
 * With the off variant no dot is ever drawn.
 * With the always variant every drawn room shows its dots from the start.
+* With the map_station variant no dot shows until the world's map station is used, then every drawn room in that world shows its dots, visited or not.
 
 If it fails, look at:
 * No dots at all: `client/item_map_dots_patch.py` (jump table entry for type 0x12 and the cave), and that `pickup_map_icon.TXTR` made it into GGuiSys.pak
@@ -1644,6 +1645,7 @@ Pass if:
 * A collected item's dot disappears and stays gone after a save and reload.
 * With the off variant no dot is ever drawn.
 * With the always variant every drawn room shows its dots from the start.
+* With the map_station variant no dot shows until the world's map station is used, then every drawn room in that world shows its dots, visited or not.
 
 If it fails, look at:
 * No dots at all: `client/item_map_dots_patch.py` (jump table entry for type 0x12 and the cave), and that `pickup_map_icon.TXTR` made it into GGuiSys.pak
@@ -1687,6 +1689,55 @@ Pass if:
 * A collected item's dot disappears and stays gone after a save and reload.
 * With the off variant no dot is ever drawn.
 * With the always variant every drawn room shows its dots from the start.
+* With the map_station variant no dot shows until the world's map station is used, then every drawn room in that world shows its dots, visited or not.
+
+If it fails, look at:
+* No dots at all: `client/item_map_dots_patch.py` (jump table entry for type 0x12 and the cave), and that `pickup_map_icon.TXTR` made it into GGuiSys.pak
+* Dots in unvisited rooms (or missing from them with always): the mode passed to `pickup_icon_visibility_installed`
+* Dots that never go away: the pickup's `TranslatorDoorLocation` SpecialFunction (open-prime-rando `pickups/location.py`) or the cave's editor id argument
+* Dots that come back after reloading: the world's SAVW `unmappable_objects`
+
+### MT19_ITEM_MAP_DOTS -- `mt19_item_map_dots_map_station` (P1)
+
+*Proves: item_map_dots draws a dot on the map and minimap at each item location once its room has been visited or revealed by a map station, hides the dot once the item is collected, and keeps it hidden across a save and reload*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt19_item_map_dots --iso <vanilla.iso> --variant map_station
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=map_station`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* A crash or garbled icon when opening the map points at the cave first (wrong register for the object or CMapWorldInfo on this DOL version); run MT13 on PAL too.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt19_item_map_dots --iso <vanilla.iso> --variant map_station
+2. Host       python MultiServer.py manual_tests/mt19_item_map_dots_map_station/mt19_item_map_dots_map_station.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt19_item_map_dots_map_station/mt19_item_map_dots_map_station.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Load the game, walk into GFMC Compound and look at the minimap and pause map.
+   **Expect:** No dots anywhere, although you have visited GFMC Compound and the whole map is drawn (full_map).
+   *(exercises: dots wait for the world's map station, not for the room.)*
+2. **Do:** Travel to Agon Wastes, open the pause map and look at light-world Agon rooms you haven't been in that hold items (e.g. Mining Station A, Central Mining Station). Then use Agon Map Station and look again.
+   **Expect:** No dots before the map station. After it, every Agon room holding an item shows its dot, visited or not. Collecting an item makes its dot disappear.
+3. **Do:** Go back to Temple Grounds and look at GFMC Compound on the map. Then use the map station in Hive Chamber A and look again.
+   **Expect:** No dots in Temple Grounds before its own station (Agon's doesn't count). After Hive Chamber A's station, GFMC Compound's dots appear.
+   *(exercises: each world's map station only unlocks that world's dots.)*
+
+Pass if:
+* A room's item dots appear once it is visited or its world's map station is used, and not before (even with the full map revealed).
+* A collected item's dot disappears and stays gone after a save and reload.
+* With the off variant no dot is ever drawn.
+* With the always variant every drawn room shows its dots from the start.
+* With the map_station variant no dot shows until the world's map station is used, then every drawn room in that world shows its dots, visited or not.
 
 If it fails, look at:
 * No dots at all: `client/item_map_dots_patch.py` (jump table entry for type 0x12 and the cave), and that `pickup_map_icon.TXTR` made it into GGuiSys.pak

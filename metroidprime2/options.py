@@ -514,12 +514,17 @@ class ItemMapDots(Choice):
 
     `always`: dots show in every room the map draws. Only differs from `on`
     with `map_visibility: full_map`; otherwise the map doesn't draw a room
-    (or its dots) until it is visited or revealed by a map station."""
+    (or its dots) until it is visited or revealed by a map station.
+
+    `map_station`: dots show in every room the map draws, but only once the
+    map station of that world has been used. Visiting a room doesn't show
+    its dots, and neither do `map_visibility` or `unvisited_room_names`."""
 
     display_name = "Item Map Dots"
     option_off = constants.ITEM_MAP_DOTS_OFF
     option_on = constants.ITEM_MAP_DOTS_ON
     option_always = constants.ITEM_MAP_DOTS_ALWAYS
+    option_map_station = constants.ITEM_MAP_DOTS_MAP_STATION
     # Was a Toggle; keep its YAML spellings working.
     alias_false = constants.ITEM_MAP_DOTS_OFF
     alias_true = constants.ITEM_MAP_DOTS_ON

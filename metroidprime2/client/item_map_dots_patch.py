@@ -1,6 +1,7 @@
 """Item map dots: a dot on the map (and minimap) at every item location,
-shown once its room has been visited or a map station has revealed it, and
-hidden once the item is collected.
+shown once its room has been visited or a map station has revealed it (or,
+for ``map_station``, only once the map station has been used), and hidden
+once the item is collected.
 
 open-prime-rando 0.20.1 already does most of this, but no dot has ever
 been drawn. For every pickup it patches, ``pickup_editing._add_map_icon``
@@ -28,8 +29,12 @@ follows handles the "collected" check.
 Visibility is the MAPA object's ``visibility_mode``, which
 ``pickup_icon_visibility_installed`` sets for every pickup icon:
 ``MAP_STATION_OR_VISIT`` (the mode every vanilla door uses) for
-``item_map_dots: on``, ``ALWAYS`` for ``always``. Either way the game only
-draws a room's icons while it draws the room itself.
+``item_map_dots: on``, ``ALWAYS`` for ``always``, and a mode of our own,
+``MAP_STATION``, for ``map_station``. No vanilla mode means "only once the
+world's map station has been used" (``MAP_STATION_OR_VISIT`` also lets a
+visited room through), so ``apply_map_station_dol_patch`` teaches
+``CMappableObject::GetIsVisibleToAutoMapper`` one. Whichever mode, the game
+only draws a room's icons while it draws the room itself.
 """
 
 from __future__ import annotations
@@ -71,6 +76,23 @@ ALWAYS = 1
 MAP_STATION_OR_VISIT = 2
 """Visible once the room is visited or mapped, or (light world only) once
 the world's map station has been used."""
+
+MAP_STATION = 5
+"""Our own mode, visible once the world's map station has been used and
+not before, whatever has been visited. ``GetIsVisibleToAutoMapper`` answers
+"always" for every mode above 4 (the end of its compare ladder), and no
+vanilla MAPA object uses one (checked over both ISOs), until
+``apply_map_station_dol_patch`` redirects that exit. Not a member of
+retro-data-structures' ``ObjectVisibility``."""
+
+_MAP_STATION_USED_OFFSET = 0x48
+"""``CMapWorldInfo::mMapStationUsed``, a bool. It is per world, dark rooms
+included: ``IsWorldVisible`` only withholds it from dark rooms for its own
+purposes."""
+
+_VISIBILITY_INFO_REGISTER = 30
+"""The GPR holding the ``CMapWorldInfo&`` inside ``GetIsVisibleToAutoMapper``
+(its third argument, saved to r30 on both versions)."""
 
 _EDITOR_ID_OFFSET = 0x8
 """``CMappableObject::mObjId``."""
@@ -141,11 +163,57 @@ def apply_dol_patches(cave: CodeCaveTracker, addresses: ItemMapDotAddresses, tex
     cave.request_code_cave(build_cave(addresses, texture_id), _with_cave)
 
 
+def build_map_station_cave(addresses: ItemMapDotAddresses) -> list[BaseInstruction]:
+    """The target for ``MAP_STATION``: the map station flag is the answer."""
+    from ppc_asm.assembler.ppc import GeneralRegister, b, lbz, r3
+
+    info = GeneralRegister(_VISIBILITY_INFO_REGISTER)
+    return [
+        lbz(r3, _MAP_STATION_USED_OFFSET, info),
+        b(addresses.visibility_return),
+    ]
+
+
+def apply_map_station_dol_patch(cave: CodeCaveTracker, addresses: ItemMapDotAddresses) -> None:
+    """Teaches ``GetIsVisibleToAutoMapper`` the ``MAP_STATION`` mode.
+
+    The ladder's ``bge`` for modes above 4 is pointed at an unreachable
+    ``b`` just after the mode-1 case (a conditional branch only reaches
+    +-32 KiB, a ``b`` anywhere), and that ``b`` at a two-instruction cave.
+    Every other mode takes the same path as before, so doors and the other
+    two dot modes are untouched.
+
+    Must run before ``CodeCaveTracker.fulfill_requests()``. Refuses a DOL
+    whose two instructions aren't exactly what's expected.
+    """
+    from ppc_asm import assembler
+    from ppc_asm.assembler.ppc import b, bge
+
+    bge_address = addresses.visibility_above_four_branch
+    expected_bge = bytes(assembler.assemble_instructions(bge_address, [bge(addresses.visibility_always)]))
+    unused_address = addresses.visibility_unused_branch
+    expected_unused = bytes(assembler.assemble_instructions(unused_address, [b(addresses.visibility_return)]))
+    for address, expected in ((bge_address, expected_bge), (unused_address, expected_unused)):
+        actual = cave.dol_editor.read(address, 4)
+        if actual != expected:
+            raise ValueError(
+                f"Item map dots: 0x{address:08X} holds {actual.hex()}, expected {expected.hex()}; "
+                f"this DOL isn't a supported build."
+            )
+
+    cave.dol_editor.write(bge_address, bytes(assembler.assemble_instructions(bge_address, [bge(unused_address)])))
+
+    def _with_cave(address: int) -> None:
+        cave.dol_editor.write(unused_address, bytes(assembler.assemble_instructions(unused_address, [b(address)])))
+
+    cave.request_code_cave(build_map_station_cave(addresses), _with_cave)
+
+
 @contextlib.contextmanager
 def pickup_icon_visibility_installed(visibility_mode: int) -> Iterator[None]:
     """For its duration, every pickup map icon open-prime-rando adds gets
-    ``visibility_mode`` (``ALWAYS`` or ``MAP_STATION_OR_VISIT``) instead of
-    OPR's hardcoded value.
+    ``visibility_mode`` (``ALWAYS``, ``MAP_STATION_OR_VISIT`` or
+    ``MAP_STATION``) instead of OPR's hardcoded value.
 
     ``_add_map_icon`` has one call site, ``patch_simple_pickup``, which
     ``patch_complex_pickup`` delegates to. The call is an unqualified
@@ -157,13 +225,20 @@ def pickup_icon_visibility_installed(visibility_mode: int) -> Iterator[None]:
     from open_prime_rando.echoes.pickups import pickup_editing
     from retro_data_structures.formats.mapa import ObjectVisibility
 
+    # ``MAP_STATION`` isn't an ObjectVisibility member; the field's adapter
+    # is non-strict, so the raw int round-trips.
+    try:
+        mode: ObjectVisibility | int = ObjectVisibility(visibility_mode)
+    except ValueError:
+        mode = visibility_mode
+
     original_add_map_icon = pickup_editing._add_map_icon
 
     def _add_map_icon(editor, mlvl, area, instances) -> None:
         before = len(area.mapa.mappable_objects)
         original_add_map_icon(editor, mlvl, area, instances)
         for mappable in area.mapa.mappable_objects[before:]:
-            mappable.visibility_mode = ObjectVisibility(visibility_mode)
+            mappable.visibility_mode = mode
 
     pickup_editing._add_map_icon = _add_map_icon
     try:
