@@ -1,0 +1,1662 @@
+{
+ "1BAA96C2": {
+  "0": {
+   "img": "images/rooms/sanctuary_fortress/0.png",
+   "map": "Sanctuary Fortress",
+   "x": 910,
+   "y": 1833
+  },
+  "1": {
+   "img": "images/rooms/sanctuary_fortress/1.png",
+   "map": "Sanctuary Fortress",
+   "x": 910,
+   "y": 1738
+  },
+  "10": {
+   "img": "images/rooms/sanctuary_fortress/10.png",
+   "map": "Sanctuary Fortress",
+   "x": 1381,
+   "y": 866
+  },
+  "11": {
+   "img": "images/rooms/sanctuary_fortress/11.png",
+   "map": "Sanctuary Fortress",
+   "x": 719,
+   "y": 1077
+  },
+  "12": {
+   "img": "images/rooms/ing_hive/12.png",
+   "map": "Ing Hive",
+   "x": 1019,
+   "y": 816
+  },
+  "13": {
+   "img": "images/rooms/sanctuary_fortress/13.png",
+   "map": "Sanctuary Fortress",
+   "x": 1421,
+   "y": 977
+  },
+  "14": {
+   "img": "images/rooms/sanctuary_fortress/14.png",
+   "map": "Sanctuary Fortress",
+   "x": 1357,
+   "y": 714
+  },
+  "15": {
+   "img": "images/rooms/ing_hive/15.png",
+   "map": "Ing Hive",
+   "x": 1597,
+   "y": 844
+  },
+  "16": {
+   "img": "images/rooms/sanctuary_fortress/16.png",
+   "map": "Sanctuary Fortress",
+   "x": 517,
+   "y": 893
+  },
+  "17": {
+   "img": "images/rooms/sanctuary_fortress/17.png",
+   "map": "Sanctuary Fortress",
+   "x": 536,
+   "y": 1020
+  },
+  "18": {
+   "img": "images/rooms/ing_hive/18.png",
+   "map": "Ing Hive",
+   "x": 891,
+   "y": 698
+  },
+  "19": {
+   "img": "images/rooms/sanctuary_fortress/19.png",
+   "map": "Sanctuary Fortress",
+   "x": 1569,
+   "y": 908
+  },
+  "2": {
+   "img": "images/rooms/sanctuary_fortress/2.png",
+   "map": "Sanctuary Fortress",
+   "x": 1043,
+   "y": 1541
+  },
+  "20": {
+   "img": "images/rooms/sanctuary_fortress/20.png",
+   "map": "Sanctuary Fortress",
+   "x": 1255,
+   "y": 843
+  },
+  "21": {
+   "img": "images/rooms/ing_hive/21.png",
+   "map": "Ing Hive",
+   "x": 1808,
+   "y": 895
+  },
+  "22": {
+   "img": "images/rooms/ing_hive/22.png",
+   "map": "Ing Hive",
+   "x": 1729,
+   "y": 689
+  },
+  "23": {
+   "img": "images/rooms/ing_hive/23.png",
+   "map": "Ing Hive",
+   "x": 1379,
+   "y": 844
+  },
+  "24": {
+   "img": "images/rooms/sanctuary_fortress/24.png",
+   "map": "Sanctuary Fortress",
+   "x": 694,
+   "y": 870
+  },
+  "25": {
+   "img": "images/rooms/sanctuary_fortress/25.png",
+   "map": "Sanctuary Fortress",
+   "x": 383,
+   "y": 926
+  },
+  "26": {
+   "img": "images/rooms/ing_hive/26.png",
+   "map": "Ing Hive",
+   "x": 663,
+   "y": 868
+  },
+  "27": {
+   "img": "images/rooms/sanctuary_fortress/27.png",
+   "map": "Sanctuary Fortress",
+   "x": 1075,
+   "y": 786
+  },
+  "28": {
+   "img": "images/rooms/sanctuary_fortress/28.png",
+   "map": "Sanctuary Fortress",
+   "x": 1235,
+   "y": 1099
+  },
+  "29": {
+   "img": "images/rooms/sanctuary_fortress/29.png",
+   "map": "Sanctuary Fortress",
+   "x": 1359,
+   "y": 782
+  },
+  "3": {
+   "img": "images/rooms/sanctuary_fortress/3.png",
+   "map": "Sanctuary Fortress",
+   "x": 797,
+   "y": 1204
+  },
+  "30": {
+   "img": "images/rooms/ing_hive/30.png",
+   "map": "Ing Hive",
+   "x": 1574,
+   "y": 702
+  },
+  "31": {
+   "img": "images/rooms/ing_hive/31.png",
+   "map": "Ing Hive",
+   "x": 1164,
+   "y": 830
+  },
+  "32": {
+   "img": "images/rooms/sanctuary_fortress/32.png",
+   "map": "Sanctuary Fortress",
+   "x": 704,
+   "y": 1227
+  },
+  "33": {
+   "img": "images/rooms/sanctuary_fortress/33.png",
+   "map": "Sanctuary Fortress",
+   "x": 845,
+   "y": 861
+  },
+  "34": {
+   "img": "images/rooms/sanctuary_fortress/34.png",
+   "map": "Sanctuary Fortress",
+   "x": 577,
+   "y": 616
+  },
+  "35": {
+   "img": "images/rooms/ing_hive/35.png",
+   "map": "Ing Hive",
+   "x": 834,
+   "y": 932
+  },
+  "36": {
+   "img": "images/rooms/sanctuary_fortress/36.png",
+   "map": "Sanctuary Fortress",
+   "x": 970,
+   "y": 734
+  },
+  "37": {
+   "img": "images/rooms/sanctuary_fortress/37.png",
+   "map": "Sanctuary Fortress",
+   "x": 983,
+   "y": 1050
+  },
+  "38": {
+   "img": "images/rooms/ing_hive/38.png",
+   "map": "Ing Hive",
+   "x": 1733,
+   "y": 791
+  },
+  "39": {
+   "img": "images/rooms/ing_hive/39.png",
+   "map": "Ing Hive",
+   "x": 1360,
+   "y": 662
+  },
+  "4": {
+   "img": "images/rooms/sanctuary_fortress/4.png",
+   "map": "Sanctuary Fortress",
+   "x": 889,
+   "y": 1030
+  },
+  "40": {
+   "img": "images/rooms/ing_hive/40.png",
+   "map": "Ing Hive",
+   "x": 1353,
+   "y": 740
+  },
+  "41": {
+   "img": "images/rooms/ing_hive/41.png",
+   "map": "Ing Hive",
+   "x": 1182,
+   "y": 998
+  },
+  "42": {
+   "img": "images/rooms/ing_hive/42.png",
+   "map": "Ing Hive",
+   "x": 1088,
+   "y": 778
+  },
+  "43": {
+   "img": "images/rooms/ing_hive/43.png",
+   "map": "Ing Hive",
+   "x": 626,
+   "y": 658
+  },
+  "44": {
+   "img": "images/rooms/sanctuary_fortress/44.png",
+   "map": "Sanctuary Fortress",
+   "x": 188,
+   "y": 689
+  },
+  "45": {
+   "img": "images/rooms/ing_hive/45.png",
+   "map": "Ing Hive",
+   "x": 1028,
+   "y": 1000
+  },
+  "46": {
+   "img": "images/rooms/sanctuary_fortress/46.png",
+   "map": "Sanctuary Fortress",
+   "x": 1002,
+   "y": 866
+  },
+  "47": {
+   "img": "images/rooms/sanctuary_fortress/47.png",
+   "map": "Sanctuary Fortress",
+   "x": 1063,
+   "y": 618
+  },
+  "48": {
+   "img": "images/rooms/sanctuary_fortress/48.png",
+   "map": "Sanctuary Fortress",
+   "x": 850,
+   "y": 665
+  },
+  "49": {
+   "img": "images/rooms/sanctuary_fortress/49.png",
+   "map": "Sanctuary Fortress",
+   "x": 836,
+   "y": 1249
+  },
+  "5": {
+   "img": "images/rooms/sanctuary_fortress/5.png",
+   "map": "Sanctuary Fortress",
+   "x": 935,
+   "y": 886
+  },
+  "50": {
+   "img": "images/rooms/ing_hive/50.png",
+   "map": "Ing Hive",
+   "x": 1208,
+   "y": 664
+  },
+  "51": {
+   "img": "images/rooms/ing_hive/51.png",
+   "map": "Ing Hive",
+   "x": 986,
+   "y": 1267
+  },
+  "52": {
+   "img": "images/rooms/ing_hive/52.png",
+   "map": "Ing Hive",
+   "x": 218,
+   "y": 592
+  },
+  "53": {
+   "img": "images/rooms/ing_hive/53.png",
+   "map": "Ing Hive",
+   "x": 1375,
+   "y": 995
+  },
+  "54": {
+   "img": "images/rooms/sanctuary_fortress/54.png",
+   "map": "Sanctuary Fortress",
+   "x": 949,
+   "y": 114
+  },
+  "55": {
+   "img": "images/rooms/sanctuary_fortress/55.png",
+   "map": "Sanctuary Fortress",
+   "x": 994,
+   "y": 1268
+  },
+  "56": {
+   "img": "images/rooms/ing_hive/56.png",
+   "map": "Ing Hive",
+   "x": 1251,
+   "y": 822
+  },
+  "57": {
+   "img": "images/rooms/ing_hive/57.png",
+   "map": "Ing Hive",
+   "x": 1276,
+   "y": 534
+  },
+  "58": {
+   "img": "images/rooms/ing_hive/58.png",
+   "map": "Ing Hive",
+   "x": 1065,
+   "y": 541
+  },
+  "59": {
+   "img": "images/rooms/ing_hive/59.png",
+   "map": "Ing Hive",
+   "x": 1319,
+   "y": 1639
+  },
+  "6": {
+   "img": "images/rooms/sanctuary_fortress/6.png",
+   "map": "Sanctuary Fortress",
+   "x": 1067,
+   "y": 704
+  },
+  "60": {
+   "img": "images/rooms/ing_hive/60.png",
+   "map": "Ing Hive",
+   "x": 1038,
+   "y": 1326
+  },
+  "61": {
+   "img": "images/rooms/sanctuary_fortress/61.png",
+   "map": "Sanctuary Fortress",
+   "x": 964,
+   "y": 196
+  },
+  "63": {
+   "img": "images/rooms/ing_hive/63.png",
+   "map": "Ing Hive",
+   "x": 1195,
+   "y": 131
+  },
+  "64": {
+   "img": "images/rooms/ing_hive/64.png",
+   "map": "Ing Hive",
+   "x": 1245,
+   "y": 1280
+  },
+  "65": {
+   "img": "images/rooms/sanctuary_fortress/65.png",
+   "map": "Sanctuary Fortress",
+   "x": 968,
+   "y": 397
+  },
+  "66": {
+   "img": "images/rooms/ing_hive/66.png",
+   "map": "Ing Hive",
+   "x": 1214,
+   "y": 343
+  },
+  "7": {
+   "img": "images/rooms/sanctuary_fortress/7.png",
+   "map": "Sanctuary Fortress",
+   "x": 1108,
+   "y": 897
+  },
+  "8": {
+   "img": "images/rooms/sanctuary_fortress/8.png",
+   "map": "Sanctuary Fortress",
+   "x": 841,
+   "y": 921
+  },
+  "9": {
+   "img": "images/rooms/sanctuary_fortress/9.png",
+   "map": "Sanctuary Fortress",
+   "x": 870,
+   "y": 769
+  }
+ },
+ "3BFA3EFF": {
+  "0": {
+   "img": "images/rooms/temple_grounds/0.png",
+   "map": "Temple Grounds",
+   "x": 446,
+   "y": 946
+  },
+  "1": {
+   "img": "images/rooms/temple_grounds/1.png",
+   "map": "Temple Grounds",
+   "x": 466,
+   "y": 838
+  },
+  "10": {
+   "img": "images/rooms/temple_grounds/10.png",
+   "map": "Temple Grounds",
+   "x": 835,
+   "y": 942
+  },
+  "11": {
+   "img": "images/rooms/temple_grounds/11.png",
+   "map": "Temple Grounds",
+   "x": 766,
+   "y": 922
+  },
+  "12": {
+   "img": "images/rooms/temple_grounds/12.png",
+   "map": "Temple Grounds",
+   "x": 688,
+   "y": 1184
+  },
+  "13": {
+   "img": "images/rooms/sky_temple_grounds/13.png",
+   "map": "Sky Temple Grounds",
+   "x": 256,
+   "y": 1213
+  },
+  "14": {
+   "img": "images/rooms/temple_grounds/14.png",
+   "map": "Temple Grounds",
+   "x": 167,
+   "y": 550
+  },
+  "15": {
+   "img": "images/rooms/temple_grounds/15.png",
+   "map": "Temple Grounds",
+   "x": 941,
+   "y": 1017
+  },
+  "16": {
+   "img": "images/rooms/temple_grounds/16.png",
+   "map": "Temple Grounds",
+   "x": 895,
+   "y": 830
+  },
+  "17": {
+   "img": "images/rooms/temple_grounds/17.png",
+   "map": "Temple Grounds",
+   "x": 756,
+   "y": 1020
+  },
+  "18": {
+   "img": "images/rooms/temple_grounds/18.png",
+   "map": "Temple Grounds",
+   "x": 768,
+   "y": 876
+  },
+  "19": {
+   "img": "images/rooms/temple_grounds/19.png",
+   "map": "Temple Grounds",
+   "x": 757,
+   "y": 1230
+  },
+  "2": {
+   "img": "images/rooms/temple_grounds/2.png",
+   "map": "Temple Grounds",
+   "x": 594,
+   "y": 988
+  },
+  "20": {
+   "img": "images/rooms/sky_temple_grounds/20.png",
+   "map": "Sky Temple Grounds",
+   "x": 455,
+   "y": 1371
+  },
+  "21": {
+   "img": "images/rooms/sky_temple_grounds/21.png",
+   "map": "Sky Temple Grounds",
+   "x": 142,
+   "y": 991
+  },
+  "22": {
+   "img": "images/rooms/temple_grounds/22.png",
+   "map": "Temple Grounds",
+   "x": 207,
+   "y": 351
+  },
+  "23": {
+   "img": "images/rooms/temple_grounds/23.png",
+   "map": "Temple Grounds",
+   "x": 102,
+   "y": 696
+  },
+  "24": {
+   "img": "images/rooms/temple_grounds/24.png",
+   "map": "Temple Grounds",
+   "x": 1084,
+   "y": 1210
+  },
+  "25": {
+   "img": "images/rooms/temple_grounds/25.png",
+   "map": "Temple Grounds",
+   "x": 823,
+   "y": 726
+  },
+  "26": {
+   "img": "images/rooms/temple_grounds/26.png",
+   "map": "Temple Grounds",
+   "x": 782,
+   "y": 1108
+  },
+  "28": {
+   "img": "images/rooms/sky_temple_grounds/28.png",
+   "map": "Sky Temple Grounds",
+   "x": 709,
+   "y": 1569
+  },
+  "29": {
+   "img": "images/rooms/temple_grounds/29.png",
+   "map": "Temple Grounds",
+   "x": 401,
+   "y": 274
+  },
+  "3": {
+   "img": "images/rooms/temple_grounds/3.png",
+   "map": "Temple Grounds",
+   "x": 559,
+   "y": 786
+  },
+  "30": {
+   "img": "images/rooms/temple_grounds/30.png",
+   "map": "Temple Grounds",
+   "x": 162,
+   "y": 775
+  },
+  "31": {
+   "img": "images/rooms/temple_grounds/31.png",
+   "map": "Temple Grounds",
+   "x": 857,
+   "y": 601
+  },
+  "32": {
+   "img": "images/rooms/temple_grounds/32.png",
+   "map": "Temple Grounds",
+   "x": 729,
+   "y": 714
+  },
+  "33": {
+   "img": "images/rooms/temple_grounds/33.png",
+   "map": "Temple Grounds",
+   "x": 853,
+   "y": 799
+  },
+  "34": {
+   "img": "images/rooms/sky_temple_grounds/34.png",
+   "map": "Sky Temple Grounds",
+   "x": 1408,
+   "y": 1350
+  },
+  "35": {
+   "img": "images/rooms/sky_temple_grounds/35.png",
+   "map": "Sky Temple Grounds",
+   "x": 669,
+   "y": 1781
+  },
+  "36": {
+   "img": "images/rooms/sky_temple_grounds/36.png",
+   "map": "Sky Temple Grounds",
+   "x": 892,
+   "y": 1469
+  },
+  "37": {
+   "img": "images/rooms/temple_grounds/37.png",
+   "map": "Temple Grounds",
+   "x": 521,
+   "y": 250
+  },
+  "38": {
+   "img": "images/rooms/sky_temple_grounds/38.png",
+   "map": "Sky Temple Grounds",
+   "x": 614,
+   "y": 472
+  },
+  "39": {
+   "img": "images/rooms/temple_grounds/39.png",
+   "map": "Temple Grounds",
+   "x": 829,
+   "y": 483
+  },
+  "4": {
+   "img": "images/rooms/temple_grounds/4.png",
+   "map": "Temple Grounds",
+   "x": 335,
+   "y": 736
+  },
+  "40": {
+   "img": "images/rooms/sky_temple_grounds/40.png",
+   "map": "Sky Temple Grounds",
+   "x": 1543,
+   "y": 1554
+  },
+  "42": {
+   "img": "images/rooms/sky_temple_grounds/42.png",
+   "map": "Sky Temple Grounds",
+   "x": 908,
+   "y": 1132
+  },
+  "43": {
+   "img": "images/rooms/temple_grounds/43.png",
+   "map": "Temple Grounds",
+   "x": 666,
+   "y": 162
+  },
+  "44": {
+   "img": "images/rooms/temple_grounds/44.png",
+   "map": "Temple Grounds",
+   "x": 783,
+   "y": 599
+  },
+  "45": {
+   "img": "images/rooms/temple_grounds/45.png",
+   "map": "Temple Grounds",
+   "x": 741,
+   "y": 357
+  },
+  "46": {
+   "img": "images/rooms/sky_temple_grounds/46.png",
+   "map": "Sky Temple Grounds",
+   "x": 1430,
+   "y": 1774
+  },
+  "48": {
+   "img": "images/rooms/temple_grounds/48.png",
+   "map": "Temple Grounds",
+   "x": 532,
+   "y": 104
+  },
+  "49": {
+   "img": "images/rooms/temple_grounds/49.png",
+   "map": "Temple Grounds",
+   "x": 577,
+   "y": 285
+  },
+  "5": {
+   "img": "images/rooms/temple_grounds/5.png",
+   "map": "Temple Grounds",
+   "x": 705,
+   "y": 928
+  },
+  "51": {
+   "img": "images/rooms/temple_grounds/51.png",
+   "map": "Temple Grounds",
+   "x": 439,
+   "y": 76
+  },
+  "52": {
+   "img": "images/rooms/temple_grounds/52.png",
+   "map": "Temple Grounds",
+   "x": 564,
+   "y": 401
+  },
+  "53": {
+   "img": "images/rooms/temple_grounds/53.png",
+   "map": "Temple Grounds",
+   "x": 1853,
+   "y": 766
+  },
+  "54": {
+   "img": "images/rooms/temple_grounds/54.png",
+   "map": "Temple Grounds",
+   "x": 566,
+   "y": 478
+  },
+  "55": {
+   "img": "images/rooms/sky_temple_grounds/55.png",
+   "map": "Sky Temple Grounds",
+   "x": 901,
+   "y": 714
+  },
+  "57": {
+   "img": "images/rooms/sky_temple_grounds/57.png",
+   "map": "Sky Temple Grounds",
+   "x": 927,
+   "y": 488
+  },
+  "59": {
+   "img": "images/rooms/sky_temple_grounds/59.png",
+   "map": "Sky Temple Grounds",
+   "x": 1100,
+   "y": 246
+  },
+  "6": {
+   "img": "images/rooms/temple_grounds/6.png",
+   "map": "Temple Grounds",
+   "x": 615,
+   "y": 1111
+  },
+  "60": {
+   "img": "images/rooms/sky_temple_grounds/60.png",
+   "map": "Sky Temple Grounds",
+   "x": 1246,
+   "y": 629
+  },
+  "61": {
+   "img": "images/rooms/sky_temple_grounds/61.png",
+   "map": "Sky Temple Grounds",
+   "x": 1420,
+   "y": 875
+  },
+  "62": {
+   "img": "images/rooms/sky_temple_grounds/62.png",
+   "map": "Sky Temple Grounds",
+   "x": 1329,
+   "y": 1101
+  },
+  "7": {
+   "img": "images/rooms/temple_grounds/7.png",
+   "map": "Temple Grounds",
+   "x": 568,
+   "y": 614
+  },
+  "8": {
+   "img": "images/rooms/temple_grounds/8.png",
+   "map": "Temple Grounds",
+   "x": 235,
+   "y": 656
+  },
+  "9": {
+   "img": "images/rooms/temple_grounds/9.png",
+   "map": "Temple Grounds",
+   "x": 419,
+   "y": 720
+  }
+ },
+ "3DFD2249": {
+  "0": {
+   "img": "images/rooms/torvus_bog/0.png",
+   "map": "Torvus Bog",
+   "x": 1804,
+   "y": 876
+  },
+  "1": {
+   "img": "images/rooms/torvus_bog/1.png",
+   "map": "Torvus Bog",
+   "x": 1631,
+   "y": 898
+  },
+  "10": {
+   "img": "images/rooms/dark_torvus_bog/10.png",
+   "map": "Dark Torvus Bog",
+   "x": 1755,
+   "y": 1372
+  },
+  "11": {
+   "img": "images/rooms/torvus_bog/11.png",
+   "map": "Torvus Bog",
+   "x": 1059,
+   "y": 368
+  },
+  "12": {
+   "img": "images/rooms/torvus_bog/12.png",
+   "map": "Torvus Bog",
+   "x": 1072,
+   "y": 848
+  },
+  "13": {
+   "img": "images/rooms/dark_torvus_bog/13.png",
+   "map": "Dark Torvus Bog",
+   "x": 1371,
+   "y": 900
+  },
+  "14": {
+   "img": "images/rooms/torvus_bog/14.png",
+   "map": "Torvus Bog",
+   "x": 876,
+   "y": 595
+  },
+  "15": {
+   "img": "images/rooms/dark_torvus_bog/15.png",
+   "map": "Dark Torvus Bog",
+   "x": 1770,
+   "y": 1224
+  },
+  "16": {
+   "img": "images/rooms/dark_torvus_bog/16.png",
+   "map": "Dark Torvus Bog",
+   "x": 1366,
+   "y": 1389
+  },
+  "17": {
+   "img": "images/rooms/torvus_bog/17.png",
+   "map": "Torvus Bog",
+   "x": 967,
+   "y": 1071
+  },
+  "18": {
+   "img": "images/rooms/torvus_bog/18.png",
+   "map": "Torvus Bog",
+   "x": 1080,
+   "y": 1204
+  },
+  "19": {
+   "img": "images/rooms/torvus_bog/19.png",
+   "map": "Torvus Bog",
+   "x": 1077,
+   "y": 136
+  },
+  "2": {
+   "img": "images/rooms/torvus_bog/2.png",
+   "map": "Torvus Bog",
+   "x": 1439,
+   "y": 902
+  },
+  "20": {
+   "img": "images/rooms/dark_torvus_bog/20.png",
+   "map": "Dark Torvus Bog",
+   "x": 1299,
+   "y": 562
+  },
+  "21": {
+   "img": "images/rooms/dark_torvus_bog/21.png",
+   "map": "Dark Torvus Bog",
+   "x": 1625,
+   "y": 1086
+  },
+  "22": {
+   "img": "images/rooms/dark_torvus_bog/22.png",
+   "map": "Dark Torvus Bog",
+   "x": 1341,
+   "y": 1157
+  },
+  "23": {
+   "img": "images/rooms/dark_torvus_bog/23.png",
+   "map": "Dark Torvus Bog",
+   "x": 1072,
+   "y": 901
+  },
+  "24": {
+   "img": "images/rooms/torvus_bog/24.png",
+   "map": "Torvus Bog",
+   "x": 609,
+   "y": 510
+  },
+  "25": {
+   "img": "images/rooms/dark_torvus_bog/25.png",
+   "map": "Dark Torvus Bog",
+   "x": 1144,
+   "y": 1382
+  },
+  "26": {
+   "img": "images/rooms/dark_torvus_bog/26.png",
+   "map": "Dark Torvus Bog",
+   "x": 1315,
+   "y": 1598
+  },
+  "27": {
+   "img": "images/rooms/torvus_bog/27.png",
+   "map": "Torvus Bog",
+   "x": 565,
+   "y": 984
+  },
+  "28": {
+   "img": "images/rooms/dark_torvus_bog/28.png",
+   "map": "Dark Torvus Bog",
+   "x": 1321,
+   "y": 199
+  },
+  "29": {
+   "img": "images/rooms/dark_torvus_bog/29.png",
+   "map": "Dark Torvus Bog",
+   "x": 804,
+   "y": 757
+  },
+  "3": {
+   "img": "images/rooms/torvus_bog/3.png",
+   "map": "Torvus Bog",
+   "x": 1322,
+   "y": 791
+  },
+  "30": {
+   "img": "images/rooms/torvus_bog/30.png",
+   "map": "Torvus Bog",
+   "x": 666,
+   "y": 809
+  },
+  "31": {
+   "img": "images/rooms/torvus_bog/31.png",
+   "map": "Torvus Bog",
+   "x": 677,
+   "y": 307
+  },
+  "32": {
+   "img": "images/rooms/dark_torvus_bog/32.png",
+   "map": "Dark Torvus Bog",
+   "x": 679,
+   "y": 1331
+  },
+  "33": {
+   "img": "images/rooms/torvus_bog/33.png",
+   "map": "Torvus Bog",
+   "x": 610,
+   "y": 1264
+  },
+  "34": {
+   "img": "images/rooms/torvus_bog/34.png",
+   "map": "Torvus Bog",
+   "x": 329,
+   "y": 1116
+  },
+  "35": {
+   "img": "images/rooms/torvus_bog/35.png",
+   "map": "Torvus Bog",
+   "x": 359,
+   "y": 999
+  },
+  "36": {
+   "img": "images/rooms/dark_torvus_bog/36.png",
+   "map": "Dark Torvus Bog",
+   "x": 807,
+   "y": 485
+  },
+  "37": {
+   "img": "images/rooms/dark_torvus_bog/37.png",
+   "map": "Dark Torvus Bog",
+   "x": 713,
+   "y": 1655
+  },
+  "38": {
+   "img": "images/rooms/dark_torvus_bog/38.png",
+   "map": "Dark Torvus Bog",
+   "x": 505,
+   "y": 1385
+  },
+  "39": {
+   "img": "images/rooms/dark_torvus_bog/39.png",
+   "map": "Dark Torvus Bog",
+   "x": 396,
+   "y": 1386
+  },
+  "4": {
+   "img": "images/rooms/torvus_bog/4.png",
+   "map": "Torvus Bog",
+   "x": 1248,
+   "y": 935
+  },
+  "40": {
+   "img": "images/rooms/torvus_bog/40.png",
+   "map": "Torvus Bog",
+   "x": 614,
+   "y": 1153
+  },
+  "41": {
+   "img": "images/rooms/torvus_bog/41.png",
+   "map": "Torvus Bog",
+   "x": 139,
+   "y": 1017
+  },
+  "42": {
+   "img": "images/rooms/dark_torvus_bog/42.png",
+   "map": "Dark Torvus Bog",
+   "x": 734,
+   "y": 1532
+  },
+  "43": {
+   "img": "images/rooms/dark_torvus_bog/43.png",
+   "map": "Dark Torvus Bog",
+   "x": 158,
+   "y": 1366
+  },
+  "44": {
+   "img": "images/rooms/torvus_bog/44.png",
+   "map": "Torvus Bog",
+   "x": 485,
+   "y": 1180
+  },
+  "45": {
+   "img": "images/rooms/torvus_bog/45.png",
+   "map": "Torvus Bog",
+   "x": 549,
+   "y": 788
+  },
+  "46": {
+   "img": "images/rooms/torvus_bog/46.png",
+   "map": "Torvus Bog",
+   "x": 817,
+   "y": 1138
+  },
+  "47": {
+   "img": "images/rooms/torvus_bog/47.png",
+   "map": "Torvus Bog",
+   "x": 796,
+   "y": 1064
+  },
+  "48": {
+   "img": "images/rooms/torvus_bog/48.png",
+   "map": "Torvus Bog",
+   "x": 718,
+   "y": 1112
+  },
+  "5": {
+   "img": "images/rooms/torvus_bog/5.png",
+   "map": "Torvus Bog",
+   "x": 1287,
+   "y": 1049
+  },
+  "50": {
+   "img": "images/rooms/dark_torvus_bog/50.png",
+   "map": "Dark Torvus Bog",
+   "x": 464,
+   "y": 1478
+  },
+  "51": {
+   "img": "images/rooms/dark_torvus_bog/51.png",
+   "map": "Dark Torvus Bog",
+   "x": 747,
+   "y": 1108
+  },
+  "52": {
+   "img": "images/rooms/dark_torvus_bog/52.png",
+   "map": "Dark Torvus Bog",
+   "x": 940,
+   "y": 1460
+  },
+  "53": {
+   "img": "images/rooms/dark_torvus_bog/53.png",
+   "map": "Dark Torvus Bog",
+   "x": 863,
+   "y": 1427
+  },
+  "54": {
+   "img": "images/rooms/torvus_bog/54.png",
+   "map": "Torvus Bog",
+   "x": 320,
+   "y": 1281
+  },
+  "55": {
+   "img": "images/rooms/torvus_bog/55.png",
+   "map": "Torvus Bog",
+   "x": 649,
+   "y": 678
+  },
+  "56": {
+   "img": "images/rooms/torvus_bog/56.png",
+   "map": "Torvus Bog",
+   "x": 969,
+   "y": 1263
+  },
+  "57": {
+   "img": "images/rooms/torvus_bog/57.png",
+   "map": "Torvus Bog",
+   "x": 753,
+   "y": 956
+  },
+  "58": {
+   "img": "images/rooms/dark_torvus_bog/58.png",
+   "map": "Dark Torvus Bog",
+   "x": 383,
+   "y": 1630
+  },
+  "59": {
+   "img": "images/rooms/dark_torvus_bog/59.png",
+   "map": "Dark Torvus Bog",
+   "x": 778,
+   "y": 938
+  },
+  "6": {
+   "img": "images/rooms/torvus_bog/6.png",
+   "map": "Torvus Bog",
+   "x": 1427,
+   "y": 1022
+  },
+  "60": {
+   "img": "images/rooms/dark_torvus_bog/60.png",
+   "map": "Dark Torvus Bog",
+   "x": 972,
+   "y": 1327
+  },
+  "61": {
+   "img": "images/rooms/torvus_bog/61.png",
+   "map": "Torvus Bog",
+   "x": 638,
+   "y": 1357
+  },
+  "62": {
+   "img": "images/rooms/torvus_bog/62.png",
+   "map": "Torvus Bog",
+   "x": 356,
+   "y": 824
+  },
+  "63": {
+   "img": "images/rooms/torvus_bog/63.png",
+   "map": "Torvus Bog",
+   "x": 908,
+   "y": 807
+  },
+  "64": {
+   "img": "images/rooms/torvus_bog/64.png",
+   "map": "Torvus Bog",
+   "x": 548,
+   "y": 339
+  },
+  "65": {
+   "img": "images/rooms/dark_torvus_bog/65.png",
+   "map": "Dark Torvus Bog",
+   "x": 1187,
+   "y": 1609
+  },
+  "66": {
+   "img": "images/rooms/torvus_bog/66.png",
+   "map": "Torvus Bog",
+   "x": 674,
+   "y": 1241
+  },
+  "67": {
+   "img": "images/rooms/dark_torvus_bog/67.png",
+   "map": "Dark Torvus Bog",
+   "x": 424,
+   "y": 1168
+  },
+  "68": {
+   "img": "images/rooms/dark_torvus_bog/68.png",
+   "map": "Dark Torvus Bog",
+   "x": 1150,
+   "y": 1176
+  },
+  "69": {
+   "img": "images/rooms/torvus_bog/69.png",
+   "map": "Torvus Bog",
+   "x": 539,
+   "y": 228
+  },
+  "7": {
+   "img": "images/rooms/torvus_bog/7.png",
+   "map": "Torvus Bog",
+   "x": 1105,
+   "y": 641
+  },
+  "8": {
+   "img": "images/rooms/dark_torvus_bog/8.png",
+   "map": "Dark Torvus Bog",
+   "x": 1532,
+   "y": 1265
+  },
+  "9": {
+   "img": "images/rooms/torvus_bog/9.png",
+   "map": "Torvus Bog",
+   "x": 1118,
+   "y": 1035
+  }
+ },
+ "42B935E4": {
+  "0": {
+   "img": "images/rooms/agon_wastes/0.png",
+   "map": "Agon Wastes",
+   "x": 79,
+   "y": 656
+  },
+  "1": {
+   "img": "images/rooms/agon_wastes/1.png",
+   "map": "Agon Wastes",
+   "x": 181,
+   "y": 676
+  },
+  "10": {
+   "img": "images/rooms/agon_wastes/10.png",
+   "map": "Agon Wastes",
+   "x": 838,
+   "y": 808
+  },
+  "11": {
+   "img": "images/rooms/dark_agon_wastes/11.png",
+   "map": "Dark Agon Wastes",
+   "x": 341,
+   "y": 538
+  },
+  "12": {
+   "img": "images/rooms/dark_agon_wastes/12.png",
+   "map": "Dark Agon Wastes",
+   "x": 415,
+   "y": 937
+  },
+  "13": {
+   "img": "images/rooms/dark_agon_wastes/13.png",
+   "map": "Dark Agon Wastes",
+   "x": 105,
+   "y": 703
+  },
+  "14": {
+   "img": "images/rooms/dark_agon_wastes/14.png",
+   "map": "Dark Agon Wastes",
+   "x": 569,
+   "y": 806
+  },
+  "15": {
+   "img": "images/rooms/agon_wastes/15.png",
+   "map": "Agon Wastes",
+   "x": 541,
+   "y": 520
+  },
+  "16": {
+   "img": "images/rooms/agon_wastes/16.png",
+   "map": "Agon Wastes",
+   "x": 661,
+   "y": 456
+  },
+  "17": {
+   "img": "images/rooms/dark_agon_wastes/17.png",
+   "map": "Dark Agon Wastes",
+   "x": 467,
+   "y": 417
+  },
+  "18": {
+   "img": "images/rooms/agon_wastes/18.png",
+   "map": "Agon Wastes",
+   "x": 841,
+   "y": 1039
+  },
+  "19": {
+   "img": "images/rooms/agon_wastes/19.png",
+   "map": "Agon Wastes",
+   "x": 610,
+   "y": 1090
+  },
+  "2": {
+   "img": "images/rooms/agon_wastes/2.png",
+   "map": "Agon Wastes",
+   "x": 389,
+   "y": 718
+  },
+  "20": {
+   "img": "images/rooms/dark_agon_wastes/20.png",
+   "map": "Dark Agon Wastes",
+   "x": 592,
+   "y": 1046
+  },
+  "21": {
+   "img": "images/rooms/agon_wastes/21.png",
+   "map": "Agon Wastes",
+   "x": 845,
+   "y": 665
+  },
+  "22": {
+   "img": "images/rooms/agon_wastes/22.png",
+   "map": "Agon Wastes",
+   "x": 1041,
+   "y": 787
+  },
+  "23": {
+   "img": "images/rooms/agon_wastes/23.png",
+   "map": "Agon Wastes",
+   "x": 868,
+   "y": 916
+  },
+  "24": {
+   "img": "images/rooms/agon_wastes/24.png",
+   "map": "Agon Wastes",
+   "x": 779,
+   "y": 921
+  },
+  "25": {
+   "img": "images/rooms/dark_agon_wastes/25.png",
+   "map": "Dark Agon Wastes",
+   "x": 792,
+   "y": 846
+  },
+  "26": {
+   "img": "images/rooms/agon_wastes/26.png",
+   "map": "Agon Wastes",
+   "x": 852,
+   "y": 454
+  },
+  "27": {
+   "img": "images/rooms/dark_agon_wastes/27.png",
+   "map": "Dark Agon Wastes",
+   "x": 607,
+   "y": 473
+  },
+  "28": {
+   "img": "images/rooms/dark_agon_wastes/28.png",
+   "map": "Dark Agon Wastes",
+   "x": 795,
+   "y": 1083
+  },
+  "29": {
+   "img": "images/rooms/agon_wastes/29.png",
+   "map": "Agon Wastes",
+   "x": 1211,
+   "y": 774
+  },
+  "3": {
+   "img": "images/rooms/agon_wastes/3.png",
+   "map": "Agon Wastes",
+   "x": 408,
+   "y": 598
+  },
+  "30": {
+   "img": "images/rooms/dark_agon_wastes/30.png",
+   "map": "Dark Agon Wastes",
+   "x": 799,
+   "y": 692
+  },
+  "31": {
+   "img": "images/rooms/dark_agon_wastes/31.png",
+   "map": "Dark Agon Wastes",
+   "x": 1004,
+   "y": 820
+  },
+  "32": {
+   "img": "images/rooms/dark_agon_wastes/32.png",
+   "map": "Dark Agon Wastes",
+   "x": 822,
+   "y": 955
+  },
+  "33": {
+   "img": "images/rooms/dark_agon_wastes/33.png",
+   "map": "Dark Agon Wastes",
+   "x": 731,
+   "y": 960
+  },
+  "34": {
+   "img": "images/rooms/agon_wastes/34.png",
+   "map": "Agon Wastes",
+   "x": 852,
+   "y": 259
+  },
+  "35": {
+   "img": "images/rooms/agon_wastes/35.png",
+   "map": "Agon Wastes",
+   "x": 1161,
+   "y": 479
+  },
+  "36": {
+   "img": "images/rooms/dark_agon_wastes/36.png",
+   "map": "Dark Agon Wastes",
+   "x": 806,
+   "y": 472
+  },
+  "37": {
+   "img": "images/rooms/agon_wastes/37.png",
+   "map": "Agon Wastes",
+   "x": 1372,
+   "y": 779
+  },
+  "38": {
+   "img": "images/rooms/dark_agon_wastes/38.png",
+   "map": "Dark Agon Wastes",
+   "x": 1183,
+   "y": 813
+  },
+  "39": {
+   "img": "images/rooms/agon_wastes/39.png",
+   "map": "Agon Wastes",
+   "x": 860,
+   "y": 113
+  },
+  "4": {
+   "img": "images/rooms/agon_wastes/4.png",
+   "map": "Agon Wastes",
+   "x": 407,
+   "y": 515
+  },
+  "40": {
+   "img": "images/rooms/agon_wastes/40.png",
+   "map": "Agon Wastes",
+   "x": 1431,
+   "y": 404
+  },
+  "41": {
+   "img": "images/rooms/dark_agon_wastes/41.png",
+   "map": "Dark Agon Wastes",
+   "x": 806,
+   "y": 269
+  },
+  "42": {
+   "img": "images/rooms/agon_wastes/42.png",
+   "map": "Agon Wastes",
+   "x": 1516,
+   "y": 787
+  },
+  "43": {
+   "img": "images/rooms/dark_agon_wastes/43.png",
+   "map": "Dark Agon Wastes",
+   "x": 1351,
+   "y": 812
+  },
+  "45": {
+   "img": "images/rooms/agon_wastes/45.png",
+   "map": "Agon Wastes",
+   "x": 1452,
+   "y": 303
+  },
+  "46": {
+   "img": "images/rooms/agon_wastes/46.png",
+   "map": "Agon Wastes",
+   "x": 1587,
+   "y": 495
+  },
+  "47": {
+   "img": "images/rooms/dark_agon_wastes/47.png",
+   "map": "Dark Agon Wastes",
+   "x": 815,
+   "y": 116
+  },
+  "48": {
+   "img": "images/rooms/agon_wastes/48.png",
+   "map": "Agon Wastes",
+   "x": 1522,
+   "y": 944
+  },
+  "49": {
+   "img": "images/rooms/agon_wastes/49.png",
+   "map": "Agon Wastes",
+   "x": 1550,
+   "y": 633
+  },
+  "5": {
+   "img": "images/rooms/agon_wastes/5.png",
+   "map": "Agon Wastes",
+   "x": 479,
+   "y": 899
+  },
+  "50": {
+   "img": "images/rooms/dark_agon_wastes/50.png",
+   "map": "Dark Agon Wastes",
+   "x": 1501,
+   "y": 820
+  },
+  "51": {
+   "img": "images/rooms/agon_wastes/51.png",
+   "map": "Agon Wastes",
+   "x": 1723,
+   "y": 509
+  },
+  "52": {
+   "img": "images/rooms/agon_wastes/52.png",
+   "map": "Agon Wastes",
+   "x": 1509,
+   "y": 512
+  },
+  "53": {
+   "img": "images/rooms/dark_agon_wastes/53.png",
+   "map": "Dark Agon Wastes",
+   "x": 1575,
+   "y": 530
+  },
+  "54": {
+   "img": "images/rooms/agon_wastes/54.png",
+   "map": "Agon Wastes",
+   "x": 1543,
+   "y": 1078
+  },
+  "55": {
+   "img": "images/rooms/dark_agon_wastes/55.png",
+   "map": "Dark Agon Wastes",
+   "x": 1507,
+   "y": 984
+  },
+  "56": {
+   "img": "images/rooms/dark_agon_wastes/56.png",
+   "map": "Dark Agon Wastes",
+   "x": 1541,
+   "y": 659
+  },
+  "57": {
+   "img": "images/rooms/agon_wastes/57.png",
+   "map": "Agon Wastes",
+   "x": 1834,
+   "y": 548
+  },
+  "58": {
+   "img": "images/rooms/dark_agon_wastes/58.png",
+   "map": "Dark Agon Wastes",
+   "x": 1717,
+   "y": 541
+  },
+  "59": {
+   "img": "images/rooms/dark_agon_wastes/59.png",
+   "map": "Dark Agon Wastes",
+   "x": 1493,
+   "y": 533
+  },
+  "6": {
+   "img": "images/rooms/agon_wastes/6.png",
+   "map": "Agon Wastes",
+   "x": 625,
+   "y": 757
+  },
+  "60": {
+   "img": "images/rooms/agon_wastes/60.png",
+   "map": "Agon Wastes",
+   "x": 1691,
+   "y": 1045
+  },
+  "61": {
+   "img": "images/rooms/agon_wastes/61.png",
+   "map": "Agon Wastes",
+   "x": 1432,
+   "y": 1112
+  },
+  "62": {
+   "img": "images/rooms/dark_agon_wastes/62.png",
+   "map": "Dark Agon Wastes",
+   "x": 1530,
+   "y": 1124
+  },
+  "63": {
+   "img": "images/rooms/agon_wastes/63.png",
+   "map": "Agon Wastes",
+   "x": 1788,
+   "y": 675
+  },
+  "64": {
+   "img": "images/rooms/dark_agon_wastes/64.png",
+   "map": "Dark Agon Wastes",
+   "x": 1833,
+   "y": 570
+  },
+  "65": {
+   "img": "images/rooms/agon_wastes/65.png",
+   "map": "Agon Wastes",
+   "x": 1743,
+   "y": 871
+  },
+  "66": {
+   "img": "images/rooms/dark_agon_wastes/66.png",
+   "map": "Dark Agon Wastes",
+   "x": 1685,
+   "y": 1086
+  },
+  "67": {
+   "img": "images/rooms/dark_agon_wastes/67.png",
+   "map": "Dark Agon Wastes",
+   "x": 1412,
+   "y": 1160
+  },
+  "68": {
+   "img": "images/rooms/dark_agon_wastes/68.png",
+   "map": "Dark Agon Wastes",
+   "x": 1784,
+   "y": 703
+  },
+  "69": {
+   "img": "images/rooms/agon_wastes/69.png",
+   "map": "Agon Wastes",
+   "x": 1843,
+   "y": 862
+  },
+  "7": {
+   "img": "images/rooms/dark_agon_wastes/7.png",
+   "map": "Dark Agon Wastes",
+   "x": 322,
+   "y": 748
+  },
+  "70": {
+   "img": "images/rooms/dark_agon_wastes/70.png",
+   "map": "Dark Agon Wastes",
+   "x": 1742,
+   "y": 908
+  },
+  "71": {
+   "img": "images/rooms/dark_agon_wastes/71.png",
+   "map": "Dark Agon Wastes",
+   "x": 1842,
+   "y": 899
+  },
+  "8": {
+   "img": "images/rooms/agon_wastes/8.png",
+   "map": "Agon Wastes",
+   "x": 527,
+   "y": 379
+  },
+  "9": {
+   "img": "images/rooms/agon_wastes/9.png",
+   "map": "Agon Wastes",
+   "x": 647,
+   "y": 1009
+  }
+ },
+ "863FCD72": {
+  "0": {
+   "img": "images/rooms/great_temple/0.png",
+   "map": "Great Temple",
+   "x": 962,
+   "y": 154
+  },
+  "1": {
+   "img": "images/rooms/great_temple/1.png",
+   "map": "Great Temple",
+   "x": 1033,
+   "y": 486
+  },
+  "10": {
+   "img": "images/rooms/sky_temple/10.png",
+   "map": "Sky Temple",
+   "x": 951,
+   "y": 1675
+  },
+  "11": {
+   "img": "images/rooms/sky_temple/11.png",
+   "map": "Sky Temple",
+   "x": 1360,
+   "y": 550
+  },
+  "2": {
+   "img": "images/rooms/great_temple/2.png",
+   "map": "Great Temple",
+   "x": 842,
+   "y": 966
+  },
+  "3": {
+   "img": "images/rooms/great_temple/3.png",
+   "map": "Great Temple",
+   "x": 477,
+   "y": 1067
+  },
+  "4": {
+   "img": "images/rooms/great_temple/4.png",
+   "map": "Great Temple",
+   "x": 966,
+   "y": 1379
+  },
+  "5": {
+   "img": "images/rooms/great_temple/5.png",
+   "map": "Great Temple",
+   "x": 1450,
+   "y": 1031
+  },
+  "6": {
+   "img": "images/rooms/great_temple/6.png",
+   "map": "Great Temple",
+   "x": 146,
+   "y": 1220
+  },
+  "7": {
+   "img": "images/rooms/great_temple/7.png",
+   "map": "Great Temple",
+   "x": 1173,
+   "y": 1043
+  },
+  "8": {
+   "img": "images/rooms/great_temple/8.png",
+   "map": "Great Temple",
+   "x": 1775,
+   "y": 1205
+  },
+  "9": {
+   "img": "images/rooms/sky_temple/9.png",
+   "map": "Sky Temple",
+   "x": 431,
+   "y": 680
+  }
+ }
+}
