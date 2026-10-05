@@ -1839,6 +1839,60 @@ If it fails, look at:
 * Dots that never go away: the pickup's `TranslatorDoorLocation` SpecialFunction (open-prime-rando `pickups/location.py`) or the cave's editor id argument
 * Dots that come back after reloading: the world's SAVW `unmappable_objects`
 
+### MT20_SKY_TEMPLE_KEY_GATE_REQUIRED -- `mt20_sky_temple_key_gate_required` (P1)
+
+*Proves: client/sky_temple_key_gate_patch.py moves the Gateway's `Count Keys Returned` Open connection to an earlier internal state, so the ring of columns lowers once 6 keys are held and stays up with 5*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; step 3 needs it.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt20_sky_temple_key_gate_required --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `sky_temple_keys=9`, `sky_temple_keys_required=6`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x2, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x28, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x0, `Sky Temple Key 7` x0, `Sky Temple Key 8` x0, `Sky Temple Key 9` x0, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* Start inventory holds Sky Temple Keys 1-5; `sky_temple_keys=9` still places all 9 in the pool, so the extra copies are wherever fill put them (see the spoiler).
+* Vanilla needs 9. If the ring lowers early at 5 keys the patch moved the connection too far; if it needs 9 the patch was not applied.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt20_sky_temple_key_gate_required --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt20_sky_temple_key_gate_required/mt20_sky_temple_key_gate_required.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt20_sky_temple_key_gate_required/mt20_sky_temple_key_gate_required.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game and connect the client.
+   **Expect:** You spawn at Sky Temple Gateway holding keys 1-5. Five of the nine columns are raised, and the ring of columns around the teleporter is still up.
+2. **Do:** Walk around the teleporter and try to enter it. Wait at least 10 seconds.
+   **Expect:** The teleporter stays blocked; nothing lowers.
+   *(exercises: 5 keys is one short of the requirement.)*
+3. **Do:** From the server console, run `/send <player> Sky Temple Key 6`.
+   **Expect:** Once the client delivers the key the gate sequence runs: a "Returned 6 Keys" HUD message appears and the ring of columns lowers, with only 6 of the 9 keys held.
+4. **Do:** Walk into the teleporter.
+   **Expect:** It works and you reach Sky Temple Energy Controller.
+5. **Do:** Return to the Gateway, save, reset Dolphin, reload the save and reconnect.
+   **Expect:** The ring is lowered again on arrival (the keys are re-counted on room load).
+
+Pass if:
+* With 5 keys held the ring stays up.
+* With 6 keys held (not 9) the ring lowers and the teleporter is usable.
+* No client traceback.
+
+If it fails, look at:
+* `options.py::SkyTempleKeysRequired`
+* `item_pool.py::sky_temple_keys_required_count`
+* `client/sky_temple_key_gate_patch.py::set_sky_temple_key_requirement`
+* `client/patcher_runner.py::sky_temple_keys_required_installed`
+* `test/test_sky_temple_key_gate_patch.py`
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).
