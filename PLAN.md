@@ -1569,6 +1569,16 @@ relays, one set per key excluded -- an 8-of-9 "final key" detector for
 cinematic purposes, confirmed unrelated by tracing incoming/outgoing
 connections; not touched.)
 
+**HUD memo text.** The "Returned N Keys" memos' STRGs hardcode the
+remainder as `9 - N` ("3 Sky Temple Keys have been returned. You must find
+6 more."), which would be wrong for `required < 9`.
+`_rewrite_return_memos` finds each memo through the counter's `Activate`
+connection from `InternalState{N-1:02d}` and rewrites its STRG to
+`required - N` remaining; at or past `required` (the gate is open) the second
+line becomes "You can now enter the Sky Temple." rather than "find 0 more".
+The 9-key "All Sky Temple Keys have been returned" memo is untouched.
+Checked against a real NTSC-U ISO (in-memory, not in-game).
+
 **Where this lives, and why not in open-prime-rando.** The user maintains
 a fork of open-prime-rando (already carrying an unreleased
 `feature/warp-to-start` branch) and the pinned dependency

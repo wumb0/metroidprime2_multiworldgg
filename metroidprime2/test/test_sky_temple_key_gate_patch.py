@@ -34,8 +34,9 @@ class _FakeConnection:
 
 
 class _FakeProps:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, string: int = 0) -> None:
         self.name = name
+        self.string = string
 
     @property
     def editor_properties(self) -> _FakeProps:
@@ -47,12 +48,16 @@ class _FakeInstance:
     rewrite: a name, and a mutable connection list matching the real
     ``add_connection``/``remove_connection`` contract."""
 
-    def __init__(self, name: str, connections: list[_FakeConnection]) -> None:
+    def __init__(self, name: str, connections: list[_FakeConnection], string: int = 0) -> None:
         self._name = name
+        self._string = string
         self.connections = list(connections)
 
     def get_properties_as(self, type_cls: object) -> _FakeProps:
-        return _FakeProps(self._name)
+        return _FakeProps(self._name, self._string)
+
+    def get_properties(self) -> _FakeProps:
+        return _FakeProps(self._name, self._string)
 
     def remove_connection(self, connection: _FakeConnection) -> None:
         self.connections = [c for c in self.connections if c is not connection]
@@ -64,24 +69,51 @@ class _FakeInstance:
 class _FakeArea:
     name = "Fake Sky Temple Gateway"
 
-    def __init__(self, instances_by_name: dict[str, _FakeInstance]) -> None:
-        self._instances = instances_by_name
+    def __init__(self, instances: dict[Any, _FakeInstance]) -> None:
+        self._instances = instances
 
-    def get_instance(self, name: str) -> _FakeInstance:
-        return self._instances[name]
+    def get_instance(self, name_or_id: Any) -> _FakeInstance:
+        return self._instances[name_or_id]
+
+
+class _FakeStrg:
+    def __init__(self) -> None:
+        self.strings = ["vanilla"]
+
+    def set_single_string(self, index: int, value: str) -> None:
+        self.strings[index] = value
+
+
+class _FakeEditor:
+    """``get_file`` hands out one ``_FakeStrg`` per asset id."""
+
+    def __init__(self) -> None:
+        self.strgs: dict[int, _FakeStrg] = {}
+
+    def get_file(self, asset_id: int, type_cls: object = None) -> _FakeStrg:
+        return self.strgs.setdefault(asset_id, _FakeStrg())
+
+
+_MEMO_STRG_BASE = 0x1000
 
 
 def _fake_counter(open_target: int = 0x2A0203) -> tuple[_FakeArea, _FakeInstance]:
+    """A counter wired like the real one: ``InternalState{N-1}`` activates
+    the "Returned N Keys" memo (target id ``0x2A0100 + N``, STRG
+    ``_MEMO_STRG_BASE + N``) for N=1..8, plus a Deactivate decoy and the
+    ``Open`` connection from the 9th state."""
     from retro_data_structures.enums.echoes import Message, State
 
-    counter = _FakeInstance(
-        "Count Keys Returned",
-        [
-            _FakeConnection(State.InternalState02, Message.Deactivate, 0xDEAD),
-            _FakeConnection(State.InternalState08, Message.Open, open_target),
-        ],
-    )
-    return _FakeArea({"Count Keys Returned": counter}), counter
+    connections = [_FakeConnection(State.InternalState02, Message.Deactivate, 0xDEAD)]
+    instances: dict[Any, _FakeInstance] = {}
+    for returned in range(1, 9):
+        target = 0x2A0100 + returned
+        connections.append(_FakeConnection(State[f"InternalState{returned - 1:02d}"], Message.Activate, target))
+        instances[target] = _FakeInstance(f"Returned {returned} Keys", [], string=_MEMO_STRG_BASE + returned)
+    connections.append(_FakeConnection(State.InternalState08, Message.Open, open_target))
+    counter = _FakeInstance("Count Keys Returned", connections)
+    instances["Count Keys Returned"] = counter
+    return _FakeArea(instances), counter
 
 
 @unittest.skipUnless(_RDS_AVAILABLE, "retro_data_structures is not installed")
@@ -90,7 +122,7 @@ class TestSetSkyTempleKeyRequirement(unittest.TestCase):
         from retro_data_structures.enums.echoes import Message, State
 
         area, counter = _fake_counter()
-        sky_temple_key_gate_patch.set_sky_temple_key_requirement(None, None, cast(Any, area), 6)
+        sky_temple_key_gate_patch.set_sky_temple_key_requirement(_FakeEditor(), None, cast(Any, area), 6)
 
         open_connections = [c for c in counter.connections if c.message == Message.Open]
         self.assertEqual(len(open_connections), 1)
@@ -101,23 +133,53 @@ class TestSetSkyTempleKeyRequirement(unittest.TestCase):
         from retro_data_structures.enums.echoes import Message, State
 
         area, counter = _fake_counter()
-        sky_temple_key_gate_patch.set_sky_temple_key_requirement(None, None, cast(Any, area), 6)
+        sky_temple_key_gate_patch.set_sky_temple_key_requirement(_FakeEditor(), None, cast(Any, area), 6)
 
+        decoy = _FakeConnection(State.InternalState02, Message.Deactivate, 0xDEAD)
         non_open = [c for c in counter.connections if c.message != Message.Open]
-        self.assertEqual(non_open, [_FakeConnection(State.InternalState02, Message.Deactivate, 0xDEAD)])
+        self.assertEqual(len(non_open), 9)
+        self.assertIn(decoy, non_open)
 
     def test_nine_is_a_no_op(self) -> None:
         area, counter = _fake_counter()
+        editor = _FakeEditor()
         original = list(counter.connections)
-        sky_temple_key_gate_patch.set_sky_temple_key_requirement(None, None, cast(Any, area), 9)
+        sky_temple_key_gate_patch.set_sky_temple_key_requirement(editor, None, cast(Any, area), 9)
         self.assertEqual(counter.connections, original)
+        self.assertEqual(editor.strgs, {})
+
+    def test_return_memos_count_down_to_the_required_value(self) -> None:
+        area, _counter = _fake_counter()
+        editor = _FakeEditor()
+        sky_temple_key_gate_patch.set_sky_temple_key_requirement(editor, None, cast(Any, area), 6)
+
+        def text(returned: int) -> str:
+            return editor.strgs[_MEMO_STRG_BASE + returned].strings[0]
+
+        self.assertEqual(text(1), "1 Sky Temple Key has been returned.\nYou must find 5 more.")
+        self.assertEqual(text(3), "3 Sky Temple Keys have been returned.\nYou must find 3 more.")
+        self.assertEqual(text(5), "5 Sky Temple Keys have been returned.\nYou must find 1 more.")
+        # At and past the requirement the gate is open: no "find 0 more".
+        for returned in (6, 7, 8):
+            self.assertEqual(
+                text(returned), f"{returned} Sky Temple Keys have been returned.\nYou can now enter the Sky Temple."
+            )
+
+    def test_required_one_opens_on_the_first_key(self) -> None:
+        area, _counter = _fake_counter()
+        editor = _FakeEditor()
+        sky_temple_key_gate_patch.set_sky_temple_key_requirement(editor, None, cast(Any, area), 1)
+        self.assertEqual(
+            editor.strgs[_MEMO_STRG_BASE + 1].strings[0],
+            "1 Sky Temple Key has been returned.\nYou can now enter the Sky Temple.",
+        )
 
     def test_rejects_out_of_range_values(self) -> None:
         area, _counter = _fake_counter()
         for bad in (0, 10, -1):
             with self.subTest(bad):
                 with self.assertRaises(ValueError):
-                    sky_temple_key_gate_patch.set_sky_temple_key_requirement(None, None, cast(Any, area), bad)
+                    sky_temple_key_gate_patch.set_sky_temple_key_requirement(_FakeEditor(), None, cast(Any, area), bad)
 
     def test_rejects_more_than_one_open_connection(self) -> None:
         from retro_data_structures.enums.echoes import Message, State
@@ -131,7 +193,7 @@ class TestSetSkyTempleKeyRequirement(unittest.TestCase):
         )
         area = _FakeArea({"Count Keys Returned": counter})
         with self.assertRaises(AssertionError):
-            sky_temple_key_gate_patch.set_sky_temple_key_requirement(None, None, cast(Any, area), 6)
+            sky_temple_key_gate_patch.set_sky_temple_key_requirement(_FakeEditor(), None, cast(Any, area), 6)
 
 
 class _FakeAreaPatcher:

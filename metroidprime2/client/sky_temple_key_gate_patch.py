@@ -27,6 +27,10 @@ an earlier internal state is the entire patch: every query relay, the
 per-key column-raising visuals, and the "Returned N Keys" HUD messages are
 all untouched and still track every key the player actually holds, up to
 9 -- they just no longer gate progress past ``required``.
+
+The "Returned N Keys" memos' text hardcodes the remainder as ``9 - N``
+("... You must find 6 more."), so ``_rewrite_return_memos`` rewrites each
+one's STRG to count down to ``required`` instead.
 """
 
 from __future__ import annotations
@@ -48,6 +52,37 @@ _COUNTER_NAME = "Count Keys Returned"
 # this module has no import-time dependency on those modules' layout.
 _TEMPLE_GROUNDS_MLVL = 0x3BFA3EFF
 _SKY_TEMPLE_GATEWAY_MREA = 0x87D35EE4
+
+
+def _return_memo_text(returned: int, required: int) -> str:
+    """The vanilla "Returned N Keys" memo text, with the remaining count
+    taken against ``required`` rather than 9. Once ``required`` keys are
+    back the gate is open, so say so instead of "must find 0 more"."""
+    keys = "1 Sky Temple Key has" if returned == 1 else f"{returned} Sky Temple Keys have"
+    if returned >= required:
+        return f"{keys} been returned.\nYou can now enter the Sky Temple."
+    return f"{keys} been returned.\nYou must find {required - returned} more."
+
+
+def _rewrite_return_memos(editor: Any, area: Area, counter: Any, required: int) -> None:
+    """Fixes the count-down in each "Returned N Keys" HUD memo (see module
+    docstring). The memo for N keys is the target of the counter's
+    ``Activate`` connection from ``InternalState{N-1:02d}``; N=9 ("All Sky
+    Temple Keys have been returned") is already correct and left alone.
+    """
+    from retro_data_structures.enums.echoes import Message, State
+    from retro_data_structures.formats.strg import Strg
+
+    for returned in range(1, 9):
+        state = State[f"InternalState{returned - 1:02d}"]
+        memos = [c for c in counter.connections if c.message == Message.Activate and c.state == state]
+        assert len(memos) == 1, (
+            f"{area.name}: expected exactly one Activate connection from {state.name} on {_COUNTER_NAME!r}, "
+            f"found {len(memos)}"
+        )
+        memo = area.get_instance(memos[0].target)
+        strg = editor.get_file(memo.get_properties().string, Strg)
+        strg.set_single_string(0, _return_memo_text(returned, required))
 
 
 def set_sky_temple_key_requirement(editor: Any, mlvl: Any, area: Area, required: int) -> None:
@@ -72,6 +107,8 @@ def set_sky_temple_key_requirement(editor: Any, mlvl: Any, area: Area, required:
 
     counter.remove_connection(open_connection)
     counter.add_connection(State[f"InternalState{required - 1:02d}"], Message.Open, open_connection.target)
+
+    _rewrite_return_memos(editor, area, counter, required)
 
 
 def register(area_patcher: AreaPatcher, required: int) -> None:
