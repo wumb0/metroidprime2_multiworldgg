@@ -105,10 +105,16 @@ def merge(*option_dicts: dict[str, Any]) -> dict[str, Any]:
 
 
 def merge_inventory(*inventory_dicts: dict[str, int]) -> dict[str, int]:
+    """Union of start inventories, taking the larger count per item.
+
+    Not a sum: the presets overlap (``ALL_ITEMS_START`` already holds 14
+    Energy Tanks, which is also what ``GOD_MODE_START_INVENTORY`` asks for),
+    and summing them would exceed the game's Energy Tank cap.
+    """
     result: dict[str, int] = {}
     for inventory in inventory_dicts:
         for name, count in inventory.items():
-            result[name] = result.get(name, 0) + count
+            result[name] = max(result.get(name, 0), count)
     return result
 
 
