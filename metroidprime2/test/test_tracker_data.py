@@ -253,6 +253,26 @@ class TestMapPack(unittest.TestCase):
         for garbage in ("", None, "nonsense", "1:2:3", "DEADBEEF:0", 12345):
             self.assertIsNone(room_icon_coords(0, garbage))
 
+    def test_room_icon_coords_initializes_map_page_icons(self) -> None:
+        # UT's VisualTracker only sets location_icons in load_coords, but
+        # reads it when the datastorage reply arrives; the hook backfills it.
+        import sys
+        import types
+        from unittest import mock
+
+        page = types.SimpleNamespace()
+        app = types.SimpleNamespace(ctx=types.SimpleNamespace(map_page=page))
+        kivy_app = types.ModuleType("kivy.app")
+        kivy_app.App = types.SimpleNamespace(get_running_app=lambda: app)  # type: ignore[attr-defined]
+        with mock.patch.dict(sys.modules, {"kivy": types.ModuleType("kivy"), "kivy.app": kivy_app}):
+            room_icon_coords(0, "")
+            self.assertEqual([], page.location_icons)  # type: ignore[attr-defined]
+            page.location_icons.append("kept")  # type: ignore[attr-defined]
+            room_icon_coords(0, "")
+            self.assertEqual(["kept"], page.location_icons)  # type: ignore[attr-defined]
+            app.ctx.map_page = None
+            self.assertIsNone(room_icon_coords(0, ""))
+
     def test_client_key_matches_tracker_setting(self) -> None:
         self.assertEqual(
             TRACKER_WORLD["map_page_setting_key"].format(team=1, player=7),

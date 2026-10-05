@@ -139,12 +139,30 @@ def _room_icons() -> dict[str, dict[str, dict[str, Any]]]:
     return _tracker_file("room_icons.json")
 
 
+def _init_map_page_icons() -> None:
+    """UT's ``VisualTracker`` only creates ``location_icons`` at the end of
+    ``load_coords``, but calls ``update_location_icon_widgets`` (which reads
+    it) whenever the ``location_setting_key`` reply arrives -- possibly before
+    ``load_coords`` has finished, which raises ``AttributeError``. Called from
+    the hook, which UT runs immediately before that update, to give the widget
+    the empty list it expects. Best effort: no-op outside a running UT client."""
+    try:
+        from kivy.app import App
+
+        page = App.get_running_app().ctx.map_page
+        if page is not None and not hasattr(page, "location_icons"):
+            page.location_icons = []
+    except Exception:
+        pass
+
+
 def room_icon_coords(map_id: int | None, data: Any) -> tuple[int, int, str] | None:
     """UT ``location_icon_coords`` hook: the current room's highlight overlay
     (``tools/make_tracker_map.py`` draws one per room, sized to the map's
     ``location_icon_size``), or None -- no icon -- when the room is unknown
     or belongs to a different map than the one being viewed (auto-tab off,
     or a dark room on a light map)."""
+    _init_map_page_icons()
     try:
         mlvl, area = str(data).split(":")
         icon = _room_icons()[mlvl.upper()][area]
