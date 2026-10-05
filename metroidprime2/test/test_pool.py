@@ -246,3 +246,24 @@ class TestSplitBeamAmmoOff(MP2TestBase):
         self.assertEqual(0, counts["Dark Ammo Expansion"])
         self.assertEqual(0, counts["Light Ammo Expansion"])
         self.assertEqual(20, counts["Beam Ammo Expansion"])
+
+
+class TestStartInventoryEnergyTankLimit(MP2TestBase):
+    auto_construct = False
+
+    def test_fourteen_tanks_allowed(self) -> None:
+        self.options = {"start_inventory": {"Energy Tank": 14}}
+        self.world_setup()
+
+    def test_more_than_fourteen_tanks_fails(self) -> None:
+        self.options = {"start_inventory": {"Energy Tank": 15}}
+        with self.assertRaises(OptionError):
+            self.world_setup()
+
+    def test_from_pool_counts_toward_limit(self) -> None:
+        self.options = {
+            "start_inventory": {"Energy Tank": 10},
+            "start_inventory_from_pool": {"Energy Tank": 5},
+        }
+        with self.assertRaises(OptionError):
+            self.world_setup()

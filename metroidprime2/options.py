@@ -287,19 +287,6 @@ class EnergyPerTank(Range):
     default = 100
 
 
-class MaxEnergyTanks(Range):
-    """EXPERIMENTAL. The most Energy Tanks you can hold. The vanilla game
-    caps this at 14; higher values rewrite the game's item cap at patch
-    time. The in-game HUD only has room for 14 tank icons, so extra tanks
-    may not be drawn (the energy readout is still correct). Logic assumes
-    this many tanks are usable."""
-
-    display_name = "Max Energy Tanks"
-    range_start = 14
-    range_end = 99
-    default = 14
-
-
 class DarkAetherDamage(Range):
     """Damage per second taken while in a dark world without appropriate
     suit protection, in TENTHS of a point per second (e.g. 60 == 6.0
@@ -812,7 +799,6 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
     damage_strictness: DamageStrictness
     energy_per_tank: EnergyPerTank
-    max_energy_tanks: MaxEnergyTanks
     dark_aether_damage: DarkAetherDamage
     dark_suit_damage: DarkSuitDamage
     dangerous_energy_tanks: DangerousEnergyTanks
@@ -880,7 +866,6 @@ OPTION_GROUPS: list[OptionGroup] = [
             TrickLevel,
             DamageStrictness,
             EnergyPerTank,
-            MaxEnergyTanks,
             DarkAetherDamage,
             DarkSuitDamage,
             DangerousEnergyTanks,

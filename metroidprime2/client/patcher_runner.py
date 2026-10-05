@@ -396,7 +396,6 @@ def patch_iso_with_ap(
     move_while_scanning = bool(apmp2_options.get("move_while_scanning", False))
     # int(): .apmp2 files from before the "always" mode carry a bool here.
     item_map_dots = int(apmp2_options.get("item_map_dots", constants.ITEM_MAP_DOTS_OFF))
-    max_energy_tanks = int(apmp2_options.get("max_energy_tanks", constants.DEFAULT_MAX_ENERGY_TANKS))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
     sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
@@ -428,14 +427,6 @@ def patch_iso_with_ap(
             dol_version.powerup_max + counter_item * 4,
             struct.pack(">I", constants.COUNTER_MAX_CAPACITY),
         )
-
-    # Energy Tank ceiling (``max_energy_tanks``; retail's is 14). Written
-    # unconditionally, like the counter ceilings above, so the cap is known
-    # on every DOL version rather than assumed from one.
-    editor.dol.write(
-        dol_version.powerup_max + constants.ENERGY_TANK_ITEM * 4,
-        struct.pack(">I", max_energy_tanks),
-    )
 
     try:
         if spring_ball:

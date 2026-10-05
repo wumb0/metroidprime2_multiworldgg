@@ -10,7 +10,6 @@ MultiWorldGG's lightweight ``Options`` module, not ``CommonClient``/
 
 from __future__ import annotations
 
-import dataclasses
 import unittest
 
 from ..logic.db_reader import load_game_database
@@ -146,17 +145,6 @@ class TestDamageDarkWorld1(RequirementsTestBase):
         rule = self.compiler.compile(req)
         assert rule is not None
         self.assertTrue(rule(FakeState({"Energy Tank": 1})))
-
-    def test_energy_tanks_past_the_cap_add_nothing(self) -> None:
-        # Cap of 2 tanks: energy tops out at 299 however many are held.
-        ctx = dataclasses.replace(self.ctx, max_energy_tanks=2, damage_strictness=1.0)
-        capped = RequirementCompiler(self.db, ctx)
-        state = FakeState({"Energy Tank": 30})
-        fails = capped.compile(_resource("damage", "DarkWorld1", amount=299))
-        passes = capped.compile(_resource("damage", "DarkWorld1", amount=298))
-        assert fails is not None and passes is not None
-        self.assertFalse(fails(state))
-        self.assertTrue(passes(state))
 
     def test_amount_70_passes_with_dark_suit_and_zero_tanks(self) -> None:
         # reduction == 0.2 (dark_suit_multiplier); ceil(105 * 0.2) == 21 < 99.

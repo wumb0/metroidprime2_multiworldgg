@@ -202,6 +202,20 @@ class MetroidPrime2World(World):
                 f"'all_guardians' requires sky_temple_keys to be at least 3 (got {sky_temple_keys})."
             )
 
+        # The game's powerup_max caps Energy Tanks at 14 and misbehaves past
+        # it, so refuse a start inventory that asks for more instead of
+        # silently clamping it at patch time. Main.py pushes these to
+        # precollected only after generate_early, so read the options.
+        starting_tanks = self.options.start_inventory.value.get(
+            "Energy Tank", 0
+        ) + self.options.start_inventory_from_pool.value.get("Energy Tank", 0)
+        if starting_tanks > constants.MAX_ENERGY_TANKS:
+            raise OptionError(
+                f"{self.player_name}'s Metroid Prime 2: Echoes world: start_inventory has "
+                f"{starting_tanks} Energy Tanks, but the game supports at most "
+                f"{constants.MAX_ENERGY_TANKS}."
+            )
+
         self.trick_levels = trick_levels_from_options(self.options)
         self.world_uuid = str(
             uuid.uuid5(constants.NAMESPACE_UUID, f"{multiworld.seed_name}/{self.player}")
@@ -311,9 +325,6 @@ class MetroidPrime2World(World):
                 "warp_to_start": bool(self.options.warp_to_start),
                 "move_while_scanning": bool(self.options.move_while_scanning),
                 "spring_ball": bool(self.options.spring_ball),
-                # Raises the DOL's Energy Tank powerup_max (client/
-                # patcher_runner.py); no RandoConfiguration field exists.
-                "max_energy_tanks": int(self.options.max_energy_tanks.value),
                 "spring_ball_button": self.options.spring_ball_button.current_key,
                 # client/item_map_dots_patch.py: a DOL cave plus a MAPA
                 # visibility rewrite, neither of which config.json can carry.

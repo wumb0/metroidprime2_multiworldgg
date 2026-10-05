@@ -46,7 +46,7 @@ _MISSILE_LAUNCHER_FLAG = 73
 _POWER_BOMB_ITEM = 43
 _DARK_AMMO_ITEM = 45
 _LIGHT_AMMO_ITEM = 46
-_ENERGY_TANK_ITEM = constants.ENERGY_TANK_ITEM
+_ENERGY_TANK_ITEM = 42
 _VARIA_ITEM = 12  # Reused by OPR as the Defense Up counter; capacity must
 # always be exactly 1 (PLAN.md Context fact 31 / Risk L7).
 
@@ -61,6 +61,8 @@ _COUNTED_AMMO_IDS = frozenset(
         _VARIA_ITEM,
     }
 )
+
+_ENERGY_TANK_CAP = 14
 
 # The four pickup bitmask counters must never be driven by the item model --
 # they're written directly by in-ISO pickup scripts and consumed by
@@ -87,7 +89,6 @@ def compute_desired_capacities(
     first_non_starting_item_index: int,
     missile_expansions_unlock_launcher: bool = False,
     power_bomb_expansions_unlock_power_bombs: bool = False,
-    max_energy_tanks: int = constants.DEFAULT_MAX_ENERGY_TANKS,
 ) -> dict[int, int]:
     """Computes the capacity every OPR inventory slot *should* have, given
     the full list of ``(item_name, sender_slot)`` pairs received so far (in
@@ -112,10 +113,6 @@ def compute_desired_capacities(
     counterpart: when set, any received Power Bomb Expansion also unlocks
     Power Bombs, matching ``logic/item_mapping.expression``'s ``PowerBomb``
     branch -- again, the two implementations must be kept in sync.
-
-    ``max_energy_tanks`` mirrors the option of the same name: the Energy
-    Tank capacity is clamped to it, matching the ``powerup_max`` the patcher
-    writes for the same value.
     """
     desired: dict[int, int] = {}
     progressive_copy_index: dict[str, int] = {}
@@ -182,9 +179,8 @@ def compute_desired_capacities(
     # exactly 1 (it's also OPR's Defense Up counter -- never grant it more).
     desired[_VARIA_ITEM] = 1
 
-    # Energy Tank: the game's cap (max_energy_tanks, 14 in vanilla) applies
-    # regardless of how many were received.
-    desired[_ENERGY_TANK_ITEM] = min(energy_tanks, max_energy_tanks)
+    # Energy Tank: real max is 14 regardless of how many were received.
+    desired[_ENERGY_TANK_ITEM] = min(energy_tanks, _ENERGY_TANK_CAP)
 
     # Missile: 0 without the launcher (or, with
     # missile_expansions_unlock_launcher, without any expansion); otherwise

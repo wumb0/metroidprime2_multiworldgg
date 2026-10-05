@@ -84,10 +84,10 @@ _VARIA_STARTING_CAPACITY = 1
 
 # Energy Tank capacity is nominally unbounded from gains_for's point of
 # view (each copy just adds another (42, 1)), but the DOL's powerup_max
-# table only allows so many: the ``max_energy_tanks`` option, 14 by default
-# (matching ITEM_TABLE's own default_pool_count for Energy Tank, PLAN.md
-# section F).
-_ENERGY_TANK_ITEM_ID = constants.ENERGY_TANK_ITEM
+# table only allows so many; 14 matches ITEM_TABLE's own
+# default_pool_count for Energy Tank (PLAN.md section F).
+_ENERGY_TANK_ITEM_ID = 42
+_ENERGY_TANK_MAX_STARTING_CAPACITY = constants.MAX_ENERGY_TANKS
 
 # Missile capacity / launcher-unlock flag ids (mirrors the same ids in
 # client/receive_items.py's _MISSILE_ITEM/_MISSILE_LAUNCHER_FLAG). Needed
@@ -174,7 +174,7 @@ def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
     capacities[_VARIA_ITEM_ID] = _VARIA_STARTING_CAPACITY
     if _ENERGY_TANK_ITEM_ID in capacities:
         capacities[_ENERGY_TANK_ITEM_ID] = min(
-            capacities[_ENERGY_TANK_ITEM_ID], int(world.options.max_energy_tanks.value)
+            capacities[_ENERGY_TANK_ITEM_ID], _ENERGY_TANK_MAX_STARTING_CAPACITY
         )
 
     if bool(world.options.missile_expansions_unlock_launcher) and capacities.get(
