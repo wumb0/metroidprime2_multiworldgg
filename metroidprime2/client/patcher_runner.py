@@ -372,6 +372,8 @@ def patch_iso_with_ap(
     from open_prime_rando.patcher_editor import IsoFileProvider, IsoFileWriter, PatcherEditor
     from retro_data_structures.game_check import Game
 
+    from . import elevator_prescan_patch
+
     apmp2_file = os.fspath(apmp2_file)
     input_iso = os.fspath(input_iso)
     output_iso = get_output_path(apmp2_file)
@@ -453,6 +455,8 @@ def patch_iso_with_ap(
                 patches.enter_context(goal_warp_installed(goal))
             if translator_lore_colors:
                 patches.enter_context(translator_lore_colors_installed(translator_lore_colors))
+            if configuration.auto_enabled_elevators:
+                patches.enter_context(elevator_prescan_patch.installed())
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)
 
         def _write_callback(bytes_written: int, total_bytes: int) -> None:
