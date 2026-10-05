@@ -374,7 +374,9 @@ class MetroidPrime2World(World):
         slot_data["sky_temple_key_locations"] = list(self.sky_temple_key_locations)
         slot_data["starting_region"] = self.origin_region_name
         # Pool size of each counted expansion (filler/starting copies
-        # included) for the client's "acquired/total" counters.
+        # included) for the client's "acquired/total" counters. Energy Tanks
+        # are clamped to the game's cap: start-inventory tanks sit on top of
+        # the pool's own 14, and the extras can never be used.
         placed = [
             location.item.name
             for location in self.multiworld.get_locations()
@@ -384,6 +386,9 @@ class MetroidPrime2World(World):
         slot_data["expansion_totals"] = {
             name: placed.count(name) for name in constants.TRACKED_EXPANSIONS
         }
+        slot_data["expansion_totals"]["Energy Tank"] = min(
+            slot_data["expansion_totals"]["Energy Tank"], constants.MAX_ENERGY_TANKS
+        )
         slot_data.update(encode_randomization(self))
         slot_data["apworld_version"] = get_apworld_version()
 

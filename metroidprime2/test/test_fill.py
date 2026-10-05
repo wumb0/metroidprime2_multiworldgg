@@ -224,6 +224,17 @@ class TestExpansionTotals(unittest.TestCase):
         self.assertEqual(0, totals["Beam Ammo Expansion"])
         self.assertGreaterEqual(totals["Missile Expansion"], 33)  # filler pads past 33
 
+    def test_energy_tank_total_capped_with_start_inventory(self) -> None:
+        # main.py pushes start_inventory to precollected after generate_early;
+        # the test harness doesn't run that step, so push the tanks directly.
+        multiworld = _build({}, 1)
+        world = multiworld.worlds[1]
+        for _ in range(14):
+            multiworld.push_precollected(world.create_item("Energy Tank"))
+        distribute_items_restrictive(multiworld)
+        call_all(multiworld, "post_fill")
+        self.assertEqual(14, world.fill_slot_data()["expansion_totals"]["Energy Tank"])
+
     def test_unified_beam_ammo(self) -> None:
         totals = self._totals({"split_beam_ammo": False})
         self.assertEqual(20, totals["Beam Ammo Expansion"])

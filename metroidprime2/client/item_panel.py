@@ -176,7 +176,7 @@ def compute_panel_state(received_names: Iterable[str], slot_data: dict[str, Any]
         total = sum(totals.get(item, 0) for item in item_names)
         if counter == "energy_tanks":
             # The game caps tanks at 14 however many are received.
-            total = total or ENERGY_TANKS_TOTAL
+            total = min(total or ENERGY_TANKS_TOTAL, ENERGY_TANKS_TOTAL)
             acquired = min(acquired, ENERGY_TANKS_TOTAL)
         state.counters[counter] = f"{min(acquired, total)}/{total}" if total else str(acquired)
 

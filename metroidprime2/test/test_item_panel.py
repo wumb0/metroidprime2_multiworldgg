@@ -135,6 +135,11 @@ class TestComputePanelState(unittest.TestCase):
         state = compute_panel_state(["Energy Tank"] * 3, {"expansion_totals": {"Energy Tank": 14}})
         self.assertEqual("3/14", state.counters["energy_tanks"])
 
+    def test_energy_tank_total_capped(self) -> None:
+        # Start-inventory tanks stack on the pool's 14 in the recorded total.
+        state = compute_panel_state(["Energy Tank"] * 14, {"expansion_totals": {"Energy Tank": 28}})
+        self.assertEqual("14/14", state.counters["energy_tanks"])
+
 
 @unittest.skipUnless(importlib.util.find_spec("kivymd") is not None, "kivymd not installed")
 class TestTooltipPosition(unittest.TestCase):
