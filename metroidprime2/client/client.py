@@ -65,6 +65,11 @@ patch_logger = logging.getLogger("MetroidPrime2Patcher")
 
 GOAL_COMPLETE_MESSAGE = "Goal complete!"
 
+# NetworkItem.location the server stamps on items it cheats in (!getitem,
+# /send); and the pseudo-slot CommonContext.player_names maps to "Archipelago".
+SERVER_CHEAT_LOCATION = -1
+SERVER_PLAYER_SLOT = 0
+
 HUD_MESSAGE_DURATION = 4.0  # PLAN.md section J: 4s cooldown between messages.
 
 _STATUS_MESSAGES: dict[ConnectionState, str] = {
@@ -696,14 +701,20 @@ def _announce_received_items(
     Start-inventory catch-up (indices below ``first_non_starting``) is never
     announced -- grant()'s per-tick body budget can take several ticks to
     apply a large start_inventory block. Neither are this slot's own
-    items: the game already shows its own pickup HUD message for those.
+    pickups: the game already shows its own HUD message for those. Items
+    the server cheats in (``!getitem`` and ``/send``) carry location
+    ``SERVER_CHEAT_LOCATION`` instead of a real pickup location and are
+    announced as from "Archipelago" -- ``!getitem`` stamps this slot as the
+    sender, so the sender alone can't tell them from a self-found pickup.
     """
     start = max(ctx.last_announced_index or 0, first_non_starting)
     ctx.last_announced_index = len(received)
 
     groups: dict[tuple[int, str], int] = {}
-    for item_name, sender in received[start:]:
-        if sender == ctx.slot:
+    for (item_name, sender), network_item in zip(received[start:], ctx.items_received[start:], strict=True):
+        if network_item.location == SERVER_CHEAT_LOCATION:
+            sender = SERVER_PLAYER_SLOT
+        elif sender == ctx.slot:
             continue
         groups[sender, item_name] = groups.get((sender, item_name), 0) + 1
 

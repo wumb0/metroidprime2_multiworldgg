@@ -73,7 +73,7 @@ def _bare_context(
     ctx.game = "Metroid Prime 2: Echoes"
     ctx.slot = slot
     ctx.slot_data = {"first_non_starting_item_index": first_non_starting}
-    ctx.player_names = {2: "OtherPlayer", 3: "ThirdPlayer"}
+    ctx.player_names = {0: "Archipelago", 2: "OtherPlayer", 3: "ThirdPlayer"}
     ctx.last_announced_index = None
     ctx.game_interface = _FakeGameInterface()  # type: ignore[assignment]
     ctx.notification_manager = NotificationManager(4.0, lambda _message: True)
@@ -124,6 +124,36 @@ class TestGrantItemsHudMessage(unittest.TestCase):
 
         self.assertEqual(1, len(ctx.game_interface.grant_calls))  # type: ignore[attr-defined]
         self.assertEqual([], _queued(ctx))
+
+    def test_getitem_cheat_announces_as_archipelago(self) -> None:
+        # !getitem stamps the receiving slot as sender with location -1;
+        # that must not be mistaken for a self-found pickup.
+        items = [NetworkItem(item=_MORPH_BALL_NETWORK_ID, location=-1, player=1)]
+        ctx = _bare_context(items_received=items, first_non_starting=0, slot=1)
+
+        asyncio.run(_handle_grant_items(ctx, {}))
+
+        self.assertEqual(["Received Morph Ball from Archipelago"], _queued(ctx))
+
+    def test_send_cheat_announces_as_archipelago(self) -> None:
+        items = [NetworkItem(item=_MORPH_BALL_NETWORK_ID, location=-1, player=0)]
+        ctx = _bare_context(items_received=items, first_non_starting=0, slot=1)
+
+        asyncio.run(_handle_grant_items(ctx, {}))
+
+        self.assertEqual(["Received Morph Ball from Archipelago"], _queued(ctx))
+
+    def test_getitem_and_send_group_together(self) -> None:
+        items = [
+            NetworkItem(item=_MISSILE_EXPANSION_NETWORK_ID, location=-1, player=1),
+            NetworkItem(item=_MISSILE_EXPANSION_NETWORK_ID, location=-1, player=0),
+            NetworkItem(item=_MISSILE_EXPANSION_NETWORK_ID, location=10, player=1),  # own pickup
+        ]
+        ctx = _bare_context(items_received=items, first_non_starting=0, slot=1)
+
+        asyncio.run(_handle_grant_items(ctx, {}))
+
+        self.assertEqual(["Received 10 Missiles from Archipelago"], _queued(ctx))
 
     def test_same_item_same_sender_grouped(self) -> None:
         items = [

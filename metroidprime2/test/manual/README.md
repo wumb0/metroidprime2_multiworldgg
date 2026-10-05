@@ -1799,6 +1799,73 @@ If it fails, look at:
 * `client/patcher_runner.py::sky_temple_keys_required_installed`
 * `test/test_sky_temple_key_gate_patch.py`
 
+### MT21_RECEIVED_ITEMS_HUD -- `mt21_received_items_hud` (P1)
+
+*Proves: client._announce_received_items groups everything received from one sender into a single 'Received ... from ...' HUD memo, splits an oversized list across several memos without truncating, and announces items cheated in by the server (`/send`, `/send_multiple`, `!getitem`) as from Archipelago*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; most steps paste into it.
+* `!getitem` (step 5) needs item cheating enabled on the server, which it is unless `disable_item_cheat` is set in host.yaml. It is typed into the client's own console, not the server's.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt21_received_items_hud --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* Every item here is already held via `start_inventory`, so the HUD memo is the only visible effect except for Missile / Power Bomb capacity, which still grows (watch the missile counter).
+* Server-cheated items arrive as sender `Archipelago` (slot 0). `!getitem` used to be skipped entirely because the server stamps your own slot as its sender, which the client mistook for a self-found pickup; this test is the regression check for that.
+* Grouping is per sender and per memo, within a ~1s window. A burst pasted into the server console may legitimately land as two memos if it straddles that window -- what matters is that every item is named exactly once with the right count.
+* Per-player attribution (two different real senders giving separate memos) is covered by `test/test_client_grant_message.py`; it needs a second player who actually holds items for you.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt21_received_items_hud --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt21_received_items_hud/mt21_received_items_hud.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt21_received_items_hud/mt21_received_items_hud.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game and connect the client. Wait for the first room to settle.
+   **Expect:** No 'Received ...' memo appears for the start inventory.
+   *(exercises: Start-inventory catch-up must never be announced.)*
+2. **Do:** Server console: `/send mt21_received_items_hud Missile Expansion`
+   **Expect:** One memo: `Received Missile Expansion from Archipelago`. Missile capacity rises by 5.
+3. **Do:** Server console: `/send_multiple 3 mt21_received_items_hud Missile Expansion`
+   **Expect:** One memo: `Received 15 Missiles from Archipelago` (not three memos). Capacity rises by 15.
+   *(exercises: Same-sender copies merge, and ammo expansions are shown as the total ammo.)*
+4. **Do:** Paste these three lines into the server console in one go:
+  `/send_multiple 2 mt21_received_items_hud Missile Expansion`
+  `/send_multiple 2 mt21_received_items_hud Power Bomb Expansion`
+  `/send mt21_received_items_hud Boost Ball`
+   **Expect:** A single memo listing all three groups, e.g. `Received 10 Missiles, 2 Power Bombs, Boost Ball from Archipelago` (a split across two memos is acceptable; a missing or miscounted entry is not).
+5. **Do:** In the client's console type `!getitem Missile Expansion`.
+   **Expect:** A memo `Received Missile Expansion from Archipelago` appears and missile capacity rises by 5.
+   *(exercises: Regression: !getitem used to grant the item with no HUD memo at all.)*
+6. **Do:** Server console, ten distinct items back to back: `/send mt21_received_items_hud Dark Beam`, `... Light Beam`, `... Annihilator Beam`, `... Super Missile`, `... Darkburst`, `... Sunburst`, `... Sonic Boom`, `... Boost Ball`, `... Spider Ball`, `... Space Jump Boots`.
+   **Expect:** The list is split across two or more memos. Every memo ends in `from Archipelago`, none is cut off mid-word, and all ten names appear somewhere across them, in order.
+   *(exercises: A HUD message holds ~97 characters; the rest must queue, not truncate.)*
+7. **Do:** Wait for the memos to finish, then kill the client and restart it.
+   **Expect:** It re-syncs silently: no 'Received ...' memos for anything already seen.
+
+Pass if:
+* Every item sent from the server console or via `!getitem` produces a memo from Archipelago.
+* Same-sender items are grouped into one memo; ammo expansions show total ammo.
+* An oversized list splits into several well-formed memos with nothing dropped.
+* The start inventory and a client restart never produce memos.
+* No client traceback.
+
+If it fails, look at:
+* `client/client.py::_announce_received_items`
+* `client/notification_manager.py::queue_received_items`
+* `test/test_client_grant_message.py`
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).
