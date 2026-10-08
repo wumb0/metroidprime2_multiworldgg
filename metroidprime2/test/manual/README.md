@@ -1866,6 +1866,83 @@ If it fails, look at:
 * `client/notification_manager.py::queue_received_items`
 * `test/test_client_grant_message.py`
 
+### MT22_TRAPS -- `mt22_traps` (P1)
+
+*Proves: client._handle_traps announces each received trap on the HUD, then applies it once the game has shown the message: Damage Trap removes 25% of maximum energy and never kills, Ammo Depletion Trap zeroes Missiles / Power Bombs / Dark Ammo / Light Ammo without touching capacities, and Freeze Trap opens a `freeze_trap_duration`-second window in which Samus is frozen via CPlayer::Freeze at random moments; none of them replays after a client restart*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; every step pastes a `/send` into it.
+* The start inventory holds 14 Energy Tanks, so maximum energy is 1499 and one Damage Trap removes about 375. Traps cannot be in the start inventory, so none fire on connect.
+* Open the pause screen's inventory once to note your Missile / Power Bomb / Dark / Light ammo totals (or watch the HUD counters).
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt22_traps --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `energy_per_tank=100`, `freeze_trap_duration=60`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* A trap takes effect one HUD message after it arrives, and no sooner than ~5 s after the previous trap. Send several at once to see them drip out one by one.
+* Freeze is the engine's own player freeze (the effect Samus gets from ice attacks). A Freeze Trap does not freeze immediately: it opens a window (60 s here, 120 s by default) in which a freeze of 2-4 s happens every 5-20 s. Mashing jump breaks a freeze early. The game refuses a freeze in a few player states (e.g. mid morph-ball transition); the client retries about a second later.
+* Disguised traps (`trap_disguise`) and the pool placement are generation-time and covered by `test/test_pool.py` and `test/test_patch_data.py`.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt22_traps --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt22_traps/mt22_traps.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt22_traps/mt22_traps.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client, and let the first room settle.
+   **Expect:** Full energy, nothing frozen, no trap messages.
+2. **Do:** Server console: `/send mt22_traps Damage Trap`
+   **Expect:** A HUD memo `Damage Trap! You lose 25% of your energy.` and then energy drops by 25% of the maximum (about 375 of 1499), not 25% of the current value.
+3. **Do:** Repeat `/send mt22_traps Damage Trap` until energy is below ~375, then send one more.
+   **Expect:** Energy drops to exactly 1 and Samus does not die. No DeathLink is sent if enabled.
+   *(exercises: A trap must never be lethal.)*
+4. **Do:** Heal up (pick up a refill or reload), then `/send mt22_traps Ammo Depletion Trap`
+   **Expect:** A HUD memo `Ammo Depletion Trap! Your ammo is gone.` and Missiles, Power Bombs, Dark Ammo and Light Ammo are all 0. Pause screen still shows the full capacities (Energy Tanks etc. unchanged), and collecting an ammo pickup works normally afterwards.
+   *(exercises: Only the amounts are zeroed; plan_grants compares capacities, so nothing refills them.)*
+5. **Do:** Server console: `/send mt22_traps Freeze Trap`
+   **Expect:** A HUD memo `Freeze Trap! You will freeze at random for 1 minute.` Over the next 60 s Samus freezes in ice 3-8 times for 2-4 s each, at uneven intervals, unable to move or shoot. Mashing jump shatters a freeze early. After 60 s no more freezes happen.
+6. **Do:** `/send mt22_traps Freeze Trap`, then stay in Morph Ball (rolling around) for the whole minute.
+   **Expect:** Either Samus freezes as a ball or the freezes are skipped and land once she unmorphs. No crash, no permanent stuck state.
+   *(exercises: CPlayer::Freeze bails out in some states; the client retries about a second later.)*
+7. **Do:** Paste all three in one go: `/send mt22_traps Damage Trap`, `/send mt22_traps Ammo Depletion Trap`, `/send mt22_traps Freeze Trap`
+   **Expect:** Three memos and the three effects, one at a time, at least ~5 s apart, none dropped; the freezes then start within the next 5-20 s.
+8. **Do:** Pause the game (or trigger a cutscene) and `/send mt22_traps Damage Trap`, then unpause.
+   **Expect:** The effect lands only after the game resumes, not during the pause / cutscene.
+9. **Do:** Wait for everything to settle, kill the client and restart it, reconnect.
+   **Expect:** No trap fires again: no memos, no energy loss, no freeze.
+   *(exercises: The handled-trap index lives in AP DataStorage, not the save, so a reconnect does not replay.)*
+10. **Do:** `/send mt22_traps Freeze Trap` twice, 10 s apart.
+   **Expect:** The random freezes keep going for about two windows (~2 minutes) in total, not two overlapping schedules (no double-freeze bursts).
+   *(exercises: A second Freeze Trap extends the window instead of stacking a second schedule.)*
+11. **Do:** Reload an older save (or die and reload) while connected.
+   **Expect:** Still no replayed traps.
+
+Pass if:
+* Each trap shows its HUD memo and then applies exactly once.
+* Damage Trap removes 25% of maximum energy, floors at 1 HP, and never kills.
+* Ammo Depletion Trap zeroes all four ammo amounts and leaves capacities alone.
+* Freeze Trap freezes Samus at random moments for the configured window and each freeze can be broken by mashing jump.
+* Traps wait out pauses and cutscenes, and drip out ~5 s apart.
+* A client restart or save reload never replays a trap.
+* No client traceback.
+
+If it fails, look at:
+* `client/client.py::_handle_traps` / `_apply_trap` / `_handle_freeze_window`
+* `client/traps.py`
+* `client/game_interface.py::freeze_player` / `set_item_amount`
+* `client/versions.py::player_freeze` (CPlayer::Freeze; NTSC 0x800144A4, PAL 0x80014540)
+* `test/test_client_traps.py`
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).

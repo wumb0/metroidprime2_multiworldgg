@@ -154,6 +154,30 @@ def _wide_decrement_patch(
     ]
 
 
+def _freeze_patch(freeze_address: int, seconds: float) -> list[BaseInstruction]:
+    """``CPlayer::Freeze(seconds, mgr, -1, -1, -1)`` for a remote-execution
+    body (r31 = CStateManager). ``-1`` as the sound is what the vanilla
+    callers pass (their 16-bit "none" constant is 0xFFFF; Freeze compares
+    ``clrlwi r3, r6, 16``), so all three resources fall back to the
+    player's own. The float argument goes through 8(r1): the body's stack
+    frame is free below 0x10(r1), where the HUD memo call starts."""
+    from ppc_asm.assembler.ppc import bl, f1, lfs, li, lis, lwz, mr, ori, r0, r1, r3, r4, r5, r6, r7, r31, stw
+
+    (bits,) = struct.unpack(">I", struct.pack(">f", seconds))
+    return [
+        lwz(r3, versions.CPLAYER_OFFSET, r31),
+        mr(r4, r31),
+        li(r5, -1),
+        li(r6, -1),
+        li(r7, -1),
+        lis(r0, bits >> 16),
+        ori(r0, r0, bits & 0xFFFF),
+        stw(r0, 8, r1),
+        lfs(f1, 8, r1),
+        bl(freeze_address),
+    ]
+
+
 class EchoesInterface:
     logger: Logger
     dolphin_client: DolphinClient
@@ -469,6 +493,19 @@ class EchoesInterface:
             # of that handler, matching every other Dolphin access in this class.
             return
 
+    def set_item_amount(self, item_id: int, amount: int) -> None:
+        """Direct write of the *amount* (not the capacity) of one inventory
+        slot. Used by the Ammo Depletion Trap: ``plan_grants`` compares
+        capacities only, so an emptied ammo slot is not refilled."""
+        player_state = self._player_state_pointer()
+        if player_state is None:
+            return
+        address = player_state + versions.INVENTORY_OFFSET + item_id * versions.INVENTORY_ITEM_SIZE
+        try:
+            self.dolphin_client.write_address(address, struct.pack(">I", amount))
+        except DolphinException:
+            return
+
     def set_alive(self, alive: bool) -> None:
         """Read-modify-write the ``versions.ALIVE_BIT_MASK`` bit of the byte
         at ``versions.ALIVE_OFFSET`` (``CPlayerState::alive``, packed
@@ -561,6 +598,32 @@ class EchoesInterface:
 
         self.dolphin_client.write_address(address, body)
         self.write_pending_op()
+
+    def freeze_player(self, seconds: float) -> None:
+        """Arms a remote-execution body calling ``CPlayer::Freeze`` the way the
+        game's own callers do (default textures and sound); the freeze then
+        runs for ``seconds`` unless the player mashes jump to break it. Call
+        only with no op pending. Freeze quietly does nothing in states it
+        refuses (morph ball transitions and the like), so check
+        ``read_frozen_timeout`` once the body has run."""
+        assert self.version is not None
+        self.execute(_freeze_patch(self.version.player_freeze, seconds))
+
+    def read_frozen_timeout(self) -> float | None:
+        """``CPlayer::mFrozenTimeout`` (seconds of freeze left, 0 when not
+        frozen); None if there is no CPlayer or Dolphin isn't connected."""
+        if self.version is None:
+            return None
+        cplayer = self._read_u32(self.version.cstate_manager_global + versions.CPLAYER_OFFSET)
+        if not cplayer:
+            return None
+        try:
+            data = self.dolphin_client.read_address(cplayer + versions.FROZEN_TIMEOUT_OFFSET, 4)
+        except DolphinException:
+            return None
+        if data is None:
+            return None
+        return struct.unpack(">f", data)[0]
 
     def grant(
         self, deltas: list[tuple[int, int]], message: str | None = None

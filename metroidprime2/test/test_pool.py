@@ -8,7 +8,8 @@ from collections import Counter
 
 from Options import OptionError
 
-from ..item_pool import sky_temple_keys_present_count, sky_temple_keys_required_count
+from ..item_pool import _MIN_MISSILE_EXPANSIONS, sky_temple_keys_present_count, sky_temple_keys_required_count
+from ..items import TRAP_ITEM_NAMES
 from .bases import MP2TestBase
 
 
@@ -262,6 +263,81 @@ class TestOptionalPickupsSingle(MP2TestBase):
         self.assertEqual(1, counts["Double Damage"])
         self.assertEqual(0, counts["Unlimited Missiles"])
         self.assertEqual(0, counts["Unlimited Beam Ammo"])
+
+
+class TestTrapsOffByDefault(MP2TestBase):
+    def test_no_traps_in_pool(self) -> None:
+        names = _own_pool_names(self)
+        self.assertEqual(119, len(names))
+        for trap in TRAP_ITEM_NAMES:
+            self.assertEqual(0, names.count(trap))
+
+
+class TestTrapsHalf(MP2TestBase):
+    options = {"trap_percentage": 50}
+
+    def test_half_of_missile_expansions_replaced(self) -> None:
+        names = _own_pool_names(self)
+        counts = Counter(names)
+        trap_total = sum(counts[trap] for trap in TRAP_ITEM_NAMES)
+        # 34 Missile Expansions (33 + 1 padding) under default options.
+        self.assertEqual(17, trap_total)
+        self.assertEqual(34 - 17, counts["Missile Expansion"])
+        self.assertEqual(119, len(names))
+
+    def test_default_weights_spread_over_every_trap(self) -> None:
+        counts = Counter(_own_pool_names(self))
+        self.assertEqual({5, 6}, {counts[trap] for trap in TRAP_ITEM_NAMES})
+
+    def test_traps_are_trap_classified(self) -> None:
+        from BaseClasses import ItemClassification
+
+        for item in self.multiworld.itempool:
+            if item.player == self.player and item.name in TRAP_ITEM_NAMES:
+                self.assertTrue(item.classification & ItemClassification.trap)
+
+
+class TestTrapsCappedByLogic(MP2TestBase):
+    options = {"trap_percentage": 100}
+
+    def test_enough_missile_expansions_remain(self) -> None:
+        counts = Counter(_own_pool_names(self))
+        self.assertEqual(_MIN_MISSILE_EXPANSIONS, counts["Missile Expansion"])
+        self.assertEqual(34 - _MIN_MISSILE_EXPANSIONS, sum(counts[trap] for trap in TRAP_ITEM_NAMES))
+
+
+class TestTrapsWeighted(MP2TestBase):
+    options = {
+        "trap_percentage": 50,
+        "trap_weights": {"Damage Trap": 3, "Ammo Depletion Trap": 0, "Freeze Trap": 1},
+    }
+
+    def test_weights_respected(self) -> None:
+        counts = Counter(_own_pool_names(self))
+        self.assertEqual(0, counts["Ammo Depletion Trap"])
+        self.assertEqual(17, counts["Damage Trap"] + counts["Freeze Trap"])
+        self.assertGreater(counts["Damage Trap"], counts["Freeze Trap"])
+
+
+class TestTrapsAllWeightsZero(MP2TestBase):
+    auto_construct = False
+
+    def test_raises_option_error(self) -> None:
+        self.options = {
+            "trap_percentage": 50,
+            "trap_weights": {"Damage Trap": 0, "Ammo Depletion Trap": 0, "Freeze Trap": 0},
+        }
+        with self.assertRaises(OptionError):
+            self.world_setup()
+
+
+class TestTrapInStartInventoryRejected(MP2TestBase):
+    auto_construct = False
+
+    def test_raises_option_error(self) -> None:
+        self.options = {"start_inventory": {"Damage Trap": 1}}
+        with self.assertRaises(OptionError):
+            self.world_setup()
 
 
 class TestSplitBeamAmmoOn(MP2TestBase):

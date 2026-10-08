@@ -1073,3 +1073,41 @@ class TestTranslatorLoreStringChanges(MP2TestBase):
         for change in self.config["string_changes"]:
             if change["strg_id"] in lore_strg_ids:
                 self.assertEqual("The Luminoth have nothing more to tell you.", change["strings"][0])
+
+
+class _TrapAppearanceBase(MP2TestBase):
+    def _appearance_for_trap(self, location_index: int = 0, name: str = "Damage Trap") -> dict:
+        location_name = LOCATION_TABLE[location_index].name
+        location = self.multiworld.get_location(location_name, self.world.player)
+        location.item = self.world.create_item(name)
+        return patch_data._pickup_appearance(self.world, location_name)
+
+
+class TestTrapAppearanceUndisguised(_TrapAppearanceBase):
+    def test_trap_shows_its_real_name(self) -> None:
+        appearance = self._appearance_for_trap()
+        self.assertEqual("Damage Trap acquired!", appearance["hud_text"])
+        self.assertEqual(ITEM_TABLE["Damage Trap"].model, appearance["model_data"])
+
+
+class TestTrapAppearanceDisguised(_TrapAppearanceBase):
+    options = {"trap_disguise": True}
+
+    def test_trap_looks_like_an_ordinary_pickup(self) -> None:
+        for index in range(10):
+            with self.subTest(location=index):
+                appearance = self._appearance_for_trap(index)
+                shown = appearance["hud_text"].removesuffix(" acquired!")
+                self.assertNotIn(shown, ("Damage Trap", "Ammo Depletion Trap", "Freeze Trap"))
+                self.assertIn(shown, ITEM_TABLE)
+                self.assertEqual(ITEM_TABLE[shown].model, appearance["model_data"])
+                self.assertEqual(f"{shown}.", appearance["scan"])
+
+    def test_disguise_is_stable_per_location(self) -> None:
+        self.assertEqual(self._appearance_for_trap(3), self._appearance_for_trap(3))
+
+    def test_real_items_are_untouched(self) -> None:
+        location_name = LOCATION_TABLE[0].name
+        location = self.multiworld.get_location(location_name, self.world.player)
+        location.item = self.world.create_item("Morph Ball")
+        self.assertEqual("Morph Ball acquired!", patch_data._pickup_appearance(self.world, location_name)["hud_text"])

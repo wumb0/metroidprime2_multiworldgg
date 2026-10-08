@@ -1912,3 +1912,52 @@ the strip (mock GL), every location appearing exactly once on its region's
 map with unique in-bounds pixels, the auto-tab mapping, and UT's own
 `UTMapTabData` accepting `TRACKER_WORLD`. Nothing has been run in a live UT
 session, so how the strip and the map actually look is unchecked.
+
+## X. Trap items
+
+Three `ItemClassification.trap` items (`items.py` 61-63: Damage Trap, Ammo
+Depletion Trap, Freeze Trap; `gains=()`, `default_pool_count=0`), mixed into the
+pool by `trap_percentage` / `trap_weights` (Lingo-style `OptionCounter`).
+
+Generation: `item_pool._apply_traps` runs on the finished pool and replaces
+`trap_percentage`% of the Missile Expansions, capped so `_MIN_MISSILE_EXPANSIONS`
+(13: the logic database's highest Missile requirement is 65) remain; the
+remainder after the proportional split is handed out round-robin in a random
+order. All weights 0 with a nonzero percentage, or a trap in `start_inventory`,
+is an `OptionError`. `trap_disguise` dresses own-world traps as an ordinary
+pickup in `patch_data._pickup_appearance` (seeded per location, not from
+`world.random`). `freeze_trap_duration` rides in slot data.
+
+Client (`client/traps.py`, `client.py::_handle_traps`): a trap is an event, not
+state, so it has its own handled-index in AP DataStorage
+(`constants.TRAP_INDEX_DATASTORAGE_KEY`, fetched on `Connected`, nothing applied
+until it arrives, advanced with a `max` Set). Positions below
+`first_non_starting_item_index` never fire. One trap per tick, >= 5 s apart.
+Two phases: send the HUD memo (the remote-execution hook only runs outside
+cutscenes), and apply the effect once the pending-op flag has cleared.
+
+- Damage: 25% of max energy (`energy_per_tank * (tanks + 1) - 1`), floored at 1.
+- Ammo Depletion: `set_item_amount(id, 0)` for items 43-46, a direct write of the
+  amount only; `plan_grants` compares capacities, so nothing refills it.
+- Freeze: a *window* rather than a single freeze. Receiving the trap opens a
+  `freeze_trap_duration`-second window (default 120, range 30-600; a second trap
+  extends it); `_handle_freeze_window` freezes the player for a random 2-4 s every
+  random 5-20 s (`traps.FREEZE_LENGTH_RANGE` / `FREEZE_GAP_RANGE`, drawn from
+  `ctx.trap_rng`). The window is wall-clock state in memory only, so a client
+  restart drops what is left of it. Each freeze is
+  `CPlayer::Freeze(seconds, mgr, -1, -1, -1)` through `execute()`. Found by
+  disassembling the retail DOL: both vanilla callers pass `-1` textures and the
+  16-bit "no sfx" constant (0xFFFF on NTSC and PAL), which selects the player's
+  built-in frozen resources (allocated in the CPlayer constructor).
+  NTSC `0x800144A4`, PAL `0x80014540` (`versions.player_freeze`, PAL by masked
+  signature match). `mFrozenTimeout` is at CPlayer+0x1158 (seconds, decremented
+  per frame by `UpdateFrozenState`; mashing jump breaks it early). Freeze bails
+  out silently in some player states, so after each attempt the client reads
+  `mFrozenTimeout` and retries after `FREEZE_RETRY_DELAY` if it did not take; it
+  also skips a freeze while one is already running or the player is dead.
+
+Verification: unit tests cover the pool, option errors, disguise, the effect
+maths, the announce/apply/record flow, the Freeze body's assembly on both
+versions, and fill beatability at `trap_percentage: 100`. Nothing has been run
+in-game: `mt22_traps` is the manual test (its `config_sha256` is not pinned yet;
+build it once with `--iso` and `--repin`).

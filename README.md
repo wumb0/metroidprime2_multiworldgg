@@ -133,6 +133,10 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 | `enable_unlimited_missiles_pickup` | Toggle | off | Add one Unlimited Missiles item to the pool (replacing a Missile Expansion). Missiles cost no ammo once received. Logic never requires it. |
 | `enable_double_damage_pickup` | Toggle | off | Add one Double Damage item to the pool (replacing a Missile Expansion). Damage is multiplied by `double_damage_multiplier` once received. Logic never requires it. |
 | `enable_unlimited_beam_ammo_pickup` | Toggle | off | Add one Unlimited Beam Ammo item to the pool (replacing a Missile Expansion). Dark, Light and Annihilator shots cost no ammo once received. Logic never requires it. |
+| `trap_percentage` | Range 0-100 | 0 | Percentage of the pool's Missile Expansions replaced with traps (see `trap_weights`). At least 13 Missile Expansions always remain, which is what logic can ask for. Traps are never required by logic. |
+| `trap_weights` | Counter | 1 each | Relative weight of each trap type: `Damage Trap` (removes 25% of your maximum energy, never kills), `Ammo Depletion Trap` (zeroes Missiles, Power Bombs, Dark and Light ammo; capacities are unchanged) and `Freeze Trap` (for `freeze_trap_duration` seconds you are frozen in ice at random moments; mashing jump breaks each freeze early). A weight of 0 disables that trap. |
+| `freeze_trap_duration` | Range 30-600 | 120 | Seconds a Freeze Trap lasts. During that time the client freezes you for 2-4 seconds at a time, every 5-20 seconds. A second Freeze Trap received meanwhile extends it. |
+| `trap_disguise` | Toggle | off | Traps in your own world look like (and are announced as) a random ordinary pickup. |
 
 ### Logic
 

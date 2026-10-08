@@ -14,9 +14,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from BaseClasses import Item
+from Options import OptionError
 
 from . import constants
-from .items import ITEM_TABLE
+from .items import ITEM_TABLE, TRAP_ITEM_NAMES
 from .locations import LOCATION_TABLE
 from .options import SkyTempleKeysLocations
 
@@ -42,6 +43,11 @@ _OPTIONAL_PICKUP_OPTIONS: dict[str, str] = {
     "Double Damage": "enable_double_damage_pickup",
     "Unlimited Beam Ammo": "enable_unlimited_beam_ammo_pickup",
 }
+
+# The highest Missile requirement in the logic database is 65 (13 units of 5
+# ammo), so traps never replace Missile Expansions below this count even
+# though the Missile Launcher and Seeker Launcher also carry ammo.
+_MIN_MISSILE_EXPANSIONS = 13
 
 # Guardian pickup_index values (Amorbis, Chykka, Quadraxis), in the order
 # Sky Temple Keys 1-3 are locked onto them for the "all_guardians" mode.
@@ -159,6 +165,44 @@ def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
         multiworld.push_precollected(world.create_item(key_name))
 
 
+def _trap_counts(world: MetroidPrime2World, expansion_count: int) -> dict[str, int]:
+    """Number of each trap to place: ``trap_percentage`` of the Missile
+    Expansions (capped so ``_MIN_MISSILE_EXPANSIONS`` remain), split across
+    the trap types by ``trap_weights``. The remainder after the proportional
+    split is handed out round-robin over the enabled traps in a random
+    order."""
+    wanted = expansion_count * world.options.trap_percentage.value // 100
+    total = min(wanted, max(0, expansion_count - _MIN_MISSILE_EXPANSIONS))
+    if total == 0:
+        return {}
+
+    weights = {name: world.options.trap_weights.value.get(name, 0) for name in TRAP_ITEM_NAMES}
+    weight_sum = sum(weights.values())
+    if weight_sum == 0:
+        raise OptionError(
+            f"{world.player_name}'s Metroid Prime 2: Echoes world: trap_percentage is "
+            f"{world.options.trap_percentage.value} but every trap weight is 0; enable at least one trap."
+        )
+
+    counts = {name: weight * total // weight_sum for name, weight in weights.items()}
+    enabled = [name for name, weight in weights.items() if weight > 0]
+    world.random.shuffle(enabled)
+    for index in range(total - sum(counts.values())):
+        counts[enabled[index % len(enabled)]] += 1
+    return {name: count for name, count in counts.items() if count > 0}
+
+
+def _apply_traps(world: MetroidPrime2World, pool: list[Item]) -> None:
+    """Replaces Missile Expansions in the finished pool with traps."""
+    filler_name = world.get_filler_item_name()
+    expansion_indices = [index for index, item in enumerate(pool) if item.name == filler_name]
+    counts = _trap_counts(world, len(expansion_indices))
+    replace_indices = iter(reversed(expansion_indices))
+    for trap_name, count in counts.items():
+        for _ in range(count):
+            pool[next(replace_indices)] = world.create_item(trap_name)
+
+
 def create_item_pool(world: MetroidPrime2World) -> list[Item]:
     multiworld = world.multiworld
     player = world.player
@@ -202,6 +246,8 @@ def create_item_pool(world: MetroidPrime2World) -> list[Item]:
                 break
     if len(pool) > target:
         pool = pool[:target]
+
+    _apply_traps(world, pool)
 
     return pool
 

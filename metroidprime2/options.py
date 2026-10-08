@@ -17,6 +17,7 @@ from Options import (
     DeathLink,
     DefaultOnToggle,
     FreeText,
+    OptionCounter,
     OptionGroup,
     PerGameCommonOptions,
     Range,
@@ -54,6 +55,7 @@ from .options_tricks import (
     TrickWallBoost,
 )
 from . import constants
+from .items import TRAP_ITEM_NAMES
 
 # --------------------------------------------------------------------------
 # Goal / item pool options
@@ -677,6 +679,55 @@ class EnableUnlimitedBeamAmmoPickup(Toggle):
     display_name = "Enable Unlimited Beam Ammo Pickup"
 
 
+class TrapPercentage(Range):
+    """Percentage of the Missile Expansions in the item pool that are replaced
+    with traps. Traps are items that do something bad when received (see
+    `trap_weights`). Logic never relies on traps, and enough Missile
+    Expansions are always kept to satisfy logic."""
+
+    display_name = "Trap Percentage"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
+class TrapWeights(OptionCounter):
+    """Relative weights of each trap type among the traps placed by
+    `trap_percentage`. Set a weight to 0 to disable that trap.
+
+    - Damage Trap: removes 25% of your maximum energy (never kills you).
+    - Ammo Depletion Trap: sets your Missiles, Power Bombs, Dark Ammo and
+      Light Ammo to 0 (capacities are unchanged).
+    - Freeze Trap: for `freeze_trap_duration` seconds you are frozen in
+      ice at random moments.
+    """
+
+    display_name = "Trap Weights"
+    valid_keys = TRAP_ITEM_NAMES
+    min = 0
+    default = dict.fromkeys(TRAP_ITEM_NAMES, 1)
+
+
+class FreezeTrapDuration(Range):
+    """How long, in seconds, the Freeze Trap lasts. For that long you are
+    frozen in ice at random moments, for a few seconds each time (mashing
+    jump breaks the ice early). A second Freeze Trap received meanwhile
+    extends the time."""
+
+    display_name = "Freeze Trap Duration"
+    range_start = 30
+    range_end = 600
+    default = 120
+
+
+class TrapDisguise(Toggle):
+    """If enabled, traps found in your own world look like (and are announced
+    as) a random ordinary pickup such as a Missile Expansion or Energy Tank,
+    so you cannot tell them apart until you receive them."""
+
+    display_name = "Disguise Traps"
+
+
 class SplitBeamAmmo(DefaultOnToggle):
     """If enabled (the default, matching vanilla and Randovania's own
     default), Dark Ammo and Light Ammo are collected as two separate
@@ -800,6 +851,10 @@ class MetroidPrime2Options(PerGameCommonOptions):
     enable_unlimited_missiles_pickup: EnableUnlimitedMissilesPickup
     enable_double_damage_pickup: EnableDoubleDamagePickup
     enable_unlimited_beam_ammo_pickup: EnableUnlimitedBeamAmmoPickup
+    trap_percentage: TrapPercentage
+    trap_weights: TrapWeights
+    freeze_trap_duration: FreezeTrapDuration
+    trap_disguise: TrapDisguise
 
     trick_level: TrickLevel
     trick_airunderwater: TrickAirUnderwater
@@ -892,6 +947,10 @@ OPTION_GROUPS: list[OptionGroup] = [
             EnableUnlimitedMissilesPickup,
             EnableDoubleDamagePickup,
             EnableUnlimitedBeamAmmoPickup,
+            TrapPercentage,
+            TrapWeights,
+            FreezeTrapDuration,
+            TrapDisguise,
         ],
     ),
     OptionGroup(

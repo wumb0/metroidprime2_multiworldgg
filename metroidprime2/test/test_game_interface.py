@@ -428,6 +428,44 @@ class TestHealth(unittest.TestCase):
         )
         self.assertEqual(-1.0, interface.get_current_health())
 
+    def test_set_item_amount_writes_amount_only(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+
+        player_state_addr = 0x80700000
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, player_state_addr)
+
+        interface.set_item_amount(44, 0)
+
+        slot_address = player_state_addr + versions.INVENTORY_OFFSET + 44 * versions.INVENTORY_ITEM_SIZE
+        self.assertEqual([(slot_address, struct.pack(">I", 0))], fake.writes)
+
+    def test_set_item_amount_null_player_state_pointer_is_a_noop(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.PLAYER_STATE_OFFSET, 0)
+        fake.writes.clear()
+
+        interface.set_item_amount(44, 0)
+
+        self.assertEqual([], fake.writes)
+
+    def test_read_frozen_timeout_reads_float_off_the_cplayer(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+
+        cplayer = 0x80700000
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.CPLAYER_OFFSET, cplayer)
+        fake.memory[cplayer + versions.FROZEN_TIMEOUT_OFFSET] = struct.pack(">f", 3.5)
+
+        self.assertEqual(3.5, interface.read_frozen_timeout())
+
+    def test_read_frozen_timeout_without_a_cplayer_is_none(self) -> None:
+        interface, fake = _make_interface()
+        interface.version = versions.NTSC
+        _set_u32(fake, versions.NTSC.cstate_manager_global + versions.CPLAYER_OFFSET, 0)
+        self.assertIsNone(interface.read_frozen_timeout())
+
     def test_set_current_health_null_player_state_pointer_is_a_noop(self) -> None:
         interface, fake = _make_interface()
         interface.version = versions.NTSC
@@ -508,6 +546,43 @@ class TestHudEncoding(unittest.TestCase):
         _first, first_last_size = encode_hud_message("AB", max_message_size=200, last_encoded_size=0)
         second, _second_last_size = encode_hud_message("ABC", max_message_size=200, last_encoded_size=first_last_size)
         self.assertNotIn(b"\x00 \x00\x00", second)
+
+
+@unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
+class TestFreezePlayer(unittest.TestCase):
+    def _freeze_body(self, version: versions.EchoesVersionInfo) -> tuple[int, bytes, FakeDolphinClient]:
+        interface, fake = _make_interface()
+        interface.version = version
+        interface.freeze_player(5.0)
+        # execute() writes the body, then the pending-op flag last.
+        self.assertEqual(
+            (version.cstate_manager_global + versions.PENDING_OP_OFFSET, b"\x01"), fake.writes[-1]
+        )
+        address, body = fake.writes[-2]
+        return address, body, fake
+
+    def test_body_calls_freeze_with_vanilla_arguments_on_both_versions(self) -> None:
+        for version in versions.VERSIONS:
+            with self.subTest(version=version.name):
+                address, body, _fake = self._freeze_body(version)
+                words = struct.unpack(f">{len(body) // 4}I", body)
+
+                # lwz r3, CPLAYER_OFFSET(r31) opens the argument setup.
+                self.assertEqual((32 << 26) | (3 << 21) | (31 << 16) | versions.CPLAYER_OFFSET, words[0])
+                # li r5/r6/r7, -1 and the 5.0f high half (0x40A0) are in there.
+                self.assertIn((14 << 26) | (5 << 21) | 0xFFFF, words)
+                self.assertIn((14 << 26) | (6 << 21) | 0xFFFF, words)
+                self.assertIn((14 << 26) | (7 << 21) | 0xFFFF, words)
+                self.assertIn((15 << 26) | (0 << 21) | 0x40A0, words)
+
+                targets = []
+                for index, word in enumerate(words):
+                    if word >> 26 == 18 and word & 1 and not word & 2:  # bl
+                        offset = word & 0x03FFFFFC
+                        if offset & 0x02000000:
+                            offset -= 0x04000000
+                        targets.append(address + index * 4 + offset)
+                self.assertIn(version.player_freeze, targets)
 
 
 @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")

@@ -84,6 +84,7 @@ PROG = ItemClassification.progression
 PROG_SKIP = ItemClassification.progression_skip_balancing
 USEFUL = ItemClassification.useful
 FILLER = ItemClassification.filler
+TRAP = ItemClassification.trap
 
 # --------------------------------------------------------------------------
 # ITEM_TABLE -- append-only; position in this tuple IS the id offset.
@@ -201,10 +202,18 @@ _ROWS: tuple[ItemData, ...] = (
     _entry(58, "Unlimited Missiles", USEFUL, ((81, 1),), "UnlimitedMissiles", 0),
     _entry(59, "Unlimited Beam Ammo", USEFUL, ((82, 1),), "UnlimitedBeamAmmo", 0),
     _entry(60, "Cannon Ball", FILLER, ((96, 1),), "CannonBall", 0),
+    # Traps have no gains: the client applies them as one-shot events
+    # (client/traps.py), never through compute_desired_capacities.
+    _entry(61, "Damage Trap", TRAP, (), "EnergyTransferModule", 0),
+    _entry(62, "Ammo Depletion Trap", TRAP, (), "EnergyTransferModule", 0),
+    _entry(63, "Freeze Trap", TRAP, (), "EnergyTransferModule", 0),
 )
 
 ITEM_TABLE: dict[str, ItemData] = {item.name: item for item in _ROWS}
 assert len(ITEM_TABLE) == len(_ROWS), "duplicate item name in ITEM_TABLE"
+
+TRAP_ITEM_NAMES: tuple[str, ...] = ("Damage Trap", "Ammo Depletion Trap", "Freeze Trap")
+assert all(name in ITEM_TABLE for name in TRAP_ITEM_NAMES)
 
 item_name_to_id: dict[str, int] = {item.name: item.code for item in _ROWS}
 
@@ -253,6 +262,7 @@ ITEM_GROUPS: dict[str, set[str]] = {
         "Beam Ammo Expansion",
         "Energy Tank",
     },
+    "Traps": set(TRAP_ITEM_NAMES),
 }
 
 # --------------------------------------------------------------------------

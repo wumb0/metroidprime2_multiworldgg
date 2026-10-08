@@ -28,7 +28,7 @@ from .hint_scans import (
     translator_lore_hint_locations,
 )
 from .item_pool import STK_ITEM_NAMES, create_item_pool, sky_temple_keys_required_count
-from .items import ITEM_GROUPS, ITEM_TABLE, MetroidPrime2Item, item_name_to_id
+from .items import ITEM_GROUPS, ITEM_TABLE, TRAP_ITEM_NAMES, MetroidPrime2Item, item_name_to_id
 from .locations import LOCATION_GROUPS, location_name_to_id
 from .logic import regions as logic_regions
 from .logic.db_reader import NodeId, load_game_database
@@ -215,6 +215,15 @@ class MetroidPrime2World(World):
                 f"{starting_tanks} Energy Tanks, but the game supports at most "
                 f"{constants.MAX_ENERGY_TANKS}."
             )
+
+        for trap_name in TRAP_ITEM_NAMES:
+            if self.options.start_inventory.value.get(trap_name, 0) or self.options.start_inventory_from_pool.value.get(
+                trap_name, 0
+            ):
+                raise OptionError(
+                    f"{self.player_name}'s Metroid Prime 2: Echoes world: {trap_name} cannot be "
+                    "in start_inventory."
+                )
 
         self.trick_levels = trick_levels_from_options(self.options)
         self.world_uuid = str(

@@ -395,5 +395,9 @@ OPR_MODEL_NAMES = frozenset(
 # ``tracker_data.py`` owns the consumer side.
 AREA_DATASTORAGE_KEY = "metroidprime2_area_{team}_{slot}"
 
+# Datastorage key holding how many ``items_received`` entries the client has
+# already handled for traps (``client/traps.py``).
+TRAP_INDEX_DATASTORAGE_KEY = "metroidprime2_trap_index_{team}_{slot}"
+
 # The game's powerup_max for Energy Tank (item 42); it breaks past this.
 MAX_ENERGY_TANKS = 14

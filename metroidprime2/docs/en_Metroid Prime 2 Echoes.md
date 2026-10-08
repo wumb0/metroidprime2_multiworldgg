@@ -24,6 +24,24 @@ The starting room is vanilla (Temple Grounds - Landing Site) unless the `startin
 start otherwise means taking Dark Aether damage every second from the moment the game begins, until a suit or a
 safe zone is reached, so it can be an immediately dangerous opening.
 
+## Traps
+
+With `trap_percentage` above 0, some of the Missile Expansions in the pool are replaced by traps: items that do
+something bad when you receive them. Logic never relies on them and enough Missile Expansions always remain.
+`trap_weights` chooses which traps appear, and `trap_disguise` makes the ones in your own world look like ordinary
+pickups until you receive them.
+
+- **Damage Trap**: removes 25% of your maximum energy. It can never kill you; it leaves you at 1 energy at worst.
+- **Ammo Depletion Trap**: sets your Missiles, Power Bombs, Dark Ammo and Light Ammo to 0. Your capacities are
+  unchanged, so any ammo you pick up afterwards works normally.
+- **Freeze Trap**: for `freeze_trap_duration` seconds (two minutes by default) you are frozen in ice at random
+  moments, for a few seconds each time, as ice attacks do. Mashing jump breaks a freeze early. A second Freeze Trap
+  received meanwhile extends the time.
+
+A trap takes effect a moment after it is received, once the game is not in a cutscene, and traps received together
+are applied one at a time. Reconnecting or reloading a save never repeats a trap you have already suffered. A Freeze
+Trap's remaining time is lost if you restart the client partway through it.
+
 ## What is the goal of Metroid Prime 2: Echoes when randomized?
 
 Defeat Dark Samus at the Sky Temple Gateway, the same final encounter as the base game. Reaching it still requires

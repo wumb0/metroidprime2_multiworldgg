@@ -157,6 +157,13 @@ class TestLudicrousTricks(_FillMatrixCase):
     seeds = (1, 2)
 
 
+class TestMaximumTraps(_FillMatrixCase):
+    # Traps replace Missile Expansions; the most the option allows must
+    # still leave a beatable game.
+    options = {"trap_percentage": 100, "trap_disguise": True}
+    seeds = (1, 2, 3)
+
+
 class TestDoorLockRando(_FillMatrixCase):
     # Seeds verified to pass against the current logic/dock_rando.py fix
     # (measured ~2.7% failure rate on a 37-seed sweep -- see that module's

@@ -135,6 +135,39 @@ requires:
   # Options: true, false
   split_beam_ammo: true
 
+  # Optional single-copy pickups, each replacing a Missile Expansion in the
+  # pool when on. Logic never requires them.
+  # Options: true, false
+  enable_unlimited_missiles_pickup: false
+  enable_double_damage_pickup: false
+  enable_unlimited_beam_ammo_pickup: false
+
+  # Percentage of the pool's Missile Expansions replaced with traps (items
+  # that do something bad when received). At least 13 Missile Expansions
+  # always remain, since logic can ask for that many. 0 disables traps.
+  # Options: 0 - 100
+  trap_percentage: 0
+
+  # Relative weight of each trap type among the traps placed by
+  # trap_percentage; 0 disables that trap.
+  #   Damage Trap:          removes 25% of your maximum energy (never kills)
+  #   Ammo Depletion Trap:  zeroes Missiles, Power Bombs, Dark and Light ammo
+  #   Freeze Trap:          freezes you at random moments for freeze_trap_duration seconds
+  trap_weights:
+    Damage Trap: 1
+    Ammo Depletion Trap: 1
+    Freeze Trap: 1
+
+  # Seconds a Freeze Trap lasts. For that long you are frozen in ice at
+  # random moments (2-4 s at a time, every 5-20 s); mashing jump breaks each
+  # freeze early. A second Freeze Trap received meanwhile extends it.
+  # Options: 30 - 600
+  freeze_trap_duration: 120
+
+  # Traps in your own world look like a random ordinary pickup.
+  # Options: true, false
+  trap_disguise: false
+
   # ------------------------------------------------------------------
   # Logic
   # ------------------------------------------------------------------
