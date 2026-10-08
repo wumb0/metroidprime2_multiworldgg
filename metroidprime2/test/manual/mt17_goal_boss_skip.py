@@ -121,8 +121,8 @@ TEST = ManualTest(
             "Energy Controller for keys. That read never fired after the warps in play, so the "
             "warps also write constants.GOAL_MARKER_AMOUNT onto inventory item "
             "GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and "
-            "the client reports emperor_ing/keys when it reads it (`!mp2_debug_inventory` shows "
-            "item 74 at 16384/16384). emperor_ing has no client-side proxy for Ing's death; "
+            "the client reports emperor_ing/keys when it reads it (item 74 reads "
+            "16384/16384 in a Dolphin memory viewer). emperor_ing has no client-side proxy for Ing's death; "
             "the ISO patch keys off the game's own state instead (Sanctum's death sequence "
             "activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off "
             "that layer's OcclusionRelay)."
@@ -139,8 +139,8 @@ TEST = ManualTest(
             "leaves before that would happen."
         ),
         (
-            "If the warp works but the goal is still not reported, check item 74 with "
-            "`/mp2_debug_inventory`: 0/0 means the SetInventoryAmountAndCapacity "
+            "If the warp works but the goal is still not reported, check item 74 in a Dolphin "
+            "memory viewer: 0/0 means the SetInventoryAmountAndCapacity "
             "SpecialFunction (function 45; its int_parm layout was never confirmed in-game) "
             "did not write the marker."
         ),

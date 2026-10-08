@@ -410,7 +410,7 @@ Run:
 Steps:
 1. **Do:** Connect the client before collecting anything.
    **Expect:** Baseline inventory matches the table's baseline row.
-2. **Do:** Collect the 14 pickups in the printed order, running `/mp2_debug_inventory` after each.
+2. **Do:** Collect the 14 pickups in the printed order, checking the pause-screen inventory (and the client item strip, if Universal Tracker is installed) after each.
    **Expect:** After each pickup, the item amounts/capacities match the script's expected table. In this variant the Missile Expansions before the launcher raise the capacity but leave 0 usable missiles until the launcher is collected.
 3. **Do:** From the server console, run `/send <player> Dark Ammo Expansion`.
    **Expect:** The corresponding ammo capacity goes up by exactly one expansion's worth, not to a stranded raw value.
@@ -484,7 +484,7 @@ Run:
 Steps:
 1. **Do:** Connect the client before collecting anything.
    **Expect:** Baseline inventory matches the table's baseline row.
-2. **Do:** Collect the 14 pickups in the printed order, running `/mp2_debug_inventory` after each.
+2. **Do:** Collect the 14 pickups in the printed order, checking the pause-screen inventory (and the client item strip, if Universal Tracker is installed) after each.
    **Expect:** After each pickup, the item amounts/capacities match the script's expected table. In this variant the Missile Expansions before the launcher raise the capacity but leave 0 usable missiles until the launcher is collected.
 3. **Do:** From the server console, run `/send <player> Beam Ammo Expansion`.
    **Expect:** The corresponding ammo capacity goes up by exactly one expansion's worth, not to a stranded raw value.
@@ -738,16 +738,16 @@ Run:
 ```
 
 Steps:
-1. **Do:** In the client chat, run `/test_deathlink outgoing`.
-   **Expect:** The other slot dies.
-2. **Do:** Run `/test_deathlink incoming`.
+1. **Do:** Cause a *real* death (stand in Dark Aether without a suit).
+   **Expect:** The other slot dies, and the death is sent exactly once.
+2. **Do:** Have the DeathLinkPartner slot die in its own game.
    **Expect:** You die in-game.
-3. **Do:** Cause a *real* death (stand in Dark Aether without a suit).
-   **Expect:** The other slot dies. No death loop: receiving a death while already dead or during the death animation does not re-broadcast.
+3. **Do:** Watch the partner slot after your death from the previous step.
+   **Expect:** No death loop: receiving a death while already dead or during the death animation does not re-broadcast, so the partner is not killed a second time.
 
 Pass if:
-* Outgoing and incoming test deaths both work.
-* A real in-game death is sent exactly once.
+* A real in-game death is sent to the partner exactly once.
+* A death from the partner kills you in-game.
 * No death loop (the incoming death is not echoed back out).
 
 If it fails, look at:
@@ -788,8 +788,8 @@ Steps:
    **Expect:** The existing ISO is deleted and re-patched.
 6. **Do:** Run `/export_iso` with the game open.
    **Expect:** The client refuses with an error.
-7. **Do:** Run `/status`, `/test_hud hello`, and `/mp2_debug_inventory`.
-   **Expect:** `/status` prints the connection state; `/test_hud` shows a HUD memo; the inventory dump lists non-empty slots.
+7. **Do:** Run `/status` and `/test_hud hello`.
+   **Expect:** `/status` prints the connection state; `/test_hud` shows a HUD memo.
 
 Pass if:
 * Every command behaves as listed.
@@ -834,8 +834,8 @@ Steps:
    **Expect:** The existing ISO is deleted and re-patched.
 6. **Do:** Run `/export_iso` with the game open.
    **Expect:** The client refuses with an error.
-7. **Do:** Run `/status`, `/test_hud hello`, and `/mp2_debug_inventory`.
-   **Expect:** `/status` prints the connection state; `/test_hud` shows a HUD memo; the inventory dump lists non-empty slots.
+7. **Do:** Run `/status` and `/test_hud hello`.
+   **Expect:** `/status` prints the connection state; `/test_hud` shows a HUD memo.
 
 Pass if:
 * Every command behaves as listed.
@@ -1427,10 +1427,10 @@ What the build contains:
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
-* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (`!mp2_debug_inventory` shows item 74 at 16384/16384). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
+* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (item 74 reads 16384/16384 in a Dolphin memory viewer). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
 * Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival cinematic with a HUD memo and a 3s timer into a WorldTeleporter to `!!game_end_part3`; their wiring was checked against the retail NTSC-U and PAL rooms but never run in-game before this test.
 * If the warp misbehaves (stuck camera, white screen, wrong room), suspect the removed cinematic: it normally hands control back to the player, and the warp leaves before that would happen.
-* If the warp works but the goal is still not reported, check item 74 with `/mp2_debug_inventory`: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
+* If the warp works but the goal is still not reported, check item 74 in a Dolphin memory viewer: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
 
 Run:
 ```
@@ -1479,10 +1479,10 @@ What the build contains:
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
-* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (`!mp2_debug_inventory` shows item 74 at 16384/16384). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
+* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (item 74 reads 16384/16384 in a Dolphin memory viewer). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
 * Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival cinematic with a HUD memo and a 3s timer into a WorldTeleporter to `!!game_end_part3`; their wiring was checked against the retail NTSC-U and PAL rooms but never run in-game before this test.
 * If the warp misbehaves (stuck camera, white screen, wrong room), suspect the removed cinematic: it normally hands control back to the player, and the warp leaves before that would happen.
-* If the warp works but the goal is still not reported, check item 74 with `/mp2_debug_inventory`: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
+* If the warp works but the goal is still not reported, check item 74 in a Dolphin memory viewer: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
 
 Run:
 ```
@@ -1529,10 +1529,10 @@ What the build contains:
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
-* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (`!mp2_debug_inventory` shows item 74 at 16384/16384). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
+* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (item 74 reads 16384/16384 in a Dolphin memory viewer). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
 * Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival cinematic with a HUD memo and a 3s timer into a WorldTeleporter to `!!game_end_part3`; their wiring was checked against the retail NTSC-U and PAL rooms but never run in-game before this test.
 * If the warp misbehaves (stuck camera, white screen, wrong room), suspect the removed cinematic: it normally hands control back to the player, and the warp leaves before that would happen.
-* If the warp works but the goal is still not reported, check item 74 with `/mp2_debug_inventory`: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
+* If the warp works but the goal is still not reported, check item 74 in a Dolphin memory viewer: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
 
 Run:
 ```

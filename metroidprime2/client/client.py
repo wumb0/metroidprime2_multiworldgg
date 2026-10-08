@@ -11,7 +11,6 @@ import multiprocessing
 import os
 import subprocess
 import threading
-import time
 import traceback
 import zipfile
 from collections.abc import Callable
@@ -131,21 +130,6 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         """Queue a HUD message to display in-game."""
         self.ctx.notification_manager.queue_notification(" ".join(map(str, args)))
 
-    def _cmd_mp2_debug_inventory(self, *_args: list[Any]) -> None:
-        """Print the raw inventory (amount/capacity per item id) read from
-        game memory, skipping empty slots. Requires debug: true under
-        metroidprime2_options in host.yaml."""
-        if not self.ctx.debug_enabled:
-            logger.error("This command requires debug: true under metroidprime2_options in host.yaml.")
-            return
-        inventory = self.ctx.game_interface.read_inventory()
-        if inventory is None:
-            logger.info("Not connected to a running game.")
-            return
-        for item_id, (amount, capacity) in sorted(inventory.items()):
-            if amount or capacity:
-                logger.info(f"  item {item_id:3d}: {amount}/{capacity}")
-
     def _cmd_deathlink(self) -> None:
         """Toggle DeathLink from the client. Overrides the default setting."""
         self.ctx.death_link_enabled = not self.ctx.death_link_enabled
@@ -156,47 +140,6 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         message = f"DeathLink {'enabled' if self.ctx.death_link_enabled else 'disabled'}"
         logger.info(message)
         self.ctx.notification_manager.queue_notification(message)
-
-    def _cmd_test_deathlink(self, *args: list[Any]) -> None:
-        """Test the DeathLink send or receive path. Usage:
-        /test_deathlink <incoming|outgoing> [reason]. 'outgoing' sends a
-        test DeathLink to the rest of the group without touching in-game
-        health, to verify the send path. 'incoming' simulates a DeathLink
-        arriving from another player, which does kill you in-game, to
-        verify the receive path. Requires DeathLink to be enabled (see
-        /deathlink), a connection to the server, and debug: true under
-        metroidprime2_options in host.yaml."""
-        if not self.ctx.debug_enabled:
-            logger.error("This command requires debug: true under metroidprime2_options in host.yaml.")
-            return
-        if not self.ctx.death_link_enabled:
-            logger.error("DeathLink is disabled; enable it with /deathlink first.")
-            return
-        if not self.ctx.slot:
-            logger.error("Not connected to a server.")
-            return
-        if not args or str(args[0]).lower() not in ("incoming", "outgoing"):
-            logger.error("Usage: /test_deathlink <incoming|outgoing> [reason]")
-            return
-
-        direction, *reason_words = args
-        reason = " ".join(map(str, reason_words)) if reason_words else "triggered a test DeathLink"
-
-        if str(direction).lower() == "outgoing":
-            Utils.async_start(
-                self.ctx.send_death(f"{self.ctx.player_names[self.ctx.slot]} {reason}"),
-                name="Test Deathlink",
-            )
-            logger.info("Sent test DeathLink.")
-        else:
-            self.ctx.on_deathlink(
-                {
-                    "time": time.time(),
-                    "source": self.ctx.player_names[self.ctx.slot],
-                    "cause": reason,
-                }
-            )
-            logger.info("Simulated an incoming DeathLink.")
 
 
 class MetroidPrime2Context(CommonContext):
@@ -221,7 +164,6 @@ class MetroidPrime2Context(CommonContext):
     is_pending_death_link_reset: bool = False
     # See _handle_check_goal: set once a read shows the goal marker absent.
     goal_marker_armed: bool = False
-    debug_enabled: bool = False
     # Set by the client's -v/--verbose flag: log ISO patching progress to the console.
     verbose: bool = False
     hint_scans: dict[int, tuple[int, int, int]] = {}  # noqa: RUF012 -- reassigned wholesale in on_package, never mutated in place
@@ -944,7 +886,6 @@ def main(*args: str) -> None:
         logger.info("main")
 
         ctx = MetroidPrime2Context(connect, password, apmp2_file, iso)
-        ctx.debug_enabled = bool(get_settings()["metroidprime2_options"]["debug"])
         ctx.verbose = verbose
 
         if apmp2_file:

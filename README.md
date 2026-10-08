@@ -10,16 +10,59 @@ uses.
 
 **Note:** This was almost entirely generated using Claude fable/opus/sonnet. I wanted to play a multiworld with my favorite Metroid games and I had some free credits, so I thought this would be a nice way to use them. I'm happy to spend some tokens/time to fix it if it is broken or buggy, so open issues if you want. 
 
-## Status
+## Features (v1.4.0)
 
-- **Done:** item shuffle + logic/tricks, generation, ISO patching, the client receive/connect
-  loop, client item granting, server communication, Death Link, door lock / elevator / portal /
-  translator gate / starting room randomization, warp to starting room implementation, Sky
-  Temple Key gate + hint scans, translator lore hint scans, pre-scanned elevators.
-- **Needs testing**: cross-game item model matching.
-- **Done (unit-tested only, not yet tried in a live UT session):** Universal Tracker support -- yaml-less
-  regeneration, client item strip, schematic map tab. See PLAN.md section W.
-- **In progress:** final docs
+**Randomization**
+- Full item shuffle with Randovania's prime2 logic database, including per-trick difficulty
+  levels, damage strictness, and configurable energy per tank / Dark Aether damage.
+- Entrance randomization: door locks (with save-station doors kept open), elevators, Light/Dark
+  Aether portals, translator gates, and the starting room (vanilla, any save station, or anywhere
+  Randovania considers valid).
+- Translator lore hologram color randomization (`translator_lore_rando`).
+- Sky Temple Keys: shuffle them into the pool, pre-place them on bosses/guardians, start with some
+  pre-collected, and require fewer than 9 to open the Sky Temple Gateway.
+- Goals: both bosses (vanilla), Emperor Ing only, or just opening the Sky Temple Gateway -- the
+  boss-skipping goals warp you to the Credits.
+- Progressive Suit / Progressive Grapple, Missile/Power Bomb expansions that unlock their launcher,
+  and split or unified Dark/Light ammo expansions.
+
+**Hints**
+- Scanning the 9 Sky Temple Gateway pillars hints the real location of each Sky Temple Key.
+- The 22 Luminoth lore holograms hint at where your (or optionally other players') progression
+  items are. Both send the hint to the server like any other in-game hint.
+
+**Client / multiworld**
+- Connects to Dolphin through its memory engine and grants every item from the client; items
+  received while offline or while the game is closed are caught up on reconnect, and missed
+  location checks are reconciled.
+- HUD notifications for received items (grouped when several arrive at once) and a goal-complete
+  popup.
+- Death Link.
+- Other players' items appear with a matching model when the game is one of MultiWorldGG's Metroid
+  games (Metroid Prime, Zero Mission, Fusion, Super Metroid), else a generic one.
+- NTSC-U and PAL ISOs.
+
+**Quality of life**
+- Hold L+R while declining a save to warp back to your starting room (`warp_to_start`).
+- Pre-scanned elevators, moving while scanning, always-skippable cutscenes.
+- Optional Spring Ball for Morph Ball.
+- Item location dots on the in-game map and minimap (`item_map_dots`), a full-map reveal option,
+  and a "current location" marker on the tracker map.
+- Varia Suit is always owned and isn't a shuffled item. Energy Tanks are capped at 14 (the game's limit) -- generation fails if
+  `start_inventory` asks for more.
+
+**Universal Tracker**
+- The client doubles as a [Universal Tracker](https://github.com/FarisTheAncient/Archipelago)
+  client: it works out which locations are in logic from the server's slot data alone (no player
+  YAML needed), shows an item strip under the client window (tank/ammo/key counts plus every beam,
+  visor, suit and translator), and adds a schematic map tab with a dot per location colored by
+  logic state. The map highlights your current room and follows you between regions. Seeds
+  generated before 1.4.0 don't carry the needed slot data and only track accurately if every
+  randomization option is `vanilla`.
+
+**Status:** the generation-side logic, option set, ISO patching and client are all implemented
+and covered by the unit tests. All features have been lightly tested in game.
+Open an issue if something misbehaves.
 
 See [`PLAN.md`](PLAN.md) for the full design/porting plan and milestone breakdown.
 
@@ -59,10 +102,12 @@ cd MultiWorldGG
 python -m pytest worlds/metroidprime2/test/
 ```
 
-The suite (400+ tests across `metroidprime2/test/`) covers the logic-DB reader, requirement
+The suite (800+ tests across `metroidprime2/test/`) covers the logic-DB reader, requirement
 compiler, region/reachability generation, item pool composition, patch data, entrance
-(door lock/elevator/translator gate) randomization, Death Link, hint scans (Sky Temple Key
-and translator lore), and the client's item-receive logic.
+(door lock/elevator/portal/translator gate) randomization, Death Link, hint scans (Sky Temple Key
+and translator lore), goal detection, the DOL/SCLY patches (elevator pre-scan, spring ball, item map
+dots, goal warp), the Universal Tracker data and item strip, and the client's item-receive logic.
+In-game checks that need a real Dolphin live in `metroidprime2/test/manual/` (see its README).
 
 ## Config options
 
@@ -85,6 +130,9 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 | `missile_expansions_unlock_launcher` | Toggle | off | Receiving any Missile Expansion also unlocks the Missile Launcher itself, so expansions are usable before the launcher is found. Off matches Randovania (expansions grant nothing without the launcher); this also affects logic, not just the in-game grant. |
 | `power_bomb_expansions_unlock_power_bombs` | Toggle | off | Receiving any Power Bomb Expansion also unlocks Power Bombs themselves, so expansions are usable before the main Power Bomb pickup is found. Off matches Randovania (expansions grant nothing without the main pickup); this also affects logic, not just the in-game grant. Independent of `missile_expansions_unlock_launcher`. |
 | `split_beam_ammo` | Toggle (on by default) | on | On: 10 Dark Ammo Expansions + 10 Light Ammo Expansions, 20 ammo each (matches vanilla/Randovania's default). Off: both are replaced by 20 unified Beam Ammo Expansions granting 10 Dark + 10 Light ammo each (Randovania's "Split Beam Ammo Expansions" toggle, inverted) — same total ammo economy, fewer/bigger pickups. |
+| `enable_unlimited_missiles_pickup` | Toggle | off | Add one Unlimited Missiles item to the pool (replacing a Missile Expansion). Missiles cost no ammo once received. Logic never requires it. |
+| `enable_double_damage_pickup` | Toggle | off | Add one Double Damage item to the pool (replacing a Missile Expansion). Damage is multiplied by `double_damage_multiplier` once received. Logic never requires it. |
+| `enable_unlimited_beam_ammo_pickup` | Toggle | off | Add one Unlimited Beam Ammo item to the pool (replacing a Missile Expansion). Dark, Light and Annihilator shots cost no ammo once received. Logic never requires it. |
 
 ### Logic
 
@@ -130,9 +178,6 @@ override just that one. Every trick option shares the same scale: `use_global` (
 | `trick_invisibleobjects` | Invisible Objects | Interact with objects (e.g. Dark Visor platforms) without the visor needed to see them. |
 | `trick_knowledge` | Knowledge | Use non-obvious vulnerabilities of destructible objects (e.g. Super Missiles on rubble meant for Screw Attack). |
 | `trick_movement` | Movement | Catch-all for non-obvious precise movement and traversal optimizations. |
-| `enable_unlimited_missiles_pickup` | Toggle | off | Add one Unlimited Missiles item to the pool (replacing a Missile Expansion). Missiles cost no ammo once received. Logic never requires it. |
-| `enable_double_damage_pickup` | Toggle | off | Add one Double Damage item to the pool (replacing a Missile Expansion). Damage is multiplied by `double_damage_multiplier` once received. Logic never requires it. |
-| `enable_unlimited_beam_ammo_pickup` | Toggle | off | Add one Unlimited Beam Ammo item to the pool (replacing a Missile Expansion). Dark, Light and Annihilator shots cost no ammo once received. Logic never requires it. |
 | `trick_nosuits` | Suitless Dark Aether | Traverse Dark Aether, or tank Ingclaw/Ingstorm damage, without the matching suit. |
 | `trick_oob` | Single Room Out of Bounds | Leave a room's boundaries to reach otherwise-unreachable areas within that room. |
 | `trick_rolljump` | Roll Jump | Roll off a ledge into an instant unmorph and jump for extra speed/distance. |
@@ -181,9 +226,22 @@ Cutscenes are always skippable (press Start) -- this isn't a configurable option
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `death_link` | Toggle | off | Share deaths with every other Death Link player in the multiworld. |
-| `start_inventory_from_pool` | Item dict | `{}` | Start with the given items already collected, removing that many copies from the shuffled pool. |
+| `start_inventory_from_pool` | Item dict | `{}` | Start with the given items already collected, removing that many copies from the shuffled pool. Energy Tanks are capped at 14 across this and `start_inventory`; asking for more fails generation. |
 | `progression_balancing` | Range 0-99 | `50` | Standard core Archipelago option: nudges progression items earlier to reduce being stuck. |
 | `accessibility` | Choice: `full`/`minimal` | `full` | Standard core Archipelago option: whether generation must guarantee every item/location is reachable, or only what's needed to reach the goal. |
+
+### Client commands
+
+Typed into the Metroid Prime 2 Client window (the client also takes `-v`/`--verbose` to log ISO
+patching progress; otherwise the window just shows "Patching ISO... Please wait").
+
+| Command | Description |
+|---|---|
+| `/status` | Show the current Dolphin connection status. |
+| `/reconnect` | Drop and re-establish the Dolphin hook, e.g. after restarting emulation. |
+| `/export_iso` | Delete and regenerate the patched ISO from the `.apmp2` file (while disconnected). |
+| `/deathlink` | Toggle Death Link for this session, overriding the YAML. |
+| `/test_hud <text>` | Queue a HUD message in-game. |
 
 ### Host-only settings (`host.yaml`, not part of a player YAML)
 
