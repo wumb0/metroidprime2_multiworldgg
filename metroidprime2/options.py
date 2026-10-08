@@ -653,6 +653,30 @@ class PowerBombExpansionsUnlockPowerBombs(Toggle):
     display_name = "Power Bomb Expansions Unlock Power Bombs"
 
 
+class EnableUnlimitedMissilesPickup(Toggle):
+    """If enabled, one Unlimited Missiles item is added to the item pool
+    (replacing a Missile Expansion). Receiving it makes missiles cost no
+    ammo. Logic never requires it."""
+
+    display_name = "Enable Unlimited Missiles Pickup"
+
+
+class EnableDoubleDamagePickup(Toggle):
+    """If enabled, one Double Damage item is added to the item pool
+    (replacing a Missile Expansion). Receiving it multiplies your damage
+    by `double_damage_multiplier`. Logic never requires it."""
+
+    display_name = "Enable Double Damage Pickup"
+
+
+class EnableUnlimitedBeamAmmoPickup(Toggle):
+    """If enabled, one Unlimited Beam Ammo item is added to the item pool
+    (replacing a Missile Expansion). Receiving it makes Dark, Light and
+    Annihilator beam shots cost no ammo. Logic never requires it."""
+
+    display_name = "Enable Unlimited Beam Ammo Pickup"
+
+
 class SplitBeamAmmo(DefaultOnToggle):
     """If enabled (the default, matching vanilla and Randovania's own
     default), Dark Ammo and Light Ammo are collected as two separate
@@ -727,9 +751,8 @@ class DoubleDamageMultiplier(Range):
     world always sets it explicitly so the item does what its name says
     unless deliberately changed.
 
-    Double Damage isn't in the default item pool (`default_pool_count=0`
-    in ``items.py``) so this only matters if a copy reaches you some other
-    way (e.g. `start_inventory`)."""
+    Double Damage only reaches you if `enable_double_damage_pickup` is on
+    or you start with it (e.g. `start_inventory`)."""
 
     display_name = "Double Damage Multiplier"
     range_start = 100
@@ -774,6 +797,9 @@ class MetroidPrime2Options(PerGameCommonOptions):
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
     power_bomb_expansions_unlock_power_bombs: PowerBombExpansionsUnlockPowerBombs
     split_beam_ammo: SplitBeamAmmo
+    enable_unlimited_missiles_pickup: EnableUnlimitedMissilesPickup
+    enable_double_damage_pickup: EnableDoubleDamagePickup
+    enable_unlimited_beam_ammo_pickup: EnableUnlimitedBeamAmmoPickup
 
     trick_level: TrickLevel
     trick_airunderwater: TrickAirUnderwater
@@ -863,6 +889,9 @@ OPTION_GROUPS: list[OptionGroup] = [
             MissileExpansionsUnlockLauncher,
             PowerBombExpansionsUnlockPowerBombs,
             SplitBeamAmmo,
+            EnableUnlimitedMissilesPickup,
+            EnableDoubleDamagePickup,
+            EnableUnlimitedBeamAmmoPickup,
         ],
     ),
     OptionGroup(

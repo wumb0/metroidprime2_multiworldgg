@@ -36,6 +36,13 @@ _GRAPPLE_TRIO = ("Grapple Beam", "Screw Attack", "Progressive Grapple")
 _SPLIT_AMMO_COUNT = 10
 _UNIFIED_AMMO_COUNT = 20
 
+# Items that are only in the pool when their enable_*_pickup toggle is on.
+_OPTIONAL_PICKUP_OPTIONS: dict[str, str] = {
+    "Unlimited Missiles": "enable_unlimited_missiles_pickup",
+    "Double Damage": "enable_double_damage_pickup",
+    "Unlimited Beam Ammo": "enable_unlimited_beam_ammo_pickup",
+}
+
 # Guardian pickup_index values (Amorbis, Chykka, Quadraxis), in the order
 # Sky Temple Keys 1-3 are locked onto them for the "all_guardians" mode.
 _GUARDIAN_PICKUP_INDICES: tuple[int, ...] = (43, 79, 115)
@@ -64,6 +71,10 @@ def _pool_count_for(item_name: str, world: MetroidPrime2World) -> int:
         return _SPLIT_AMMO_COUNT if split_beam_ammo else 0
     if item_name == "Beam Ammo Expansion":
         return 0 if split_beam_ammo else _UNIFIED_AMMO_COUNT
+
+    optional_pickup = _OPTIONAL_PICKUP_OPTIONS.get(item_name)
+    if optional_pickup is not None:
+        return int(bool(getattr(world.options, optional_pickup)))
 
     return data.default_pool_count
 
@@ -182,6 +193,13 @@ def create_item_pool(world: MetroidPrime2World) -> list[Item]:
     filler_name = world.get_filler_item_name()
     while len(pool) < target:
         pool.append(world.create_item(filler_name))
+    # Drop surplus filler first so a full pool never loses a real item
+    # (the tail of the pool is the Sky Temple Keys).
+    while len(pool) > target and any(item.name == filler_name for item in pool):
+        for index in range(len(pool) - 1, -1, -1):
+            if pool[index].name == filler_name:
+                del pool[index]
+                break
     if len(pool) > target:
         pool = pool[:target]
 

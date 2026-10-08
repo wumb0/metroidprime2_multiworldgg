@@ -130,6 +130,9 @@ override just that one. Every trick option shares the same scale: `use_global` (
 | `trick_invisibleobjects` | Invisible Objects | Interact with objects (e.g. Dark Visor platforms) without the visor needed to see them. |
 | `trick_knowledge` | Knowledge | Use non-obvious vulnerabilities of destructible objects (e.g. Super Missiles on rubble meant for Screw Attack). |
 | `trick_movement` | Movement | Catch-all for non-obvious precise movement and traversal optimizations. |
+| `enable_unlimited_missiles_pickup` | Toggle | off | Add one Unlimited Missiles item to the pool (replacing a Missile Expansion). Missiles cost no ammo once received. Logic never requires it. |
+| `enable_double_damage_pickup` | Toggle | off | Add one Double Damage item to the pool (replacing a Missile Expansion). Damage is multiplied by `double_damage_multiplier` once received. Logic never requires it. |
+| `enable_unlimited_beam_ammo_pickup` | Toggle | off | Add one Unlimited Beam Ammo item to the pool (replacing a Missile Expansion). Dark, Light and Annihilator shots cost no ammo once received. Logic never requires it. |
 | `trick_nosuits` | Suitless Dark Aether | Traverse Dark Aether, or tank Ingclaw/Ingstorm damage, without the matching suit. |
 | `trick_oob` | Single Room Out of Bounds | Leave a room's boundaries to reach otherwise-unreachable areas within that room. |
 | `trick_rolljump` | Roll Jump | Roll off a ledge into an instant unmorph and jump for extra speed/distance. |

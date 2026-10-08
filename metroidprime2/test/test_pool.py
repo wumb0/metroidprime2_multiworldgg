@@ -228,6 +228,42 @@ class TestProgressiveOff(MP2TestBase):
         self.assertEqual(1, counts["Screw Attack"])
 
 
+class TestOptionalPickupsOffByDefault(MP2TestBase):
+    def test_none_in_pool(self) -> None:
+        counts = Counter(_own_pool_names(self))
+        self.assertEqual(0, counts["Unlimited Missiles"])
+        self.assertEqual(0, counts["Double Damage"])
+        self.assertEqual(0, counts["Unlimited Beam Ammo"])
+
+
+class TestOptionalPickupsAllOn(MP2TestBase):
+    options = {
+        "enable_unlimited_missiles_pickup": True,
+        "enable_double_damage_pickup": True,
+        "enable_unlimited_beam_ammo_pickup": True,
+    }
+
+    def test_one_copy_each_and_no_key_lost(self) -> None:
+        pool_names = _own_pool_names(self)
+        counts = Counter(pool_names)
+        self.assertEqual(119, len(pool_names))
+        self.assertEqual(1, counts["Unlimited Missiles"])
+        self.assertEqual(1, counts["Double Damage"])
+        self.assertEqual(1, counts["Unlimited Beam Ammo"])
+        for n in range(1, 10):
+            self.assertEqual(1, counts[f"Sky Temple Key {n}"])
+
+
+class TestOptionalPickupsSingle(MP2TestBase):
+    options = {"enable_double_damage_pickup": True}
+
+    def test_only_enabled_item_added(self) -> None:
+        counts = Counter(_own_pool_names(self))
+        self.assertEqual(1, counts["Double Damage"])
+        self.assertEqual(0, counts["Unlimited Missiles"])
+        self.assertEqual(0, counts["Unlimited Beam Ammo"])
+
+
 class TestSplitBeamAmmoOn(MP2TestBase):
     options = {"split_beam_ammo": True}
 

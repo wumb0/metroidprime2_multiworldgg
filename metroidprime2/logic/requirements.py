@@ -61,8 +61,9 @@ PREGRANTED_EVENTS = constants.PREGRANTED_EVENTS
 # events found to need tighter logic.
 NEGATED_EVENT_OVERRIDES: dict[str, bool] = {}
 
-# DB items excluded from the v1 item pool; any positive requirement on one
-# of these folds to Impossible regardless of the item's normal expression.
+# DB items logic never relies on (they're optional, or absent from the pool
+# entirely); any positive requirement on one of these folds to Impossible
+# regardless of the item's normal expression.
 DEFAULT_ABSENT_ITEMS: frozenset[str] = frozenset(
     {"DoubleDamage", "UnlimitedMissiles", "UnlimitedBeamAmmo", "CannonBall"}
 )
