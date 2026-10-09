@@ -89,6 +89,7 @@ def compute_desired_capacities(
     first_non_starting_item_index: int,
     missile_expansions_unlock_launcher: bool = False,
     power_bomb_expansions_unlock_power_bombs: bool = False,
+    missile_launcher_bonus: int = 0,
 ) -> dict[int, int]:
     """Computes the capacity every OPR inventory slot *should* have, given
     the full list of ``(item_name, sender_slot)`` pairs received so far (in
@@ -113,6 +114,11 @@ def compute_desired_capacities(
     counterpart: when set, any received Power Bomb Expansion also unlocks
     Power Bombs, matching ``logic/item_mapping.expression``'s ``PowerBomb``
     branch -- again, the two implementations must be kept in sync.
+
+    ``missile_launcher_bonus`` (slot_data ``missile_launcher_bonus``) is the
+    extra missiles the Missile Launcher itself grants for Missile Expansions
+    trimmed from the pool; it matches ``logic/item_mapping.expression``'s
+    ``Missile`` branch.
     """
     desired: dict[int, int] = {}
     progressive_copy_index: dict[str, int] = {}
@@ -184,14 +190,18 @@ def compute_desired_capacities(
 
     # Missile: 0 without the launcher (or, with
     # missile_expansions_unlock_launcher, without any expansion); otherwise
-    # 5 per (launcher + each Seeker Launcher + each Missile Expansion).
+    # 5 per (launcher + each Seeker Launcher + each Missile Expansion), plus
+    # the launcher's bonus.
     launcher_main = 1 if has_missile_launcher else 0
     missiles_unlocked = has_missile_launcher or (
         missile_expansions_unlock_launcher and missile_expansions > 0
     )
     desired[_MISSILE_LAUNCHER_FLAG] = 1 if missiles_unlocked else 0
     desired[_MISSILE_ITEM] = (
-        5 * (launcher_main + seeker_launchers + missile_expansions) if missiles_unlocked else 0
+        5 * (launcher_main + seeker_launchers + missile_expansions)
+        + launcher_main * missile_launcher_bonus
+        if missiles_unlocked
+        else 0
     )
 
     # Power Bomb: 0 without the main pickup (or, with

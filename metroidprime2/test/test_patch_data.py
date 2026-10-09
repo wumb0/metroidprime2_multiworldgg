@@ -538,6 +538,20 @@ class TestStartingItemsWithPrecollectedMissileLauncher(MP2TestBase):
         self.assertEqual(5, capacities.get(44))
 
 
+class TestStartingLauncherIncludesTrimmedMissiles(MP2TestBase):
+    options = {
+        "enable_unlimited_missiles_pickup": True,
+        "enable_double_damage_pickup": True,
+        "enable_unlimited_beam_ammo_pickup": True,
+    }
+
+    def test_precollected_launcher_carries_bonus(self) -> None:
+        self.multiworld.push_precollected(self.multiworld.create_item("Missile Launcher", self.player))
+        capacities = {entry["item"]: entry["capacity"] for entry in patch_data.starting_items_config(self.world)}
+        self.assertEqual(15, capacities[44])
+        self.assertEqual(1, capacities[73])
+
+
 class TestStartingItemsWithPrecollectedMissileExpansionAndUnlockOption(MP2TestBase):
     """A precollected Missile Expansion (no Missile Launcher) writes
     capacity into id 44 via gains_for but never sets id 73 on its own; with

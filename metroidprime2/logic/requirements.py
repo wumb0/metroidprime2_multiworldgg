@@ -89,6 +89,7 @@ class StaticContext:
     absent_items: frozenset[str] = field(default_factory=frozenset)
     missile_expansions_unlock_launcher: bool = False
     power_bomb_expansions_unlock_power_bombs: bool = False
+    missile_launcher_bonus: int = 0
 
 
 def build_static_context(
@@ -103,6 +104,7 @@ def build_static_context(
     absent_items: frozenset[str] = DEFAULT_ABSENT_ITEMS,
     missile_expansions_unlock_launcher: bool = False,
     power_bomb_expansions_unlock_power_bombs: bool = False,
+    missile_launcher_bonus: int = 0,
 ) -> StaticContext:
     """Build a ``StaticContext`` from resolved option values.
 
@@ -125,6 +127,7 @@ def build_static_context(
         absent_items=frozenset(absent_items),
         missile_expansions_unlock_launcher=missile_expansions_unlock_launcher,
         power_bomb_expansions_unlock_power_bombs=power_bomb_expansions_unlock_power_bombs,
+        missile_launcher_bonus=missile_launcher_bonus,
     )
 
 
@@ -347,6 +350,7 @@ class RequirementCompiler:
             self.ctx.player,
             self.ctx.missile_expansions_unlock_launcher,
             self.ctx.power_bomb_expansions_unlock_power_bombs,
+            self.ctx.missile_launcher_bonus,
         )
 
         if kind == "bool":
@@ -429,6 +433,7 @@ class RequirementCompiler:
                 player,
                 self.ctx.missile_expansions_unlock_launcher,
                 self.ctx.power_bomb_expansions_unlock_power_bombs,
+                self.ctx.missile_launcher_bonus,
             )
             count_fn: Callable[[object], int]
             if kind == "bool":

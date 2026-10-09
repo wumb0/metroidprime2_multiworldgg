@@ -638,6 +638,20 @@ class MissileExpansionsUnlockLauncher(Toggle):
     display_name = "Missile Expansions Unlock Launcher"
 
 
+class LauncherGainsRemovedMissiles(DefaultOnToggle):
+    """If enabled, every Missile Expansion that never reaches a location (cut
+    to fit the 119 locations, or replaced by a trap) adds 5 missiles to what
+    the Missile Launcher grants, so your maximum missile capacity is kept.
+
+    Off removes those missiles from the seed entirely, reducing your maximum
+    missile capacity. The setting affects logic as well as the in-game
+    grant. The bonus only applies once the Missile Launcher item itself is
+    held.
+    """
+
+    display_name = "Launcher Gains Removed Missiles"
+
+
 class PowerBombExpansionsUnlockPowerBombs(Toggle):
     """If enabled, receiving any Power Bomb Expansion also unlocks Power
     Bombs themselves, so expansions are usable without finding the main
@@ -846,6 +860,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     progressive_suit: ProgressiveSuit
     progressive_grapple: ProgressiveGrapple
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
+    launcher_gains_removed_missiles: LauncherGainsRemovedMissiles
     power_bomb_expansions_unlock_power_bombs: PowerBombExpansionsUnlockPowerBombs
     split_beam_ammo: SplitBeamAmmo
     enable_unlimited_missiles_pickup: EnableUnlimitedMissilesPickup
@@ -942,6 +957,7 @@ OPTION_GROUPS: list[OptionGroup] = [
             ProgressiveSuit,
             ProgressiveGrapple,
             MissileExpansionsUnlockLauncher,
+            LauncherGainsRemovedMissiles,
             PowerBombExpansionsUnlockPowerBombs,
             SplitBeamAmmo,
             EnableUnlimitedMissilesPickup,

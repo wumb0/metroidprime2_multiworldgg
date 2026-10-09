@@ -167,7 +167,9 @@ class TestMissileExpansionsUnlockLauncher(unittest.TestCase):
     (PLAN.md section M) -- item_mapping.expression's Missile branch counts
     expansions toward capacity without the launcher when the flag is set."""
 
-    def _compiler(self, missile_expansions_unlock_launcher: bool) -> RequirementCompiler:
+    def _compiler(
+        self, missile_expansions_unlock_launcher: bool, missile_launcher_bonus: int = 0
+    ) -> RequirementCompiler:
         db = load_game_database()
         ctx = build_static_context(
             player=PLAYER,
@@ -179,6 +181,7 @@ class TestMissileExpansionsUnlockLauncher(unittest.TestCase):
             progressive_suit=False,
             progressive_grapple=False,
             missile_expansions_unlock_launcher=missile_expansions_unlock_launcher,
+            missile_launcher_bonus=missile_launcher_bonus,
         )
         return RequirementCompiler(db, ctx)
 
@@ -195,6 +198,15 @@ class TestMissileExpansionsUnlockLauncher(unittest.TestCase):
         rule = compiler.compile(req)
         assert rule is not None
         self.assertTrue(rule(FakeState({"Missile Expansion": 2})))
+
+    def test_launcher_bonus_counts_toward_missiles(self) -> None:
+        rule = self._compiler(False, 10).compile(_resource("items", "Missile", amount=15))
+        assert rule is not None
+        self.assertTrue(rule(FakeState({"Missile Launcher": 1})))
+        self.assertFalse(rule(FakeState({"Missile Expansion": 3})))
+        rule_no_bonus = self._compiler(False, 0).compile(_resource("items", "Missile", amount=15))
+        assert rule_no_bonus is not None
+        self.assertFalse(rule_no_bonus(FakeState({"Missile Launcher": 1})))
 
     def test_missile_launcher_item_requirement_honors_the_flag(self) -> None:
         # The DB gates 15 requirement sites on the `MissileLauncher` *item*

@@ -27,7 +27,12 @@ from .hint_scans import (
     sky_temple_key_locations,
     translator_lore_hint_locations,
 )
-from .item_pool import STK_ITEM_NAMES, create_item_pool, sky_temple_keys_required_count
+from .item_pool import (
+    STK_ITEM_NAMES,
+    create_item_pool,
+    missile_launcher_bonus,
+    sky_temple_keys_required_count,
+)
 from .items import ITEM_GROUPS, ITEM_TABLE, TRAP_ITEM_NAMES, MetroidPrime2Item, item_name_to_id
 from .locations import LOCATION_GROUPS, location_name_to_id
 from .logic import regions as logic_regions
@@ -398,6 +403,7 @@ class MetroidPrime2World(World):
         slot_data["expansion_totals"]["Energy Tank"] = min(
             slot_data["expansion_totals"]["Energy Tank"], constants.MAX_ENERGY_TANKS
         )
+        slot_data["missile_launcher_bonus"] = missile_launcher_bonus(self)
         slot_data.update(encode_randomization(self))
         slot_data["apworld_version"] = get_apworld_version()
 

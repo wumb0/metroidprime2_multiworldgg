@@ -37,6 +37,7 @@ from .hint_scans import (
     sky_temple_key_locations,
     translator_lore_hint_locations,
 )
+from .item_pool import missile_launcher_bonus
 from .items import ITEM_TABLE, TRAP_ITEM_NAMES, gains_for
 from .locations import LOCATION_TABLE
 from .logic.db_reader import GameDatabase, Node, NodeId, load_game_database
@@ -168,6 +169,9 @@ def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
             continue
         for item_id, amount in gains_for(item.name, index):
             capacities[item_id] = capacities.get(item_id, 0) + amount
+
+    if has_missile_launcher:
+        capacities[_MISSILE_ITEM_ID] = capacities.get(_MISSILE_ITEM_ID, 0) + missile_launcher_bonus(world)
 
     for item_id, amount in _MANDATORY_STARTING_ITEM_IDS.items():
         capacities.setdefault(item_id, amount)

@@ -401,3 +401,6 @@ TRAP_INDEX_DATASTORAGE_KEY = "metroidprime2_trap_index_{team}_{slot}"
 
 # The game's powerup_max for Energy Tank (item 42); it breaks past this.
 MAX_ENERGY_TANKS = 14
+
+# Missiles granted by one Missile Expansion (and by the Missile Launcher itself).
+MISSILES_PER_EXPANSION = 5

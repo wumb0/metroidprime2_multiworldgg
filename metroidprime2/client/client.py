@@ -653,7 +653,11 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
     unlock_launcher = bool(ctx.slot_data.get("missile_expansions_unlock_launcher", False))
     unlock_power_bombs = bool(ctx.slot_data.get("power_bomb_expansions_unlock_power_bombs", False))
     desired = compute_desired_capacities(
-        received, first_non_starting, unlock_launcher, unlock_power_bombs
+        received,
+        first_non_starting,
+        unlock_launcher,
+        unlock_power_bombs,
+        int(ctx.slot_data.get("missile_launcher_bonus", 0)),
     )
     deltas = plan_grants(desired, inventory)
     if ctx.last_announced_index is None and not deltas:

@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 from BaseClasses import ItemClassification, Region
 
 from .. import constants
-from ..item_pool import sky_temple_keys_required_count
+from ..item_pool import missile_launcher_bonus, sky_temple_keys_required_count
 from ..items import MetroidPrime2Item
 from ..locations import LOCATION_TABLE, MetroidPrime2Location
 from ..options import damage_strictness_multiplier, dark_damage_per_second
@@ -370,6 +370,7 @@ def create_regions(world: MetroidPrime2World) -> None:
         power_bomb_expansions_unlock_power_bombs=bool(
             world.options.power_bomb_expansions_unlock_power_bombs
         ),
+        missile_launcher_bonus=missile_launcher_bonus(world),
     )
     compiler = RequirementCompiler(db, ctx)
 

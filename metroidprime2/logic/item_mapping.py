@@ -181,6 +181,7 @@ def expression(
     player: int,
     missile_expansions_unlock_launcher: bool = False,
     power_bomb_expansions_unlock_power_bombs: bool = False,
+    missile_launcher_bonus: int = 0,
 ) -> tuple[Kind, Expression]:
     """Return ``(kind, callable)`` for a DB item short_name.
 
@@ -197,6 +198,10 @@ def expression(
     same name and does the same thing for the ``PowerBomb`` branch, via
     ``_effective_power_bomb`` -- see that helper for why it needs no second
     call site the way the Missile Launcher predicate does.
+
+    ``missile_launcher_bonus`` is the extra missiles the launcher grants for
+    Missile Expansions trimmed from the pool (``item_pool.missile_launcher_bonus``);
+    ``client/receive_items.compute_desired_capacities`` must grant the same.
 
     Raises ``KeyError`` for unknown short names.
     """
@@ -237,17 +242,22 @@ def expression(
     if short_name == "Missile":
         unlocked = _effective_launcher(player, missile_expansions_unlock_launcher)
 
-        def _missile(state, _p=player, _unlocked=unlocked):
+        def _missile(state, _p=player, _unlocked=unlocked, _bonus=missile_launcher_bonus):
             if not _unlocked(state):
                 return 0
-            # The launcher itself carries 5 missiles; Seeker Launcher and
-            # each expansion add 5 more. Without the launcher (only
-            # reachable with the option on) there is no launcher 5 to count.
+            # The launcher itself carries 5 missiles plus the bonus for
+            # trimmed expansions; Seeker Launcher and each expansion add 5
+            # more. Without the launcher (only reachable with the option on)
+            # there is no launcher 5 or bonus to count.
             launcher = 1 if state.has("Missile Launcher", _p) else 0
-            return 5 * (
-                launcher
-                + state.count("Seeker Launcher", _p)
-                + state.count("Missile Expansion", _p)
+            return (
+                5
+                * (
+                    launcher
+                    + state.count("Seeker Launcher", _p)
+                    + state.count("Missile Expansion", _p)
+                )
+                + launcher * _bonus
             )
 
         return ("count", _missile)

@@ -119,6 +119,13 @@ requires:
   # Options: true, false
   missile_expansions_unlock_launcher: false
 
+  # Every Missile Expansion that never reaches a location (cut to fit the
+  # 119 locations, or replaced by a trap) adds 5 missiles to what the
+  # Missile Launcher grants. Off removes those missiles from the seed,
+  # reducing your maximum missile capacity. Affects logic too.
+  # Options: true, false
+  launcher_gains_removed_missiles: true
+
   # Receiving any Power Bomb Expansion also unlocks Power Bombs
   # themselves, so expansions are usable before the main Power Bomb
   # pickup is found. Off matches Randovania (expansions grant nothing

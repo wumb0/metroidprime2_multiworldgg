@@ -8,7 +8,13 @@ from collections import Counter
 
 from Options import OptionError
 
-from ..item_pool import _MIN_MISSILE_EXPANSIONS, sky_temple_keys_present_count, sky_temple_keys_required_count
+from ..item_pool import (
+    _MIN_MISSILE_EXPANSIONS,
+    missile_launcher_bonus,
+    sky_temple_keys_present_count,
+    sky_temple_keys_required_count,
+    removed_expansion_count,
+)
 from ..items import TRAP_ITEM_NAMES
 from .bases import MP2TestBase
 
@@ -254,6 +260,34 @@ class TestOptionalPickupsAllOn(MP2TestBase):
         for n in range(1, 10):
             self.assertEqual(1, counts[f"Sky Temple Key {n}"])
 
+    def test_trimmed_expansions_become_launcher_missiles(self) -> None:
+        # 118 table items + 3 optional pickups = 121 for 119 locations.
+        self.assertEqual(2, removed_expansion_count(self.world))
+        self.assertEqual(10, missile_launcher_bonus(self.world))
+        self.assertEqual(10, self.world.fill_slot_data()["missile_launcher_bonus"])
+        self.assertEqual(31, Counter(_own_pool_names(self))["Missile Expansion"])
+
+
+class TestLauncherGainsRemovedMissilesOff(MP2TestBase):
+    options = {
+        "launcher_gains_removed_missiles": False,
+        "trap_percentage": 50,
+        "enable_unlimited_missiles_pickup": True,
+        "enable_double_damage_pickup": True,
+        "enable_unlimited_beam_ammo_pickup": True,
+    }
+
+    def test_no_bonus_but_expansions_still_removed(self) -> None:
+        self.assertGreater(removed_expansion_count(self.world), 0)
+        self.assertEqual(0, missile_launcher_bonus(self.world))
+        self.assertEqual(0, self.world.fill_slot_data()["missile_launcher_bonus"])
+
+
+class TestNoTrimByDefault(MP2TestBase):
+    def test_padding_adds_no_launcher_bonus(self) -> None:
+        self.assertEqual(0, removed_expansion_count(self.world))
+        self.assertEqual(0, missile_launcher_bonus(self.world))
+
 
 class TestOptionalPickupsSingle(MP2TestBase):
     options = {"enable_double_damage_pickup": True}
@@ -285,6 +319,10 @@ class TestTrapsHalf(MP2TestBase):
         self.assertEqual(34 - 17, counts["Missile Expansion"])
         self.assertEqual(119, len(names))
 
+    def test_replaced_expansions_become_launcher_missiles(self) -> None:
+        self.assertEqual(17, removed_expansion_count(self.world))
+        self.assertEqual(85, missile_launcher_bonus(self.world))
+
     def test_default_weights_spread_over_every_trap(self) -> None:
         counts = Counter(_own_pool_names(self))
         self.assertEqual({5, 6}, {counts[trap] for trap in TRAP_ITEM_NAMES})
@@ -304,6 +342,24 @@ class TestTrapsCappedByLogic(MP2TestBase):
         counts = Counter(_own_pool_names(self))
         self.assertEqual(_MIN_MISSILE_EXPANSIONS, counts["Missile Expansion"])
         self.assertEqual(34 - _MIN_MISSILE_EXPANSIONS, sum(counts[trap] for trap in TRAP_ITEM_NAMES))
+        self.assertEqual(5 * (34 - _MIN_MISSILE_EXPANSIONS), missile_launcher_bonus(self.world))
+
+
+class TestTrapsAfterTrim(MP2TestBase):
+    options = {
+        "trap_percentage": 50,
+        "enable_unlimited_missiles_pickup": True,
+        "enable_double_damage_pickup": True,
+        "enable_unlimited_beam_ammo_pickup": True,
+    }
+
+    def test_bonus_covers_trimmed_and_trapped_expansions(self) -> None:
+        counts = Counter(_own_pool_names(self))
+        traps = sum(counts[trap] for trap in TRAP_ITEM_NAMES)
+        # 31 expansions left after trimming 2 -> 31 * 50 // 100 = 15 traps.
+        self.assertEqual(15, traps)
+        self.assertEqual(2 + traps, removed_expansion_count(self.world))
+        self.assertEqual(5 * (2 + traps), missile_launcher_bonus(self.world))
 
 
 class TestTrapsWeighted(MP2TestBase):
