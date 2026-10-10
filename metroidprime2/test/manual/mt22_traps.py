@@ -7,6 +7,14 @@ from .harness import ManualTest, Step
 
 _SLUG = "mt22_traps"
 
+# The Unlimited pickups stop ammo from being consumed or displayed as a count,
+# which would hide the Ammo Depletion Trap's effect.
+_START_INVENTORY = {
+    name: count
+    for name, count in presets.ALL_ITEMS_START.items()
+    if name not in ("Unlimited Missiles", "Unlimited Beam Ammo")
+}
+
 TEST = ManualTest(
     slug=_SLUG,
     title="Trap items: Damage Trap, Ammo Depletion Trap, Freeze Trap",
@@ -25,11 +33,12 @@ TEST = ManualTest(
         presets.FAST_RETRY_OPTIONS,
         {"energy_per_tank": 100, "freeze_trap_duration": 60},
     ),
-    start_inventory=dict(presets.ALL_ITEMS_START),
+    start_inventory=_START_INVENTORY,
     setup=[
         "Host the generated multiworld and keep the server console open; every step pastes a `/send` into it.",
         "The start inventory holds 14 Energy Tanks, so maximum energy is 1499 and one Damage Trap removes "
         "about 375. Traps cannot be in the start inventory, so none fire on connect.",
+        "The start inventory leaves out Unlimited Missiles and Unlimited Beam Ammo so ammo is a real count. "
         "Open the pause screen's inventory once to note your Missile / Power Bomb / Dark / Light ammo totals "
         "(or watch the HUD counters).",
     ],
@@ -69,7 +78,7 @@ TEST = ManualTest(
             f"Server console: `/send {_SLUG} Freeze Trap`",
             "A HUD memo `Freeze Trap! You will freeze at random for 1 minute.` Over the next 60 s Samus "
             "freezes in ice 3-8 times for 2-4 s each, at uneven intervals, unable to move or shoot. "
-            "Mashing jump shatters a freeze early. After 60 s no more freezes happen.",
+            "Mashing jump shatters a freeze early. After 60 s no more freezes happen and a HUD memo `The Freeze Trap has worn off.` appears.",
         ),
         Step(
             f"`/send {_SLUG} Freeze Trap`, then stay in Morph Ball (rolling around) for the whole minute.",
@@ -107,7 +116,7 @@ TEST = ManualTest(
         "Each trap shows its HUD memo and then applies exactly once.",
         "Damage Trap removes 25% of maximum energy, floors at 1 HP, and never kills.",
         "Ammo Depletion Trap zeroes all four ammo amounts and leaves capacities alone.",
-        "Freeze Trap freezes Samus at random moments for the configured window and each freeze can be broken by mashing jump.",
+        "Freeze Trap freezes Samus at random moments for the configured window, each freeze can be broken by mashing jump, and a memo announces when the window ends.",
         "Traps wait out pauses and cutscenes, and drip out ~5 s apart.",
         "A client restart or save reload never replays a trap.",
         "No client traceback.",

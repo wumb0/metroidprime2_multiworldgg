@@ -36,6 +36,10 @@ MIN_TRAP_SPACING = 5.0
 
 ENERGY_TANK_ITEM = 42
 
+# Seconds between requests for the stored trap index while no reply has
+# arrived.
+INDEX_REQUEST_RETRY = 5.0
+
 # The Freeze Trap opens a window (``freeze_trap_duration`` seconds, from slot
 # data) during which the player is frozen at random moments. Each freeze lasts
 # a random time in FREEZE_LENGTH_RANGE and the next one comes a random time in
@@ -55,6 +59,7 @@ class TrapState:
     # ``items_received`` positions below this have been handled. None until
     # the DataStorage reply arrives; nothing is applied before that.
     processed_index: int | None = None
+    index_requested_at: float = 0.0
     # (position, name) of a trap whose HUD message went out and whose effect
     # is waiting for the game to confirm it consumed that message.
     announced: tuple[int, str] | None = None
@@ -67,6 +72,8 @@ class TrapState:
     freeze_window_end: float = 0.0
     next_freeze_at: float = 0.0
     freeze_armed: bool = False
+    # The window has closed but its "worn off" HUD message hasn't gone out yet.
+    freeze_over_pending: bool = False
 
 
 def max_health(energy_per_tank: int, energy_tanks: int) -> float:
@@ -95,6 +102,9 @@ def pending_traps(received: list[str], first_non_starting: int, processed_index:
     inventory and never trigger anything."""
     start = max(processed_index, first_non_starting)
     return [(index, name) for index, name in enumerate(received) if index >= start and name in TRAP_ITEM_NAMES]
+
+
+FREEZE_OVER_MESSAGE = "The Freeze Trap has worn off."
 
 
 def _describe_duration(seconds: int) -> str:

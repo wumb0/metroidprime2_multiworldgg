@@ -44,7 +44,9 @@ from .traps import (
     DAMAGE_TRAP,
     ENERGY_TANK_ITEM,
     FREEZE_TRAP,
+    FREEZE_OVER_MESSAGE,
     FREEZE_RETRY_DELAY,
+    INDEX_REQUEST_RETRY,
     MIN_TRAP_SPACING,
     TrapState,
     max_health,
@@ -246,7 +248,6 @@ class MetroidPrime2Context(CommonContext):
             self.last_sent_mlvl = None
             self.last_sent_area = None
             self.trap_state = TrapState()
-            Utils.async_start(self.send_msgs([{"cmd": "Get", "keys": [self._trap_index_key()]}]), name="Get trap index")
 
             if "death_link" in self.slot_data:
                 self.death_link_enabled = bool(self.slot_data["death_link"])
@@ -254,9 +255,12 @@ class MetroidPrime2Context(CommonContext):
 
             self._refresh_item_panel()
         elif cmd == "Retrieved":
-            stored = args.get("keys", {}).get(self._trap_index_key())
-            if self.trap_state.processed_index is None:
-                self.trap_state.processed_index = int(stored or 0)
+            keys = args.get("keys", {})
+            trap_key = self._trap_index_key()
+            # Every Get the framework itself sends is answered with a Retrieved
+            # too; only the reply that carries our key is ours.
+            if trap_key in keys and self.trap_state.processed_index is None:
+                self.trap_state.processed_index = int(keys[trap_key] or 0)
         elif cmd == "ReceivedItems":
             self._refresh_item_panel()
 
@@ -472,6 +476,13 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
         if ctx.notification_manager.handle_notifications():
             return
 
+        # 2c. Traps (one-shot effects) and the Freeze Trap's window. Like the
+        # HUD flush these must not sit behind the grant step: a grant that
+        # keeps arming a body every tick would otherwise starve them. Taking
+        # the remote-execution slot ends the tick.
+        if await _handle_traps(ctx, inventory) or await _handle_freeze_window(ctx):
+            return
+
         # 3./4. Pickup-counter protocol: any of the four pickup bitmask
         # counters being nonzero takes priority over granting received
         # items, exactly one body per tick.
@@ -480,12 +491,6 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
             await _handle_pickup_counters(ctx, inventory)
         else:
             await _handle_grant_items(ctx, inventory)
-
-        # 4b. Traps (one-shot effects), after grants so a trap never competes
-        # with a pending grant body for the remote-execution slot. The Freeze
-    # Trap's window runs on its own schedule right after.
-        await _handle_traps(ctx, inventory)
-        await _handle_freeze_window(ctx)
 
         # 5. Tracker datastorage + hint scans.
         await _send_mlvl_datastorage(ctx)
@@ -673,24 +678,34 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
         logger.debug(f"{len(leftovers)} item grant(s) deferred to a later tick (remote-execution body budget).")
 
 
-async def _handle_traps(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]]) -> None:
+async def _handle_traps(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]]) -> bool:
     """Applies received traps one at a time, in two phases so an effect only
     lands once the player is controllable: first the HUD message is sent
     through the remote-execution hook (which the game only runs outside
     cutscenes), then, once the game has consumed it (the pending-op flag is
     clear again), the effect is applied and the trap recorded as handled in
-    DataStorage. Nothing happens before the stored index has been fetched."""
+    DataStorage. Returns True when it armed a remote-execution body (the
+    HUD message). Nothing happens before the stored index has been fetched;
+    it is requested from here (and re-requested until answered) rather than
+    from ``on_package``, which another base class's handler can cut short."""
     state = ctx.trap_state
-    if state.processed_index is None or not ctx.items_received:
-        return
+    if state.processed_index is None:
+        if time.time() - state.index_requested_at >= INDEX_REQUEST_RETRY:
+            state.index_requested_at = time.time()
+            logger.debug("Requesting the trap index from DataStorage.")
+            await ctx.send_msgs([{"cmd": "Get", "keys": [ctx._trap_index_key()]}])
+        return False
+    if not ctx.items_received:
+        return False
     game = ctx.game_interface
     if game.has_pending_op():
-        return
+        return False
 
     if state.announced is not None:
         index, trap_name = state.announced
         if not _apply_trap(ctx, trap_name, inventory):
-            return
+            return False
+        logger.info(f"Applied {trap_name} (received item #{index}).")
         state.announced = None
         state.processed_index = index + 1
         state.last_applied = time.time()
@@ -705,18 +720,21 @@ async def _handle_traps(ctx: MetroidPrime2Context, inventory: dict[int, tuple[in
                 }
             ]
         )
-        return
+        return False
 
     if time.time() - state.last_applied < MIN_TRAP_SPACING:
-        return
+        return False
     received = [ctx.item_names.lookup_in_game(network_item.item, ctx.game) for network_item in ctx.items_received]
     first_non_starting = ctx.slot_data.get("first_non_starting_item_index", 0)
     pending = pending_traps(received, first_non_starting, state.processed_index)
     if not pending:
-        return
+        return False
     index, trap_name = pending[0]
-    if game.send_hud_message(trap_message(trap_name, _freeze_window_seconds(ctx))):
-        state.announced = (index, trap_name)
+    if not game.send_hud_message(trap_message(trap_name, _freeze_window_seconds(ctx))):
+        return False
+    logger.info(f"Received {trap_name} (item #{index}); announcing it.")
+    state.announced = (index, trap_name)
+    return True
 
 
 def _freeze_window_seconds(ctx: MetroidPrime2Context) -> int:
@@ -731,43 +749,53 @@ def _start_freeze_window(ctx: MetroidPrime2Context) -> None:
     if state.freeze_window_end > now:
         state.freeze_window_end += _freeze_window_seconds(ctx)
         return
+    state.freeze_over_pending = True
     state.freeze_window_end = now + _freeze_window_seconds(ctx)
     state.next_freeze_at = now + random_freeze_gap(ctx.trap_rng)
 
 
-async def _handle_freeze_window(ctx: MetroidPrime2Context) -> None:
+async def _handle_freeze_window(ctx: MetroidPrime2Context) -> bool:
     """While a Freeze Trap window is open, freezes the player at random
     moments. ``CPlayer::Freeze`` only runs once the game consumes the
     remote-execution body (so never during a cutscene) and quietly refuses
     in some player states, so after each attempt the next free tick reads
     ``mFrozenTimeout`` to see whether it took: if so the next freeze is
-    scheduled a random gap later, if not it is retried shortly."""
+    scheduled a random gap later, if not it is retried shortly. Once the
+    window closes a HUD message says so. Returns True when it armed a body."""
     state = ctx.trap_state
     game = ctx.game_interface
     now = time.time()
-    if now >= state.freeze_window_end and not state.freeze_armed:
-        return
+    window_over = now >= state.freeze_window_end
+    if window_over and not state.freeze_armed and not state.freeze_over_pending:
+        return False
     if game.has_pending_op():
-        return
+        return False
 
     if state.freeze_armed:
         state.freeze_armed = False
         timeout = game.read_frozen_timeout()
         took = timeout is not None and timeout > 0
         state.next_freeze_at = now + (random_freeze_gap(ctx.trap_rng) if took else FREEZE_RETRY_DELAY)
-        return
+        return False
+
+    if window_over:
+        if game.send_hud_message(FREEZE_OVER_MESSAGE):
+            state.freeze_over_pending = False
+            return True
+        return False
 
     if now < state.next_freeze_at:
-        return
+        return False
     health = game.get_current_health()
     if health is None or health <= 0:
-        return
+        return False
     frozen = game.read_frozen_timeout()
     if frozen is not None and frozen > 0:
         state.next_freeze_at = now + random_freeze_gap(ctx.trap_rng)
-        return
+        return False
     game.freeze_player(random_freeze_length(ctx.trap_rng))
     state.freeze_armed = True
+    return True
 
 
 def _apply_trap(ctx: MetroidPrime2Context, trap_name: str, inventory: dict[int, tuple[int, int]]) -> bool:

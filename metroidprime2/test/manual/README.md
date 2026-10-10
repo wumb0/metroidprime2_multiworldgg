@@ -1873,7 +1873,7 @@ If it fails, look at:
 Prerequisites for this test:
 * Host the generated multiworld and keep the server console open; every step pastes a `/send` into it.
 * The start inventory holds 14 Energy Tanks, so maximum energy is 1499 and one Damage Trap removes about 375. Traps cannot be in the start inventory, so none fire on connect.
-* Open the pause screen's inventory once to note your Missile / Power Bomb / Dark / Light ammo totals (or watch the HUD counters).
+* The start inventory leaves out Unlimited Missiles and Unlimited Beam Ammo so ammo is a real count. Open the pause screen's inventory once to note your Missile / Power Bomb / Dark / Light ammo totals (or watch the HUD counters).
 
 Build:
 ```
@@ -1883,7 +1883,7 @@ python -m worlds.metroidprime2.test.manual.mt22_traps --iso <vanilla.iso>
 What the build contains:
 * starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
 * options: `door_lock_rando=False`, `elevator_rando=False`, `energy_per_tank=100`, `freeze_trap_duration=60`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
-* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Violet Translator` x1
 
 Notes / derived values:
 * A trap takes effect one HUD message after it arrives, and no sooner than ~5 s after the previous trap. Send several at once to see them drip out one by one.
@@ -1910,7 +1910,7 @@ Steps:
    **Expect:** A HUD memo `Ammo Depletion Trap! Your ammo is gone.` and Missiles, Power Bombs, Dark Ammo and Light Ammo are all 0. Pause screen still shows the full capacities (Energy Tanks etc. unchanged), and collecting an ammo pickup works normally afterwards.
    *(exercises: Only the amounts are zeroed; plan_grants compares capacities, so nothing refills them.)*
 5. **Do:** Server console: `/send mt22_traps Freeze Trap`
-   **Expect:** A HUD memo `Freeze Trap! You will freeze at random for 1 minute.` Over the next 60 s Samus freezes in ice 3-8 times for 2-4 s each, at uneven intervals, unable to move or shoot. Mashing jump shatters a freeze early. After 60 s no more freezes happen.
+   **Expect:** A HUD memo `Freeze Trap! You will freeze at random for 1 minute.` Over the next 60 s Samus freezes in ice 3-8 times for 2-4 s each, at uneven intervals, unable to move or shoot. Mashing jump shatters a freeze early. After 60 s no more freezes happen and a HUD memo `The Freeze Trap has worn off.` appears.
 6. **Do:** `/send mt22_traps Freeze Trap`, then stay in Morph Ball (rolling around) for the whole minute.
    **Expect:** Either Samus freezes as a ball or the freezes are skipped and land once she unmorphs. No crash, no permanent stuck state.
    *(exercises: CPlayer::Freeze bails out in some states; the client retries about a second later.)*
@@ -1931,7 +1931,7 @@ Pass if:
 * Each trap shows its HUD memo and then applies exactly once.
 * Damage Trap removes 25% of maximum energy, floors at 1 HP, and never kills.
 * Ammo Depletion Trap zeroes all four ammo amounts and leaves capacities alone.
-* Freeze Trap freezes Samus at random moments for the configured window and each freeze can be broken by mashing jump.
+* Freeze Trap freezes Samus at random moments for the configured window, each freeze can be broken by mashing jump, and a memo announces when the window ends.
 * Traps wait out pauses and cutscenes, and drip out ~5 s apart.
 * A client restart or save reload never replays a trap.
 * No client traceback.

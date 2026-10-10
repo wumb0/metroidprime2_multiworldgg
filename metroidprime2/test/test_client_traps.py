@@ -27,7 +27,9 @@ from ..client.traps import (
     AMMO_ITEM_IDS,
     FREEZE_GAP_RANGE,
     FREEZE_LENGTH_RANGE,
+    FREEZE_OVER_MESSAGE,
     FREEZE_RETRY_DELAY,
+    INDEX_REQUEST_RETRY,
     MIN_TRAP_SPACING,
     TrapState,
     max_health,
@@ -164,6 +166,27 @@ class TestHandleTraps(unittest.TestCase):
         ctx = _context([2], processed_index=None)
         _tick(ctx)
         self.assertEqual([], ctx.game_interface.messages)
+
+    def test_requests_the_stored_index_and_retries_until_answered(self) -> None:
+        ctx = _context([2], processed_index=None)
+        key = "metroidprime2_trap_index_0_1"
+        _tick(ctx)
+        self.assertEqual([{"cmd": "Get", "keys": [key]}], ctx.sent)
+        _tick(ctx)  # too soon to ask again
+        self.assertEqual(1, len(ctx.sent))
+        ctx.trap_state.index_requested_at -= INDEX_REQUEST_RETRY
+        _tick(ctx)
+        self.assertEqual(2, len(ctx.sent))
+
+    def test_only_the_reply_carrying_our_key_sets_the_index(self) -> None:
+        ctx = _context([2], processed_index=None)
+        with mock.patch.object(MetroidPrime2Context.__mro__[1], "on_package", lambda *args: None):
+            MetroidPrime2Context.on_package(ctx, "Retrieved", {"keys": {"_read_hints_0_1": []}})
+            self.assertIsNone(ctx.trap_state.processed_index)
+            MetroidPrime2Context.on_package(ctx, "Retrieved", {"keys": {"metroidprime2_trap_index_0_1": 7}})
+            self.assertEqual(7, ctx.trap_state.processed_index)
+            MetroidPrime2Context.on_package(ctx, "Retrieved", {"keys": {"metroidprime2_trap_index_0_1": 9}})
+            self.assertEqual(7, ctx.trap_state.processed_index)
 
     def test_damage_trap_announces_then_applies_then_records(self) -> None:
         ctx = _context([1, 2])
@@ -314,6 +337,30 @@ class TestFreezeTrap(unittest.TestCase):
         calls = len(ctx.game_interface.freeze_calls)
         self._advance(ctx, 120)
         self.assertEqual(calls, len(ctx.game_interface.freeze_calls))
+
+    def test_hud_message_when_the_window_closes_exactly_once(self) -> None:
+        ctx = self._received([4], window=30)
+        self._receive_freeze(ctx)
+        messages = ctx.game_interface.messages
+        self._advance(ctx, 20)
+        self.assertNotIn(FREEZE_OVER_MESSAGE, messages)
+        self._advance(ctx, 40)
+        self.assertEqual(1, messages.count(FREEZE_OVER_MESSAGE))
+        self._advance(ctx, 60)
+        self.assertEqual(1, messages.count(FREEZE_OVER_MESSAGE))
+
+    def test_extended_window_announces_only_at_the_final_end(self) -> None:
+        ctx = self._received([4, 4], window=30)
+        self._receive_freeze(ctx)
+        self.clock.now += MIN_TRAP_SPACING
+        _tick(ctx)
+        ctx.game_interface.pending_op = False
+        _tick(ctx)
+        messages = ctx.game_interface.messages
+        self._advance(ctx, 40)
+        self.assertNotIn(FREEZE_OVER_MESSAGE, messages)
+        self._advance(ctx, 40)
+        self.assertEqual(1, messages.count(FREEZE_OVER_MESSAGE))
 
     def test_refused_freeze_is_retried_soon(self) -> None:
         ctx = self._received([4])
