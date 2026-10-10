@@ -62,6 +62,20 @@ class TestDeathLinkCheck(unittest.TestCase):
     def test_positive_health_without_pending_flag_is_a_noop(self) -> None:
         self.assertEqual((False, False), death_link_check(99.0, False))
 
+    def test_cleared_alive_flag_sends_even_with_positive_health(self) -> None:
+        self.assertEqual((True, True), death_link_check(50.0, False, alive=False))
+
+    def test_cleared_alive_flag_does_not_resend_while_pending(self) -> None:
+        self.assertEqual((False, True), death_link_check(50.0, True, alive=False))
+
+    def test_pending_flag_holds_until_alive_flag_returns(self) -> None:
+        self.assertEqual((False, True), death_link_check(99.0, True, alive=False))
+        self.assertEqual((False, False), death_link_check(99.0, True, alive=True))
+
+    def test_unknown_alive_flag_falls_back_to_health(self) -> None:
+        self.assertEqual((False, False), death_link_check(99.0, False, alive=None))
+        self.assertEqual((True, True), death_link_check(0.0, False, alive=None))
+
 
 class _FakeGameInterface:
     """Stands in for ``EchoesInterface``: records the health/alive writes

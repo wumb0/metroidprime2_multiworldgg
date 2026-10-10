@@ -506,6 +506,21 @@ class EchoesInterface:
         except DolphinException:
             return
 
+    def get_alive(self) -> bool | None:
+        """``versions.ALIVE_BIT_MASK`` bit of the byte at
+        ``versions.ALIVE_OFFSET`` (``CPlayerState::alive``). None if the
+        CPlayerState pointer is null or Dolphin isn't connected."""
+        player_state = self._player_state_pointer()
+        if player_state is None:
+            return None
+        try:
+            data = self.dolphin_client.read_address(player_state + versions.ALIVE_OFFSET, 1)
+        except DolphinException:
+            return None
+        if data is None:
+            return None
+        return bool(data[0] & versions.ALIVE_BIT_MASK)
+
     def set_alive(self, alive: bool) -> None:
         """Read-modify-write the ``versions.ALIVE_BIT_MASK`` bit of the byte
         at ``versions.ALIVE_OFFSET`` (``CPlayerState::alive``, packed

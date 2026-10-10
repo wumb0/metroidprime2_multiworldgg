@@ -187,6 +187,7 @@ class MetroidPrime2Context(CommonContext):
     mp2_iso: str | None = None
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
+    alive_flag_seen_set: bool = False
     # See _handle_check_goal: set once a read shows the goal marker absent.
     goal_marker_armed: bool = False
     # Set by the client's -v/--verbose flag: log ISO patching progress to the console.
@@ -508,8 +509,18 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
 
 async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
     health = ctx.game_interface.get_current_health()
-    should_send, ctx.is_pending_death_link_reset = death_link_check(health, ctx.is_pending_death_link_reset)
+    alive = ctx.game_interface.get_alive()
+    # ALIVE_BIT_MASK is unconfirmed against a live game, so a cleared flag only
+    # counts as a death once the bit has been observed set; a wrong bit that
+    # never reads set is ignored rather than reported as a permanent death.
+    if alive:
+        ctx.alive_flag_seen_set = True
+    flag_alive = alive if ctx.alive_flag_seen_set else None
+    should_send, ctx.is_pending_death_link_reset = death_link_check(
+        health, ctx.is_pending_death_link_reset, flag_alive
+    )
     if should_send and ctx.slot:
+        logger.info(f"DeathLink send: health={health} alive={alive}")
         await ctx.send_death(f"{ctx.player_names[ctx.slot]} ran out of energy.")
 
 
