@@ -119,6 +119,11 @@ def _area_maps() -> dict[str, dict[str, str]]:
 
 
 @cache
+def _area_names() -> dict[str, dict[str, str]]:
+    return _tracker_file("area_names.json")
+
+
+@cache
 def _map_names() -> list[str]:
     return [m["name"] for m in _tracker_file("maps", "maps.json")]
 
@@ -132,6 +137,22 @@ def map_page_index(data: Any) -> int:
         return _map_names().index(_area_maps()[mlvl.upper()][area])
     except (ValueError, KeyError):
         return -1
+
+
+def area_region_name(mlvl: int | None, area: int | None) -> str | None:
+    """Region name (e.g. "Dark Agon Wastes") for a live (MLVL, TAreaId) read,
+    or None if either is unavailable or unrecognized."""
+    if mlvl is None or area is None:
+        return None
+    return _area_maps().get(f"{mlvl:X}", {}).get(str(area))
+
+
+def area_room_name(mlvl: int | None, area: int | None) -> str | None:
+    """Room name (e.g. "Hall of Combat Mastery") for a live (MLVL, TAreaId)
+    read, or None if either is unavailable or unrecognized."""
+    if mlvl is None or area is None:
+        return None
+    return _area_names().get(f"{mlvl:X}", {}).get(str(area))
 
 
 @cache

@@ -26,3 +26,13 @@ def death_link_check(
     if not dead and is_pending_reset:
         return False, False
     return False, is_pending_reset
+
+
+def death_message(player_name: str, room: str | None, region: str | None) -> str:
+    """DeathLink cause text, naming the room (and region) the death happened
+    in when known."""
+    if room and region:
+        return f"{player_name} died in {region}'s {room}"
+    if room or region:
+        return f"{player_name} died in {room or region}"
+    return f"{player_name} ran out of energy."

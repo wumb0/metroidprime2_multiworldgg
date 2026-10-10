@@ -40,7 +40,8 @@ if "network_data_package" not in worlds.__dict__:
     worlds.network_data_package_single_game = {}
 
 from ..client.client import MetroidPrime2Context
-from ..client.death_link import death_link_check
+from ..client.death_link import death_link_check, death_message
+from ..tracker_data import area_region_name, area_room_name
 
 
 class TestDeathLinkCheck(unittest.TestCase):
@@ -75,6 +76,37 @@ class TestDeathLinkCheck(unittest.TestCase):
     def test_unknown_alive_flag_falls_back_to_health(self) -> None:
         self.assertEqual((False, False), death_link_check(99.0, False, alive=None))
         self.assertEqual((True, True), death_link_check(0.0, False, alive=None))
+
+
+class TestDeathMessage(unittest.TestCase):
+    def test_names_room_and_region_when_known(self) -> None:
+        self.assertEqual(
+            "Sam died in Sanctuary Fortress's Main Research",
+            death_message("Sam", "Main Research", "Sanctuary Fortress"),
+        )
+
+    def test_names_whichever_is_known(self) -> None:
+        self.assertEqual("Sam died in Agon Wastes", death_message("Sam", None, "Agon Wastes"))
+        self.assertEqual("Sam died in Main Research", death_message("Sam", "Main Research", None))
+
+    def test_falls_back_without_location(self) -> None:
+        self.assertEqual("Sam ran out of energy.", death_message("Sam", None, None))
+
+    def test_room_lookup_uses_live_mlvl_and_area_index(self) -> None:
+        self.assertEqual("Main Research", area_room_name(0x1BAA96C2, 11))
+        self.assertIsNone(area_room_name(None, 11))
+        self.assertIsNone(area_room_name(0x1BAA96C2, 9999))
+        self.assertIsNone(area_room_name(0xDEADBEEF, 0))
+
+    def test_region_lookup_uses_live_mlvl_and_area_index(self) -> None:
+        self.assertEqual("Sanctuary Fortress", area_region_name(0x1BAA96C2, 0))
+        self.assertEqual("Ing Hive", area_region_name(0x1BAA96C2, 12))
+
+    def test_region_lookup_unknown_is_none(self) -> None:
+        self.assertIsNone(area_region_name(None, 0))
+        self.assertIsNone(area_region_name(0x1BAA96C2, None))
+        self.assertIsNone(area_region_name(0x1BAA96C2, 9999))
+        self.assertIsNone(area_region_name(0xDEADBEEF, 0))
 
 
 class _FakeGameInterface:

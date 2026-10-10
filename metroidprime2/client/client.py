@@ -28,7 +28,7 @@ from ..hint_scans import decode_hint_scans, newly_completed_hints
 from ..items import TRAP_ITEM_NAMES
 from ..pickup_encoding import decode
 from ..utils import get_apworld_version, get_output_path, setup_libs
-from .death_link import death_link_check
+from .death_link import death_link_check, death_message
 from .dolphin_client import (
     DolphinException,
     assert_no_running_dolphin,
@@ -555,7 +555,14 @@ async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
     )
     if should_send and ctx.slot:
         logger.info(f"DeathLink send: health={health} alive={alive}")
-        await ctx.send_death(f"{ctx.player_names[ctx.slot]} ran out of energy.")
+        # Imported here: tracker_data pulls in the logic package, which the
+        # rest of the client doesn't need.
+        from ..tracker_data import area_region_name, area_room_name
+
+        mlvl = ctx.game_interface.current_mlvl()
+        area = ctx.game_interface.current_area_id()
+        message = death_message(ctx.player_names[ctx.slot], area_room_name(mlvl, area), area_region_name(mlvl, area))
+        await ctx.send_death(message)
 
 
 async def _handle_check_goal(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]] | None = None) -> None:
