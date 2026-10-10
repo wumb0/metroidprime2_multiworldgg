@@ -22,8 +22,10 @@ DAMAGE_TRAP = "Damage Trap"
 AMMO_DEPLETION_TRAP = "Ammo Depletion Trap"
 FREEZE_TRAP = "Freeze Trap"
 
-# Fraction of *maximum* energy the Damage Trap removes.
-DAMAGE_FRACTION = 0.25
+# Default range (percent of *maximum* energy) a Damage Trap removes; the real
+# range comes from the ``damage_trap_min_percent`` / ``damage_trap_max_percent``
+# slot data.
+DEFAULT_DAMAGE_PERCENT_RANGE = (25, 75)
 
 # Inventory slots the Ammo Depletion Trap zeroes: Power Bombs, Missiles,
 # Dark Ammo, Light Ammo (the same ids ``receive_items.py`` computes
@@ -42,10 +44,12 @@ INDEX_REQUEST_RETRY = 5.0
 
 # The Freeze Trap opens a window (``freeze_trap_duration`` seconds, from slot
 # data) during which the player is frozen at random moments. Each freeze lasts
-# a random time in FREEZE_LENGTH_RANGE and the next one comes a random time in
-# FREEZE_GAP_RANGE after the previous one took hold (both in seconds; mashing
-# jump still breaks a freeze early).
-FREEZE_LENGTH_RANGE = (2.0, 4.0)
+# a random time between ``freeze_trap_min_seconds`` and
+# ``freeze_trap_max_seconds`` (slot data; DEFAULT_FREEZE_LENGTH_RANGE if
+# absent) and the next one comes a random time in FREEZE_GAP_RANGE after the
+# previous one took hold (all in seconds; mashing jump still breaks a freeze
+# early).
+DEFAULT_FREEZE_LENGTH_RANGE = (4, 6)
 FREEZE_GAP_RANGE = (5.0, 20.0)
 
 # ``CPlayer::Freeze`` quietly refuses in some player states (morph ball
@@ -72,6 +76,9 @@ class TrapState:
     freeze_window_end: float = 0.0
     next_freeze_at: float = 0.0
     freeze_armed: bool = False
+    # Percent of maximum energy the announced Damage Trap will remove; rolled
+    # when it is announced so the HUD memo can state it.
+    damage_percent: int = 0
     # The window has closed but its "worn off" HUD message hasn't gone out yet.
     freeze_over_pending: bool = False
 
@@ -82,14 +89,20 @@ def max_health(energy_per_tank: int, energy_tanks: int) -> float:
     return float(energy_per_tank * (energy_tanks + 1) - 1)
 
 
-def plan_damage(health: float, max_energy: float) -> float:
-    """Health after a Damage Trap: ``DAMAGE_FRACTION`` of ``max_energy``
-    removed, never below 1 (a trap cannot kill) and never raising health."""
-    return min(health, max(1.0, health - DAMAGE_FRACTION * max_energy))
+def plan_damage(health: float, max_energy: float, percent: float) -> float:
+    """Health after a Damage Trap: ``percent`` of ``max_energy`` removed,
+    never below 1 (a trap cannot kill) and never raising health."""
+    return min(health, max(1.0, health - percent / 100 * max_energy))
 
 
-def random_freeze_length(rng: random.Random) -> float:
-    return rng.uniform(*FREEZE_LENGTH_RANGE)
+def random_damage_percent(rng: random.Random, low: int, high: int) -> int:
+    """A whole percent in ``[low, high]``; the bounds may come in either order."""
+    return rng.randint(min(low, high), max(low, high))
+
+
+def random_freeze_length(rng: random.Random, low: float, high: float) -> float:
+    """Seconds for one freeze, in ``[low, high]`` (bounds in either order)."""
+    return rng.uniform(min(low, high), max(low, high))
 
 
 def random_freeze_gap(rng: random.Random) -> float:
@@ -114,9 +127,9 @@ def _describe_duration(seconds: int) -> str:
     return f"{seconds} seconds"
 
 
-def trap_message(trap_name: str, freeze_window: int) -> str:
+def trap_message(trap_name: str, freeze_window: int, damage_percent: int = 0) -> str:
     if trap_name == DAMAGE_TRAP:
-        return "Damage Trap! You lose 25% of your energy."
+        return f"Damage Trap! You lose {damage_percent}% of your maximum energy."
     if trap_name == AMMO_DEPLETION_TRAP:
         return "Ammo Depletion Trap! Your ammo is gone."
     if trap_name == FREEZE_TRAP:

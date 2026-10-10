@@ -42,6 +42,8 @@ from .traps import (
     AMMO_DEPLETION_TRAP,
     AMMO_ITEM_IDS,
     DAMAGE_TRAP,
+    DEFAULT_DAMAGE_PERCENT_RANGE,
+    DEFAULT_FREEZE_LENGTH_RANGE,
     ENERGY_TANK_ITEM,
     FREEZE_TRAP,
     FREEZE_OVER_MESSAGE,
@@ -52,6 +54,7 @@ from .traps import (
     max_health,
     pending_traps,
     plan_damage,
+    random_damage_percent,
     random_freeze_gap,
     random_freeze_length,
     trap_message,
@@ -692,7 +695,6 @@ async def _handle_traps(ctx: MetroidPrime2Context, inventory: dict[int, tuple[in
     if state.processed_index is None:
         if time.time() - state.index_requested_at >= INDEX_REQUEST_RETRY:
             state.index_requested_at = time.time()
-            logger.debug("Requesting the trap index from DataStorage.")
             await ctx.send_msgs([{"cmd": "Get", "keys": [ctx._trap_index_key()]}])
         return False
     if not ctx.items_received:
@@ -705,7 +707,6 @@ async def _handle_traps(ctx: MetroidPrime2Context, inventory: dict[int, tuple[in
         index, trap_name = state.announced
         if not _apply_trap(ctx, trap_name, inventory):
             return False
-        logger.info(f"Applied {trap_name} (received item #{index}).")
         state.announced = None
         state.processed_index = index + 1
         state.last_applied = time.time()
@@ -730,9 +731,14 @@ async def _handle_traps(ctx: MetroidPrime2Context, inventory: dict[int, tuple[in
     if not pending:
         return False
     index, trap_name = pending[0]
-    if not game.send_hud_message(trap_message(trap_name, _freeze_window_seconds(ctx))):
+    if trap_name == DAMAGE_TRAP:
+        state.damage_percent = random_damage_percent(
+            ctx.trap_rng,
+            int(ctx.slot_data.get("damage_trap_min_percent", DEFAULT_DAMAGE_PERCENT_RANGE[0])),
+            int(ctx.slot_data.get("damage_trap_max_percent", DEFAULT_DAMAGE_PERCENT_RANGE[1])),
+        )
+    if not game.send_hud_message(trap_message(trap_name, _freeze_window_seconds(ctx), state.damage_percent)):
         return False
-    logger.info(f"Received {trap_name} (item #{index}); announcing it.")
     state.announced = (index, trap_name)
     return True
 
@@ -793,7 +799,13 @@ async def _handle_freeze_window(ctx: MetroidPrime2Context) -> bool:
     if frozen is not None and frozen > 0:
         state.next_freeze_at = now + random_freeze_gap(ctx.trap_rng)
         return False
-    game.freeze_player(random_freeze_length(ctx.trap_rng))
+    game.freeze_player(
+        random_freeze_length(
+            ctx.trap_rng,
+            float(ctx.slot_data.get("freeze_trap_min_seconds", DEFAULT_FREEZE_LENGTH_RANGE[0])),
+            float(ctx.slot_data.get("freeze_trap_max_seconds", DEFAULT_FREEZE_LENGTH_RANGE[1])),
+        )
+    )
     state.freeze_armed = True
     return True
 
@@ -807,7 +819,7 @@ def _apply_trap(ctx: MetroidPrime2Context, trap_name: str, inventory: dict[int, 
             return False
         energy_per_tank = int(ctx.slot_data.get("energy_per_tank", 100))
         max_energy = max_health(energy_per_tank, inventory[ENERGY_TANK_ITEM][0])
-        game.set_current_health(plan_damage(health, max_energy))
+        game.set_current_health(plan_damage(health, max_energy, ctx.trap_state.damage_percent))
         return True
     if trap_name == AMMO_DEPLETION_TRAP:
         for item_id in AMMO_ITEM_IDS:

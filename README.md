@@ -135,8 +135,12 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 | `enable_double_damage_pickup` | Toggle | off | Add one Double Damage item to the pool (replacing a Missile Expansion). Damage is multiplied by `double_damage_multiplier` once received. Logic never requires it. |
 | `enable_unlimited_beam_ammo_pickup` | Toggle | off | Add one Unlimited Beam Ammo item to the pool (replacing a Missile Expansion). Dark, Light and Annihilator shots cost no ammo once received. Logic never requires it. |
 | `trap_percentage` | Range 0-100 | 0 | Percentage of the pool's Missile Expansions replaced with traps (see `trap_weights`). At least 13 Missile Expansions always remain, which is what logic can ask for. Traps are never required by logic. |
-| `trap_weights` | Counter | 1 each | Relative weight of each trap type: `Damage Trap` (removes 25% of your maximum energy, never kills), `Ammo Depletion Trap` (zeroes Missiles, Power Bombs, Dark and Light ammo; capacities are unchanged) and `Freeze Trap` (for `freeze_trap_duration` seconds you are frozen in ice at random moments; mashing jump breaks each freeze early). A weight of 0 disables that trap. |
-| `freeze_trap_duration` | Range 30-600 | 120 | Seconds a Freeze Trap lasts. During that time the client freezes you for 2-4 seconds at a time, every 5-20 seconds. A second Freeze Trap received meanwhile extends it. |
+| `trap_weights` | Counter | 1 each | Relative weight of each trap type: `Damage Trap` (removes a random share of your maximum energy, `damage_trap_min_percent` to `damage_trap_max_percent`, never kills), `Ammo Depletion Trap` (zeroes Missiles, Power Bombs, Dark and Light ammo; capacities are unchanged) and `Freeze Trap` (for `freeze_trap_duration` seconds you are frozen in ice at random moments; mashing jump breaks each freeze early). A weight of 0 disables that trap. |
+| `damage_trap_min_percent` | Range 1-100 | 25 | The least a Damage Trap removes, as a percentage of your maximum energy. Each trap picks a random whole percentage between the two options (swapped if min is larger). |
+| `damage_trap_max_percent` | Range 1-100 | 75 | The most a Damage Trap removes, as a percentage of your maximum energy. |
+| `freeze_trap_duration` | Range 30-600 | 120 | Seconds a Freeze Trap lasts. During that time the client freezes you for `freeze_trap_min_seconds` to `freeze_trap_max_seconds` at a time, every 5-20 seconds. A second Freeze Trap received meanwhile extends it. |
+| `freeze_trap_min_seconds` | Range 1-30 | 4 | The shortest a single freeze lasts, in seconds. Each freeze picks a random time between the two options (swapped if min is larger). Mashing jump breaks a freeze early. |
+| `freeze_trap_max_seconds` | Range 1-30 | 6 | The longest a single freeze lasts, in seconds. |
 | `trap_disguise` | Toggle | off | Traps in your own world look like (and are announced as) a random ordinary pickup. |
 
 ### Logic

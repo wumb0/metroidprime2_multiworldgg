@@ -157,7 +157,7 @@ requires:
 
   # Relative weight of each trap type among the traps placed by
   # trap_percentage; 0 disables that trap.
-  #   Damage Trap:          removes 25% of your maximum energy (never kills)
+  #   Damage Trap:          removes a random share of your maximum energy (never kills)
   #   Ammo Depletion Trap:  zeroes Missiles, Power Bombs, Dark and Light ammo
   #   Freeze Trap:          freezes you at random moments for freeze_trap_duration seconds
   trap_weights:
@@ -165,11 +165,25 @@ requires:
     Ammo Depletion Trap: 1
     Freeze Trap: 1
 
+  # Least / most a Damage Trap removes, as a percentage of your maximum
+  # energy; each trap picks a random whole percentage in between (swapped if
+  # min is larger). A Damage Trap never kills you.
+  # Options: 1 - 100
+  damage_trap_min_percent: 25
+  damage_trap_max_percent: 75
+
   # Seconds a Freeze Trap lasts. For that long you are frozen in ice at
-  # random moments (2-4 s at a time, every 5-20 s); mashing jump breaks each
-  # freeze early. A second Freeze Trap received meanwhile extends it.
+  # random moments (every 5-20 s, for a random time between
+  # freeze_trap_min_seconds and freeze_trap_max_seconds); mashing jump breaks
+  # each freeze early. A second Freeze Trap received meanwhile extends it.
   # Options: 30 - 600
   freeze_trap_duration: 120
+
+  # Shortest / longest a single freeze lasts, in seconds; each freeze picks a
+  # random time in between (swapped if min is larger).
+  # Options: 1 - 30
+  freeze_trap_min_seconds: 4
+  freeze_trap_max_seconds: 6
 
   # Traps in your own world look like a random ordinary pickup.
   # Options: true, false

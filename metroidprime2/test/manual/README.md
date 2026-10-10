@@ -1868,11 +1868,11 @@ If it fails, look at:
 
 ### MT22_TRAPS -- `mt22_traps` (P1)
 
-*Proves: client._handle_traps announces each received trap on the HUD, then applies it once the game has shown the message: Damage Trap removes 25% of maximum energy and never kills, Ammo Depletion Trap zeroes Missiles / Power Bombs / Dark Ammo / Light Ammo without touching capacities, and Freeze Trap opens a `freeze_trap_duration`-second window in which Samus is frozen via CPlayer::Freeze at random moments; none of them replays after a client restart*
+*Proves: client._handle_traps announces each received trap on the HUD, then applies it once the game has shown the message: Damage Trap removes a random 25-75% of maximum energy and never kills, Ammo Depletion Trap zeroes Missiles / Power Bombs / Dark Ammo / Light Ammo without touching capacities, and Freeze Trap opens a `freeze_trap_duration`-second window in which Samus is frozen via CPlayer::Freeze at random moments; none of them replays after a client restart*
 
 Prerequisites for this test:
 * Host the generated multiworld and keep the server console open; every step pastes a `/send` into it.
-* The start inventory holds 14 Energy Tanks, so maximum energy is 1499 and one Damage Trap removes about 375. Traps cannot be in the start inventory, so none fire on connect.
+* The start inventory holds 14 Energy Tanks, so maximum energy is 1499 and one Damage Trap removes a random 25-75% of that (about 375 to 1124). Traps cannot be in the start inventory, so none fire on connect.
 * The start inventory leaves out Unlimited Missiles and Unlimited Beam Ammo so ammo is a real count. Open the pause screen's inventory once to note your Missile / Power Bomb / Dark / Light ammo totals (or watch the HUD counters).
 
 Build:
@@ -1887,7 +1887,7 @@ What the build contains:
 
 Notes / derived values:
 * A trap takes effect one HUD message after it arrives, and no sooner than ~5 s after the previous trap. Send several at once to see them drip out one by one.
-* Freeze is the engine's own player freeze (the effect Samus gets from ice attacks). A Freeze Trap does not freeze immediately: it opens a window (60 s here, 120 s by default) in which a freeze of 2-4 s happens every 5-20 s. Mashing jump breaks a freeze early. The game refuses a freeze in a few player states (e.g. mid morph-ball transition); the client retries about a second later.
+* Freeze is the engine's own player freeze (the effect Samus gets from ice attacks). A Freeze Trap does not freeze immediately: it opens a window (60 s here, 120 s by default) in which a freeze of 4-6 s (by default) happens every 5-20 s. Mashing jump breaks a freeze early. The game refuses a freeze in a few player states (e.g. mid morph-ball transition); the client retries about a second later.
 * Disguised traps (`trap_disguise`) and the pool placement are generation-time and covered by `test/test_pool.py` and `test/test_patch_data.py`.
 
 Run:
@@ -1902,7 +1902,7 @@ Steps:
 1. **Do:** Start New Game, connect the client, and let the first room settle.
    **Expect:** Full energy, nothing frozen, no trap messages.
 2. **Do:** Server console: `/send mt22_traps Damage Trap`
-   **Expect:** A HUD memo `Damage Trap! You lose 25% of your energy.` and then energy drops by 25% of the maximum (about 375 of 1499), not 25% of the current value.
+   **Expect:** A HUD memo `Damage Trap! You lose N% of your maximum energy.` with N between 25 and 75, and then energy drops by N% of the maximum (of 1499), not N% of the current value. Send a few more: N varies from trap to trap.
 3. **Do:** Repeat `/send mt22_traps Damage Trap` until energy is below ~375, then send one more.
    **Expect:** Energy drops to exactly 1 and Samus does not die. No DeathLink is sent if enabled.
    *(exercises: A trap must never be lethal.)*
@@ -1910,7 +1910,7 @@ Steps:
    **Expect:** A HUD memo `Ammo Depletion Trap! Your ammo is gone.` and Missiles, Power Bombs, Dark Ammo and Light Ammo are all 0. Pause screen still shows the full capacities (Energy Tanks etc. unchanged), and collecting an ammo pickup works normally afterwards.
    *(exercises: Only the amounts are zeroed; plan_grants compares capacities, so nothing refills them.)*
 5. **Do:** Server console: `/send mt22_traps Freeze Trap`
-   **Expect:** A HUD memo `Freeze Trap! You will freeze at random for 1 minute.` Over the next 60 s Samus freezes in ice 3-8 times for 2-4 s each, at uneven intervals, unable to move or shoot. Mashing jump shatters a freeze early. After 60 s no more freezes happen and a HUD memo `The Freeze Trap has worn off.` appears.
+   **Expect:** A HUD memo `Freeze Trap! You will freeze at random for 1 minute.` Over the next 60 s Samus freezes in ice 2-6 times for 4-6 s each, at uneven intervals, unable to move or shoot. Mashing jump shatters a freeze early. After 60 s no more freezes happen and a HUD memo `The Freeze Trap has worn off.` appears.
 6. **Do:** `/send mt22_traps Freeze Trap`, then stay in Morph Ball (rolling around) for the whole minute.
    **Expect:** Either Samus freezes as a ball or the freezes are skipped and land once she unmorphs. No crash, no permanent stuck state.
    *(exercises: CPlayer::Freeze bails out in some states; the client retries about a second later.)*
@@ -1929,7 +1929,7 @@ Steps:
 
 Pass if:
 * Each trap shows its HUD memo and then applies exactly once.
-* Damage Trap removes 25% of maximum energy, floors at 1 HP, and never kills.
+* Damage Trap removes the announced 25-75% of maximum energy, floors at 1 HP, and never kills.
 * Ammo Depletion Trap zeroes all four ammo amounts and leaves capacities alone.
 * Freeze Trap freezes Samus at random moments for the configured window, each freeze can be broken by mashing jump, and a memo announces when the window ends.
 * Traps wait out pauses and cutscenes, and drip out ~5 s apart.

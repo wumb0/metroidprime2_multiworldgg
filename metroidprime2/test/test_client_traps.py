@@ -26,7 +26,7 @@ from ..client.client import MetroidPrime2Context, _handle_freeze_window, _handle
 from ..client.traps import (
     AMMO_ITEM_IDS,
     FREEZE_GAP_RANGE,
-    FREEZE_LENGTH_RANGE,
+    DEFAULT_FREEZE_LENGTH_RANGE,
     FREEZE_OVER_MESSAGE,
     FREEZE_RETRY_DELAY,
     INDEX_REQUEST_RETRY,
@@ -35,20 +35,31 @@ from ..client.traps import (
     max_health,
     pending_traps,
     plan_damage,
+    random_damage_percent,
     trap_message,
 )
 
 
 class TestPlanDamage(unittest.TestCase):
-    def test_removes_quarter_of_max_energy(self) -> None:
-        self.assertEqual(1099.0 - 0.25 * 1499.0, plan_damage(1099.0, 1499.0))
+    def test_removes_the_percentage_of_max_energy(self) -> None:
+        self.assertEqual(1099.0 - 0.25 * 1499.0, plan_damage(1099.0, 1499.0, 25))
+        self.assertEqual(1.0, plan_damage(1099.0, 1499.0, 75))
+        self.assertEqual(1400.0 - 749.5, plan_damage(1400.0, 1499.0, 50))
 
     def test_never_kills(self) -> None:
-        self.assertEqual(1.0, plan_damage(50.0, 1499.0))
+        self.assertEqual(1.0, plan_damage(50.0, 1499.0, 25))
 
     def test_never_raises_health(self) -> None:
-        self.assertEqual(1.0, plan_damage(1.0, 1499.0))
-        self.assertEqual(0.5, plan_damage(0.5, 1499.0))
+        self.assertEqual(1.0, plan_damage(1.0, 1499.0, 25))
+        self.assertEqual(0.5, plan_damage(0.5, 1499.0, 25))
+
+    def test_random_percent_stays_within_the_bounds_in_either_order(self) -> None:
+        rng = random.Random(7)
+        rolled = {random_damage_percent(rng, 25, 75) for _ in range(500)}
+        self.assertTrue(all(25 <= percent <= 75 for percent in rolled))
+        self.assertGreater(len(rolled), 20)
+        self.assertEqual({40}, {random_damage_percent(rng, 40, 40) for _ in range(10)})
+        self.assertTrue(all(10 <= random_damage_percent(rng, 30, 10) <= 30 for _ in range(100)))
 
     def test_max_health_scales_with_tanks_and_energy_per_tank(self) -> None:
         self.assertEqual(99.0, max_health(100, 0))
@@ -78,7 +89,10 @@ class TestPendingTraps(unittest.TestCase):
 class TestTrapMessage(unittest.TestCase):
     def test_messages_fit_the_hud(self) -> None:
         for name in ("Damage Trap", "Ammo Depletion Trap", "Freeze Trap"):
-            self.assertLessEqual(len(trap_message(name, 30)), 90)
+            self.assertLessEqual(len(trap_message(name, 30, 100)), 90)
+
+    def test_damage_message_states_the_percentage(self) -> None:
+        self.assertIn("42%", trap_message("Damage Trap", 120, 42))
 
     def test_freeze_message_names_window(self) -> None:
         self.assertIn("2 minutes", trap_message("Freeze Trap", 120))
@@ -190,8 +204,10 @@ class TestHandleTraps(unittest.TestCase):
 
     def test_damage_trap_announces_then_applies_then_records(self) -> None:
         ctx = _context([1, 2])
+        ctx.slot_data.update(damage_trap_min_percent=25, damage_trap_max_percent=25)
         _tick(ctx)  # phase 1: HUD message
         self.assertEqual(1, len(ctx.game_interface.messages))
+        self.assertIn("25%", ctx.game_interface.messages[0])
         self.assertEqual(500.0, ctx.game_interface.health)
         self.assertEqual(0, len(ctx.sent))
 
@@ -205,6 +221,22 @@ class TestHandleTraps(unittest.TestCase):
         self.assertEqual(2, ctx.trap_state.processed_index)
         self.assertEqual("max", ctx.sent[0]["operations"][0]["operation"])
         self.assertEqual(2, ctx.sent[0]["operations"][0]["value"])
+
+    def test_damage_uses_the_percentage_announced_in_the_memo(self) -> None:
+        ctx = _context([2])
+        ctx.slot_data.update(damage_trap_min_percent=10, damage_trap_max_percent=60)
+        _tick(ctx)
+        percent = ctx.trap_state.damage_percent
+        self.assertTrue(10 <= percent <= 60)
+        self.assertIn(f"{percent}%", ctx.game_interface.messages[0])
+        ctx.game_interface.pending_op = False
+        _tick(ctx)
+        self.assertEqual(max(1.0, 500.0 - percent / 100 * 499.0), ctx.game_interface.health)
+
+    def test_damage_defaults_to_25_through_75_without_slot_data(self) -> None:
+        ctx = _context([2])
+        _tick(ctx)
+        self.assertTrue(25 <= ctx.trap_state.damage_percent <= 75)
 
     def test_ammo_trap_zeroes_amounts_only(self) -> None:
         ctx = _context([3])
@@ -317,7 +349,7 @@ class TestFreezeTrap(unittest.TestCase):
         self.assertTrue(all(time <= window_end + 1 for time in freeze_times))
         gaps = [later - earlier for earlier, later in itertools.pairwise(freeze_times)]
         self.assertTrue(
-            all(FREEZE_GAP_RANGE[0] <= gap <= FREEZE_GAP_RANGE[1] + FREEZE_LENGTH_RANGE[1] + 1 for gap in gaps)
+            all(FREEZE_GAP_RANGE[0] <= gap <= FREEZE_GAP_RANGE[1] + DEFAULT_FREEZE_LENGTH_RANGE[1] + 1 for gap in gaps)
         )
         self.assertGreater(len(set(gaps)), 1, "gaps should vary")
 
@@ -327,8 +359,17 @@ class TestFreezeTrap(unittest.TestCase):
         self._advance(ctx, 600)
         lengths = ctx.game_interface.freeze_calls
         self.assertGreater(len(lengths), 5)
-        self.assertTrue(all(FREEZE_LENGTH_RANGE[0] <= length <= FREEZE_LENGTH_RANGE[1] for length in lengths))
+        self.assertTrue(all(DEFAULT_FREEZE_LENGTH_RANGE[0] <= length <= DEFAULT_FREEZE_LENGTH_RANGE[1] for length in lengths))
         self.assertGreater(len(set(lengths)), 1)
+
+    def test_freeze_length_follows_the_configured_range(self) -> None:
+        ctx = self._received([4], window=600)
+        ctx.slot_data.update(freeze_trap_min_seconds=9, freeze_trap_max_seconds=7)
+        self._receive_freeze(ctx)
+        self._advance(ctx, 600)
+        lengths = ctx.game_interface.freeze_calls
+        self.assertGreater(len(lengths), 5)
+        self.assertTrue(all(7 <= length <= 9 for length in lengths))
 
     def test_no_freezes_after_the_window_closes(self) -> None:
         ctx = self._received([4], window=30)

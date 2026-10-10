@@ -709,7 +709,8 @@ class TrapWeights(OptionCounter):
     """Relative weights of each trap type among the traps placed by
     `trap_percentage`. Set a weight to 0 to disable that trap.
 
-    - Damage Trap: removes 25% of your maximum energy (never kills you).
+    - Damage Trap: removes a random share of your maximum energy, between
+      `damage_trap_min_percent` and `damage_trap_max_percent` (never kills you).
     - Ammo Depletion Trap: sets your Missiles, Power Bombs, Dark Ammo and
       Light Ammo to 0 (capacities are unchanged).
     - Freeze Trap: for `freeze_trap_duration` seconds you are frozen in
@@ -732,6 +733,50 @@ class FreezeTrapDuration(Range):
     range_start = 30
     range_end = 600
     default = 120
+
+
+class DamageTrapMinPercent(Range):
+    """The least a Damage Trap removes, as a percentage of your maximum
+    energy. Each trap removes a random whole percentage between this and
+    `damage_trap_max_percent` (swapped if this is the larger of the two).
+    A Damage Trap never kills you."""
+
+    display_name = "Damage Trap Minimum Percent"
+    range_start = 1
+    range_end = 100
+    default = 25
+
+
+class DamageTrapMaxPercent(Range):
+    """The most a Damage Trap removes, as a percentage of your maximum
+    energy. See `damage_trap_min_percent`."""
+
+    display_name = "Damage Trap Maximum Percent"
+    range_start = 1
+    range_end = 100
+    default = 75
+
+
+class FreezeTrapMinSeconds(Range):
+    """The shortest a single freeze during a Freeze Trap lasts, in seconds.
+    Each freeze lasts a random time between this and
+    `freeze_trap_max_seconds` (swapped if this is the larger of the two).
+    Mashing jump still breaks the ice early."""
+
+    display_name = "Freeze Trap Minimum Freeze Seconds"
+    range_start = 1
+    range_end = 30
+    default = 4
+
+
+class FreezeTrapMaxSeconds(Range):
+    """The longest a single freeze during a Freeze Trap lasts, in seconds.
+    See `freeze_trap_min_seconds`."""
+
+    display_name = "Freeze Trap Maximum Freeze Seconds"
+    range_start = 1
+    range_end = 30
+    default = 6
 
 
 class TrapDisguise(Toggle):
@@ -868,7 +913,11 @@ class MetroidPrime2Options(PerGameCommonOptions):
     enable_unlimited_beam_ammo_pickup: EnableUnlimitedBeamAmmoPickup
     trap_percentage: TrapPercentage
     trap_weights: TrapWeights
+    damage_trap_min_percent: DamageTrapMinPercent
+    damage_trap_max_percent: DamageTrapMaxPercent
     freeze_trap_duration: FreezeTrapDuration
+    freeze_trap_min_seconds: FreezeTrapMinSeconds
+    freeze_trap_max_seconds: FreezeTrapMaxSeconds
     trap_disguise: TrapDisguise
 
     trick_level: TrickLevel
@@ -965,7 +1014,11 @@ OPTION_GROUPS: list[OptionGroup] = [
             EnableUnlimitedBeamAmmoPickup,
             TrapPercentage,
             TrapWeights,
+            DamageTrapMinPercent,
+            DamageTrapMaxPercent,
             FreezeTrapDuration,
+            FreezeTrapMinSeconds,
+            FreezeTrapMaxSeconds,
             TrapDisguise,
         ],
     ),

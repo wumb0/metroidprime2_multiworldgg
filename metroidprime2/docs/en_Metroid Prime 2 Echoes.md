@@ -31,11 +31,13 @@ something bad when you receive them. Logic never relies on them and enough Missi
 `trap_weights` chooses which traps appear, and `trap_disguise` makes the ones in your own world look like ordinary
 pickups until you receive them.
 
-- **Damage Trap**: removes 25% of your maximum energy. It can never kill you; it leaves you at 1 energy at worst.
+- **Damage Trap**: removes a random share of your maximum energy, between `damage_trap_min_percent` and
+  `damage_trap_max_percent` (25% to 75% by default). It can never kill you; it leaves you at 1 energy at worst.
 - **Ammo Depletion Trap**: sets your Missiles, Power Bombs, Dark Ammo and Light Ammo to 0. Your capacities are
   unchanged, so any ammo you pick up afterwards works normally.
 - **Freeze Trap**: for `freeze_trap_duration` seconds (two minutes by default) you are frozen in ice at random
-  moments, for a few seconds each time, as ice attacks do. Mashing jump breaks a freeze early. A second Freeze Trap
+  moments, for 4 to 6 seconds each time by default (`freeze_trap_min_seconds` / `freeze_trap_max_seconds`), as ice
+  attacks do. Mashing jump breaks a freeze early. A second Freeze Trap
   received meanwhile extends the time.
 
 A trap takes effect a moment after it is received, once the game is not in a cutscene, and traps received together

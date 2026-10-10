@@ -1936,13 +1936,16 @@ until it arrives, advanced with a `max` Set). Positions below
 Two phases: send the HUD memo (the remote-execution hook only runs outside
 cutscenes), and apply the effect once the pending-op flag has cleared.
 
-- Damage: 25% of max energy (`energy_per_tank * (tanks + 1) - 1`), floored at 1.
+- Damage: a random whole percent in [`damage_trap_min_percent`, `damage_trap_max_percent`]
+  (default 25-75, rolled from `ctx.trap_rng` when the memo is announced so the memo
+  can state it) of max energy (`energy_per_tank * (tanks + 1) - 1`), floored at 1.
 - Ammo Depletion: `set_item_amount(id, 0)` for items 43-46, a direct write of the
   amount only; `plan_grants` compares capacities, so nothing refills it.
 - Freeze: a *window* rather than a single freeze. Receiving the trap opens a
   `freeze_trap_duration`-second window (default 120, range 30-600; a second trap
-  extends it); `_handle_freeze_window` freezes the player for a random 2-4 s every
-  random 5-20 s (`traps.FREEZE_LENGTH_RANGE` / `FREEZE_GAP_RANGE`, drawn from
+  extends it); `_handle_freeze_window` freezes the player for a random time in
+  [`freeze_trap_min_seconds`, `freeze_trap_max_seconds`] (default 4-6 s) every random
+  5-20 s (`traps.FREEZE_GAP_RANGE`; both drawn from
   `ctx.trap_rng`). The window is wall-clock state in memory only, so a client
   restart drops what is left of it. Each freeze is
   `CPlayer::Freeze(seconds, mgr, -1, -1, -1)` through `execute()`. Found by
