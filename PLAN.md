@@ -1945,7 +1945,7 @@ cutscenes), and apply the effect once the pending-op flag has cleared.
   `freeze_trap_duration`-second window (default 120, range 30-600; a second trap
   extends it); `_handle_freeze_window` freezes the player for a random time in
   [`freeze_trap_min_seconds`, `freeze_trap_max_seconds`] (default 4-6 s) every random
-  5-20 s (`traps.FREEZE_GAP_RANGE`; both drawn from
+  [`freeze_trap_min_gap_seconds`, `freeze_trap_max_gap_seconds`] (default 5-20 s) after the previous one started (both drawn from
   `ctx.trap_rng`). The window is wall-clock state in memory only, so a client
   restart drops what is left of it. Each freeze is
   `CPlayer::Freeze(seconds, mgr, -1, -1, -1)` through `execute()`. Found by

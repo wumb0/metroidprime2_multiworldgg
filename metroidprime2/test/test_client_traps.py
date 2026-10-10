@@ -25,7 +25,7 @@ from NetUtils import NetworkItem
 from ..client.client import MetroidPrime2Context, _handle_freeze_window, _handle_traps
 from ..client.traps import (
     AMMO_ITEM_IDS,
-    FREEZE_GAP_RANGE,
+    DEFAULT_FREEZE_GAP_RANGE,
     DEFAULT_FREEZE_LENGTH_RANGE,
     FREEZE_OVER_MESSAGE,
     FREEZE_RETRY_DELAY,
@@ -324,7 +324,7 @@ class TestFreezeTrap(unittest.TestCase):
         start = self.clock.now
         self._receive_freeze(ctx)
         self.assertEqual(start + 90, ctx.trap_state.freeze_window_end)
-        low, high = FREEZE_GAP_RANGE
+        low, high = DEFAULT_FREEZE_GAP_RANGE
         self.assertTrue(start + low <= ctx.trap_state.next_freeze_at <= start + high)
         self.assertEqual(1, ctx.trap_state.processed_index)
         self.assertEqual([], ctx.game_interface.freeze_calls)  # not frozen right away
@@ -349,7 +349,7 @@ class TestFreezeTrap(unittest.TestCase):
         self.assertTrue(all(time <= window_end + 1 for time in freeze_times))
         gaps = [later - earlier for earlier, later in itertools.pairwise(freeze_times)]
         self.assertTrue(
-            all(FREEZE_GAP_RANGE[0] <= gap <= FREEZE_GAP_RANGE[1] + DEFAULT_FREEZE_LENGTH_RANGE[1] + 1 for gap in gaps)
+            all(DEFAULT_FREEZE_GAP_RANGE[0] <= gap <= DEFAULT_FREEZE_GAP_RANGE[1] + DEFAULT_FREEZE_LENGTH_RANGE[1] + 1 for gap in gaps)
         )
         self.assertGreater(len(set(gaps)), 1, "gaps should vary")
 
@@ -370,6 +370,25 @@ class TestFreezeTrap(unittest.TestCase):
         lengths = ctx.game_interface.freeze_calls
         self.assertGreater(len(lengths), 5)
         self.assertTrue(all(7 <= length <= 9 for length in lengths))
+
+    def test_gap_between_freezes_follows_the_configured_range(self) -> None:
+        ctx = self._received([4], window=600)
+        ctx.slot_data.update(freeze_trap_min_gap_seconds=40, freeze_trap_max_gap_seconds=30)
+        start = self.clock.now
+        self._receive_freeze(ctx)
+        self.assertTrue(start + 30 <= ctx.trap_state.next_freeze_at <= start + 40)
+        freeze_times: list[float] = []
+        original = ctx.game_interface.freeze_player
+
+        def record(seconds: float) -> None:
+            freeze_times.append(self.clock.now)
+            original(seconds)
+
+        ctx.game_interface.freeze_player = record  # type: ignore[method-assign]
+        self._advance(ctx, 600)
+        self.assertGreater(len(freeze_times), 5)
+        gaps = [later - earlier for earlier, later in itertools.pairwise(freeze_times)]
+        self.assertTrue(all(29.5 <= gap <= 40.5 + 40 for gap in gaps))
 
     def test_no_freezes_after_the_window_closes(self) -> None:
         ctx = self._received([4], window=30)

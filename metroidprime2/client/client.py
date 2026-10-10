@@ -43,6 +43,7 @@ from .traps import (
     AMMO_ITEM_IDS,
     DAMAGE_TRAP,
     DEFAULT_DAMAGE_PERCENT_RANGE,
+    DEFAULT_FREEZE_GAP_RANGE,
     DEFAULT_FREEZE_LENGTH_RANGE,
     ENERGY_TANK_ITEM,
     FREEZE_TRAP,
@@ -747,6 +748,14 @@ def _freeze_window_seconds(ctx: MetroidPrime2Context) -> int:
     return int(ctx.slot_data.get("freeze_trap_duration", 120))
 
 
+def _next_freeze_gap(ctx: MetroidPrime2Context) -> float:
+    return random_freeze_gap(
+        ctx.trap_rng,
+        float(ctx.slot_data.get("freeze_trap_min_gap_seconds", DEFAULT_FREEZE_GAP_RANGE[0])),
+        float(ctx.slot_data.get("freeze_trap_max_gap_seconds", DEFAULT_FREEZE_GAP_RANGE[1])),
+    )
+
+
 def _start_freeze_window(ctx: MetroidPrime2Context) -> None:
     """Opens the Freeze Trap's window; a trap received while one is running
     extends it instead of stacking a second schedule."""
@@ -757,7 +766,7 @@ def _start_freeze_window(ctx: MetroidPrime2Context) -> None:
         return
     state.freeze_over_pending = True
     state.freeze_window_end = now + _freeze_window_seconds(ctx)
-    state.next_freeze_at = now + random_freeze_gap(ctx.trap_rng)
+    state.next_freeze_at = now + _next_freeze_gap(ctx)
 
 
 async def _handle_freeze_window(ctx: MetroidPrime2Context) -> bool:
@@ -781,7 +790,7 @@ async def _handle_freeze_window(ctx: MetroidPrime2Context) -> bool:
         state.freeze_armed = False
         timeout = game.read_frozen_timeout()
         took = timeout is not None and timeout > 0
-        state.next_freeze_at = now + (random_freeze_gap(ctx.trap_rng) if took else FREEZE_RETRY_DELAY)
+        state.next_freeze_at = now + (_next_freeze_gap(ctx) if took else FREEZE_RETRY_DELAY)
         return False
 
     if window_over:
@@ -797,7 +806,7 @@ async def _handle_freeze_window(ctx: MetroidPrime2Context) -> bool:
         return False
     frozen = game.read_frozen_timeout()
     if frozen is not None and frozen > 0:
-        state.next_freeze_at = now + random_freeze_gap(ctx.trap_rng)
+        state.next_freeze_at = now + _next_freeze_gap(ctx)
         return False
     game.freeze_player(
         random_freeze_length(

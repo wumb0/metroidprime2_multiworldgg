@@ -46,11 +46,12 @@ INDEX_REQUEST_RETRY = 5.0
 # data) during which the player is frozen at random moments. Each freeze lasts
 # a random time between ``freeze_trap_min_seconds`` and
 # ``freeze_trap_max_seconds`` (slot data; DEFAULT_FREEZE_LENGTH_RANGE if
-# absent) and the next one comes a random time in FREEZE_GAP_RANGE after the
-# previous one took hold (all in seconds; mashing jump still breaks a freeze
-# early).
+# absent) and the next one comes a random gap after the
+# previous one took hold (``freeze_trap_min_gap_seconds`` /
+# ``freeze_trap_max_gap_seconds``, default DEFAULT_FREEZE_GAP_RANGE; all in
+# seconds; mashing jump still breaks a freeze early).
 DEFAULT_FREEZE_LENGTH_RANGE = (4, 6)
-FREEZE_GAP_RANGE = (5.0, 20.0)
+DEFAULT_FREEZE_GAP_RANGE = (5, 20)
 
 # ``CPlayer::Freeze`` quietly refuses in some player states (morph ball
 # transitions and the like); after a refusal the client tries again this many
@@ -105,8 +106,9 @@ def random_freeze_length(rng: random.Random, low: float, high: float) -> float:
     return rng.uniform(min(low, high), max(low, high))
 
 
-def random_freeze_gap(rng: random.Random) -> float:
-    return rng.uniform(*FREEZE_GAP_RANGE)
+def random_freeze_gap(rng: random.Random, low: float, high: float) -> float:
+    """Seconds until the next freeze, in ``[low, high]`` (bounds in either order)."""
+    return rng.uniform(min(low, high), max(low, high))
 
 
 def pending_traps(received: list[str], first_non_starting: int, processed_index: int) -> list[tuple[int, str]]:

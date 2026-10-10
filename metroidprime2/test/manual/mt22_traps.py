@@ -47,7 +47,7 @@ TEST = ManualTest(
         "trap. Send several at once to see them drip out one by one.",
         "Freeze is the engine's own player freeze (the effect Samus gets from ice attacks). A Freeze Trap "
         "does not freeze immediately: it opens a window (60 s here, 120 s by default) in which a freeze of "
-        "4-6 s (by default) happens every 5-20 s. Mashing jump breaks a freeze early. The game refuses a freeze in a few "
+        "4-6 s (by default) happens every 5-20 s (by default). Mashing jump breaks a freeze early. The game refuses a freeze in a few "
         "player states (e.g. mid morph-ball transition); the client retries about a second later.",
         "Disguised traps (`trap_disguise`) and the pool placement are generation-time and covered by "
         "`test/test_pool.py` and `test/test_patch_data.py`.",

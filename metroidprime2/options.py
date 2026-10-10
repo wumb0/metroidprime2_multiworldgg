@@ -779,6 +779,28 @@ class FreezeTrapMaxSeconds(Range):
     default = 6
 
 
+class FreezeTrapMinGapSeconds(Range):
+    """The shortest wait between the start of one freeze and the next during
+    a Freeze Trap, in seconds. Each wait is a random time between this and
+    `freeze_trap_max_gap_seconds` (swapped if this is the larger of the two).
+    A freeze due while you are still frozen is pushed back by another wait."""
+
+    display_name = "Freeze Trap Minimum Gap Seconds"
+    range_start = 1
+    range_end = 300
+    default = 5
+
+
+class FreezeTrapMaxGapSeconds(Range):
+    """The longest wait between the start of one freeze and the next during a
+    Freeze Trap, in seconds. See `freeze_trap_min_gap_seconds`."""
+
+    display_name = "Freeze Trap Maximum Gap Seconds"
+    range_start = 1
+    range_end = 300
+    default = 20
+
+
 class TrapDisguise(Toggle):
     """If enabled, traps found in your own world look like (and are announced
     as) a random ordinary pickup such as a Missile Expansion or Energy Tank,
@@ -918,6 +940,8 @@ class MetroidPrime2Options(PerGameCommonOptions):
     freeze_trap_duration: FreezeTrapDuration
     freeze_trap_min_seconds: FreezeTrapMinSeconds
     freeze_trap_max_seconds: FreezeTrapMaxSeconds
+    freeze_trap_min_gap_seconds: FreezeTrapMinGapSeconds
+    freeze_trap_max_gap_seconds: FreezeTrapMaxGapSeconds
     trap_disguise: TrapDisguise
 
     trick_level: TrickLevel
@@ -1019,6 +1043,8 @@ OPTION_GROUPS: list[OptionGroup] = [
             FreezeTrapDuration,
             FreezeTrapMinSeconds,
             FreezeTrapMaxSeconds,
+            FreezeTrapMinGapSeconds,
+            FreezeTrapMaxGapSeconds,
             TrapDisguise,
         ],
     ),

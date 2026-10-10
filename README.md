@@ -138,9 +138,11 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 | `trap_weights` | Counter | 1 each | Relative weight of each trap type: `Damage Trap` (removes a random share of your maximum energy, `damage_trap_min_percent` to `damage_trap_max_percent`, never kills), `Ammo Depletion Trap` (zeroes Missiles, Power Bombs, Dark and Light ammo; capacities are unchanged) and `Freeze Trap` (for `freeze_trap_duration` seconds you are frozen in ice at random moments; mashing jump breaks each freeze early). A weight of 0 disables that trap. |
 | `damage_trap_min_percent` | Range 1-100 | 25 | The least a Damage Trap removes, as a percentage of your maximum energy. Each trap picks a random whole percentage between the two options (swapped if min is larger). |
 | `damage_trap_max_percent` | Range 1-100 | 75 | The most a Damage Trap removes, as a percentage of your maximum energy. |
-| `freeze_trap_duration` | Range 30-600 | 120 | Seconds a Freeze Trap lasts. During that time the client freezes you for `freeze_trap_min_seconds` to `freeze_trap_max_seconds` at a time, every 5-20 seconds. A second Freeze Trap received meanwhile extends it. |
+| `freeze_trap_duration` | Range 30-600 | 120 | Seconds a Freeze Trap lasts. During that time the client freezes you for `freeze_trap_min_seconds` to `freeze_trap_max_seconds` at a time, with a random gap between freezes of `freeze_trap_min_gap_seconds` to `freeze_trap_max_gap_seconds`. A second Freeze Trap received meanwhile extends it. |
 | `freeze_trap_min_seconds` | Range 1-30 | 4 | The shortest a single freeze lasts, in seconds. Each freeze picks a random time between the two options (swapped if min is larger). Mashing jump breaks a freeze early. |
 | `freeze_trap_max_seconds` | Range 1-30 | 6 | The longest a single freeze lasts, in seconds. |
+| `freeze_trap_min_gap_seconds` | Range 1-300 | 5 | The shortest wait between the start of one freeze and the next during a Freeze Trap. Each wait is a random time between the two gap options (swapped if min is larger). |
+| `freeze_trap_max_gap_seconds` | Range 1-300 | 20 | The longest wait between the start of one freeze and the next. |
 | `trap_disguise` | Toggle | off | Traps in your own world look like (and are announced as) a random ordinary pickup. |
 
 ### Logic
