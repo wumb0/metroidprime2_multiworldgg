@@ -158,6 +158,7 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
     def _cmd_deathlink(self) -> None:
         """Toggle DeathLink from the client. Overrides the default setting."""
         self.ctx.death_link_enabled = not self.ctx.death_link_enabled
+        self.ctx.pending_incoming_death = False
         Utils.async_start(
             self.ctx.update_death_link(self.ctx.death_link_enabled),
             name="Update Deathlink",
@@ -188,6 +189,8 @@ class MetroidPrime2Context(CommonContext):
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
     alive_flag_seen_set: bool = False
+    pending_incoming_death: bool = False
+    pending_incoming_death_since: float = 0.0
     # See _handle_check_goal: set once a read shows the goal marker absent.
     goal_marker_armed: bool = False
     # Set by the client's -v/--verbose flag: log ISO patching progress to the console.
@@ -222,7 +225,35 @@ class MetroidPrime2Context(CommonContext):
 
     def on_deathlink(self, data: dict[str, Any]) -> None:
         super().on_deathlink(data)
-        self.game_interface.set_current_health(-1.0)
+        self.pending_incoming_death = True
+        self.pending_incoming_death_since = time.monotonic()
+        self.apply_pending_death()
+
+    def apply_pending_death(self) -> None:
+        """Kills the player for a queued incoming DeathLink. While the
+        CPlayerState pointer is null (elevator/area transitions, loading) the
+        writes can't land, so the request stays queued and the main loop
+        retries every tick (``_handle_check_deathlink``) until it does, giving
+        up after ``_PENDING_DEATH_TIMEOUT`` seconds so a stale DeathLink doesn't
+        kill the player long after it was sent."""
+        if not self.pending_incoming_death:
+            return
+        if time.monotonic() - self.pending_incoming_death_since > _PENDING_DEATH_TIMEOUT:
+            self.pending_incoming_death = False
+            logger.info("Dropped queued DeathLink: player state stayed unavailable too long")
+            return
+        health = self.game_interface.get_current_health()
+        if health is None:
+            return
+        self.pending_incoming_death = False
+        if health <= 0:
+            # Already dead (an organic death that was reported, or this one
+            # arrived twice); nothing to kill, and the debounce flag is
+            # already armed or about to be by the poll.
+            return
+        if not self.game_interface.set_current_health(-1.0):
+            self.pending_incoming_death = True
+            return
         # set_current_health alone doesn't kill the player -- it bypasses the
         # game's damage/death pipeline entirely, leaving the camera and gun
         # model stuck in whatever state they were in. set_alive(False) is
@@ -436,6 +467,8 @@ async def _handle_game_not_ready(ctx: MetroidPrime2Context) -> None:
 
 
 _DEFAULT_TICK_DELAY = 0.5
+_PENDING_DEATH_TIMEOUT = 30.0
+"""Seconds a queued incoming DeathLink waits for a valid CPlayerState."""
 
 
 async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
@@ -508,6 +541,7 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
 
 
 async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
+    ctx.apply_pending_death()
     health = ctx.game_interface.get_current_health()
     alive = ctx.game_interface.get_alive()
     # ALIVE_BIT_MASK is unconfirmed against a live game, so a cleared flag only

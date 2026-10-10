@@ -79,28 +79,42 @@ class TestDeathLinkCheck(unittest.TestCase):
 
 class _FakeGameInterface:
     """Stands in for ``EchoesInterface``: records the health/alive writes
-    ``on_deathlink`` performs without touching Dolphin."""
+    ``on_deathlink`` performs without touching Dolphin. ``health=None``
+    simulates a null CPlayerState (writes fail)."""
 
-    def __init__(self) -> None:
+    def __init__(self, health: float | None = 99.0) -> None:
+        self.health = health
         self.last_health_written: float | None = None
         self.last_alive_written: bool | None = None
 
-    def set_current_health(self, new_health_amount: float) -> None:
+    def get_current_health(self) -> float | None:
+        return self.health
+
+    def set_current_health(self, new_health_amount: float) -> bool:
+        if self.health is None:
+            return False
         self.last_health_written = new_health_amount
+        self.health = new_health_amount
+        return True
 
-    def set_alive(self, alive: bool) -> None:
+    def set_alive(self, alive: bool) -> bool:
+        if self.health is None:
+            return False
         self.last_alive_written = alive
+        return True
 
 
-def _bare_context() -> MetroidPrime2Context:
+def _bare_context(health: float | None = 99.0) -> MetroidPrime2Context:
     """Builds a ``MetroidPrime2Context`` instance without running
     ``CommonContext.__init__`` (which schedules an asyncio task and needs a
     running event loop) -- only the attributes ``on_deathlink`` and its
     ``super().on_deathlink()`` call actually touch are set by hand."""
     ctx = object.__new__(MetroidPrime2Context)
     ctx.last_death_link = 0.0
-    ctx.game_interface = _FakeGameInterface()  # type: ignore[assignment]
+    ctx.game_interface = _FakeGameInterface(health)  # type: ignore[assignment]
     ctx.is_pending_death_link_reset = False
+    ctx.pending_incoming_death = False
+    ctx.pending_incoming_death_since = 0.0
     return ctx
 
 
@@ -128,6 +142,46 @@ class TestOnDeathlink(unittest.TestCase):
             ctx.is_pending_death_link_reset,
         )
         self.assertEqual((False, True), (should_send, new_pending))
+
+    def test_null_player_state_queues_death_until_valid(self) -> None:
+        ctx = _bare_context(health=None)
+        ctx.on_deathlink({"time": 1.0, "cause": "x", "source": "Other"})
+
+        self.assertTrue(ctx.pending_incoming_death)
+        self.assertFalse(ctx.is_pending_death_link_reset)
+        self.assertIsNone(ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
+
+        # Still null on a later tick: stays queued.
+        ctx.apply_pending_death()
+        self.assertTrue(ctx.pending_incoming_death)
+
+        # Player state becomes valid: the queued death lands and arms the debounce.
+        ctx.game_interface.health = 99.0  # type: ignore[attr-defined]
+        ctx.apply_pending_death()
+        self.assertFalse(ctx.pending_incoming_death)
+        self.assertEqual(-1.0, ctx.game_interface.last_health_written)  # type: ignore[attr-defined]
+        self.assertEqual(False, ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
+        self.assertTrue(ctx.is_pending_death_link_reset)
+
+    def test_queued_death_expires_after_timeout(self) -> None:
+        ctx = _bare_context(health=None)
+        ctx.on_deathlink({"time": 1.0, "cause": "x", "source": "Other"})
+        self.assertTrue(ctx.pending_incoming_death)
+
+        ctx.pending_incoming_death_since -= 31.0
+        ctx.game_interface.health = 99.0  # type: ignore[attr-defined]
+        ctx.apply_pending_death()
+
+        self.assertFalse(ctx.pending_incoming_death)
+        self.assertIsNone(ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
+        self.assertFalse(ctx.is_pending_death_link_reset)
+
+    def test_already_dead_player_drops_queued_death(self) -> None:
+        ctx = _bare_context(health=0.0)
+        ctx.on_deathlink({"time": 1.0, "cause": "x", "source": "Other"})
+
+        self.assertFalse(ctx.pending_incoming_death)
+        self.assertIsNone(ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
 
 
 if __name__ == "__main__":
