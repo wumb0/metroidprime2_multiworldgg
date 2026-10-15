@@ -343,6 +343,9 @@ class MetroidPrime2World(World):
                 # client/item_map_dots_patch.py: a DOL cave plus a MAPA
                 # visibility rewrite, neither of which config.json can carry.
                 "item_map_dots": int(self.options.item_map_dots.value),
+                # client/map_reveal_patch.py: one DOL write, which
+                # config.json can't carry.
+                "map_rooms_reveal_dark_world_map": bool(self.options.map_rooms_reveal_dark_world_map),
                 # PLAN.md section S: physically rewires the Sky Temple
                 # Gateway's key-count gate (client/sky_temple_key_gate_
                 # patch.py) -- open-prime-rando has no field for this, so

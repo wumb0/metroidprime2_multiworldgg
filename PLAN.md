@@ -1964,3 +1964,15 @@ maths, the announce/apply/record flow, the Freeze body's assembly on both
 versions, and fill beatability at `trap_percentage: 100`. Nothing has been run
 in-game: `mt22_traps` is the manual test (its `config_sha256` is not pinned yet;
 build it once with `--iso` and `--repin`).
+
+## Z. Map station reveal (`unvisited_room_names`)
+
+**Report (2026-10-14):** using a map station gave no room names for any dark world room, for a large part of Temple Grounds, or for the Great Temple.
+
+**Cause (disassembly of NTSC + PAL, MAPA dump of the NTSC ISO).** OPR's `apply_unvisited_room_names` is a one-instruction DOL write (`li r28, 1` at NTSC 0x8008B714 in `CAutoMapper::Update`, PAL 0x8008B850) that forces the hover name on, but a name only shows for a room the map draws *and* the cursor can select, and both go through `CMapArea::GetIsVisibleToAutoMapper` (NTSC 0x8007F300). OPR leaves every area on MAPA mode 1 (`VisitOrMapStation`): drawn when `worldVis || IsAreaVisible`. `worldVis` is `CMapWorldInfo::IsWorldVisible(area, dark)` = `IsMapped(area) || (mMapStationUsed && !dark)` (NTSC 0x8010F3E0, PAL 0x8010F594), so a station never reveals a room whose MAPA header `type` is 1 (dark). Temple Grounds has 20 dark rooms of 55 real ones. The Great Temple MLVL has no `SpecialFunction` MapStation at all (only Agon, Sanctuary, Torvus, and two in Temple Grounds: Hive Chamber A and GFMC Compound), and each world has its own `CMapWorldInfo`, so Temple Grounds' stations cannot map it.
+
+**Fix (`client/map_reveal_patch.py`).**
+- `reveal_dark_rooms_on_map_station` (its own option, `map_rooms_reveal_dark_world_map`, default on; independent of `unvisited_room_names`, which only decides whether revealed rooms show names; an `.apmp2` without the key reads as off): the `clrlwi/cntlzw/srwi r3` triple that computes `!inDarkWorld` (NTSC 0x8010F428, PAL 0x8010F5DC) becomes `li r3, 1; nop; nop`. Refuses a DOL whose three words differ. This also lets `item_map_dots: on` dots follow a station into the dark world; `map_station` mode already read the flag directly.
+- `great_temple_always_mapped` (when `unvisited_room_names` is on): wraps `general_changes.change_map_visibility` and sets every non-`Never` Great Temple MAPA to `Always`. It is always drawn (so its names show) instead of waiting on a station that does not exist.
+
+Verified by patching both real ISOs end to end: patched DOL disassembled at both addresses, Great Temple MAPAs all `Always`, Agon unchanged. Unit tests in `test/test_map_reveal_patch.py`. **Not run in Dolphin.**

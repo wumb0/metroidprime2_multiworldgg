@@ -249,6 +249,25 @@ def translator_lore_colors_installed(colors: dict[int, str]):
 
 
 @contextlib.contextmanager
+def map_reveal_installed(editor: Any, dol_version: Any, *, dark_world: bool, great_temple: bool):
+    """Context manager installing ``client/map_reveal_patch.py`` for the
+    duration of one ``_apply_patches`` call: the DOL write that lets a map
+    station reveal dark world rooms (``dark_world``, the
+    ``map_rooms_reveal_dark_world_map`` option), and the Great Temple
+    always-drawn override (``great_temple``, ``unvisited_room_names``; it has
+    no map station)."""
+    from . import map_reveal_patch
+
+    if dark_world:
+        version_info = _client_version_info(dol_version, "Map reveal", "Map Rooms Reveal Dark World Map")
+        map_reveal_patch.reveal_dark_rooms_on_map_station(editor.dol, version_info.map_reveal)
+    with contextlib.ExitStack() as stack:
+        if great_temple:
+            stack.enter_context(map_reveal_patch.great_temple_always_mapped())
+        yield
+
+
+@contextlib.contextmanager
 def item_map_dots_installed(editor: Any, dol_version: Any, mode: int):
     """Context manager installing both halves of item map dots
     (``client/item_map_dots_patch.py``) for the duration of one
@@ -400,6 +419,7 @@ def patch_iso_with_ap(
     move_while_scanning = bool(apmp2_options.get("move_while_scanning", False))
     # int(): .apmp2 files from before the "always" mode carry a bool here.
     item_map_dots = int(apmp2_options.get("item_map_dots", constants.ITEM_MAP_DOTS_OFF))
+    map_rooms_reveal_dark_world_map = bool(apmp2_options.get("map_rooms_reveal_dark_world_map", False))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
     sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
@@ -441,6 +461,15 @@ def patch_iso_with_ap(
             if warp_to_start:
                 patches.enter_context(
                     warp_to_start_installed(dol_version, configuration.starting_area)
+                )
+            if map_rooms_reveal_dark_world_map or configuration.map_visibility.unvisited_room_names:
+                patches.enter_context(
+                    map_reveal_installed(
+                        editor,
+                        dol_version,
+                        dark_world=map_rooms_reveal_dark_world_map,
+                        great_temple=configuration.map_visibility.unvisited_room_names,
+                    )
                 )
             if item_map_dots != constants.ITEM_MAP_DOTS_OFF:
                 patches.enter_context(item_map_dots_installed(editor, dol_version, item_map_dots))

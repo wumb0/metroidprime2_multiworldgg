@@ -156,6 +156,22 @@ class ItemMapDotAddresses:
 
 
 @dataclass(frozen=True)
+class MapRevealAddresses:
+    """Addresses the map station reveal patch needs (``client/map_reveal_patch.py``).
+
+    ``CMapWorldInfo::IsWorldVisible`` (PrimeDecomp/echoes symbol
+    ``IsWorldVisible__13CMapWorldInfoCF7TAreaIdb``; NTSC 0x8010F3E0, PAL
+    0x8010F594) answers "mapped, or the map station was used and the area is
+    not in the dark world". PAL was found by matching the NTSC instructions.
+    """
+
+    dark_world_check: int
+    """The ``clrlwi r0, r31, 24`` that starts the ``!inDarkWorld`` result
+    (``clrlwi; cntlzw; srwi r3, r0, 5``), reached only when the map station
+    has been used."""
+
+
+@dataclass(frozen=True)
 class EchoesVersionInfo:
     name: str
     game_id: bytes
@@ -171,6 +187,7 @@ class EchoesVersionInfo:
     warp_to_start: WarpToStartAddresses
     spring_ball: SpringBallAddresses
     item_map_dots: ItemMapDotAddresses
+    map_reveal: MapRevealAddresses
     player_freeze: int
     """``CPlayer::Freeze(float timeout, CStateManager&, CAssetId steamTexture,
     uint sfx, CAssetId iceTexture)`` (NTSC symbol ``Freeze__7CPlayerFfR13
@@ -334,6 +351,7 @@ NTSC = EchoesVersionInfo(
         visibility_unused_branch=0x800BB5D8,
         visibility_return=0x800BB648,
     ),
+    map_reveal=MapRevealAddresses(dark_world_check=0x8010F428),
     player_freeze=0x800144A4,
 )
 
@@ -385,6 +403,7 @@ PAL = EchoesVersionInfo(
         visibility_unused_branch=0x800BB66C,
         visibility_return=0x800BB6DC,
     ),
+    map_reveal=MapRevealAddresses(dark_world_check=0x8010F5DC),
     player_freeze=0x80014540,
 )
 

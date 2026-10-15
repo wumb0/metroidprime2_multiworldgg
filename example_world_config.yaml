@@ -494,9 +494,16 @@ requires:
   # Options: off, on, always
   item_map_dots: on
 
-  # Show room names on the map for rooms not yet visited.
+  # Show room names on the map for rooms not yet visited. Also draws every
+  # Great Temple room from the start (it has no map station).
   # Options: true, false
   unvisited_room_names: true
+
+  # Using a map station also reveals the dark world rooms of its world
+  # (vanilla only maps the light world). Independent of unvisited_room_names,
+  # which decides whether the revealed rooms show their names.
+  # Options: true, false
+  map_rooms_reveal_dark_world_map: true
 
   # ------------------------------------------------------------------
   # Common Archipelago options

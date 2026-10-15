@@ -479,9 +479,19 @@ class DisplayNonLocalItems(Choice):
 
 class UnvisitedRoomNames(DefaultOnToggle):
     """If enabled, the map shows room names for rooms that have not been
-    visited yet."""
+    visited yet. The Great Temple, which has no map station, is also drawn
+    from the start."""
 
     display_name = "Unvisited Room Names"
+
+
+class MapRoomsRevealDarkWorldMap(DefaultOnToggle):
+    """If enabled, using a map station reveals the dark world rooms of its
+    world as well as the light world ones (vanilla only maps the light
+    world). Independent of `unvisited_room_names`, which decides whether the
+    revealed rooms show their names."""
+
+    display_name = "Map Rooms Reveal Dark World Map"
 
 
 class MapVisibility(Choice):
@@ -1000,6 +1010,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     map_visibility: MapVisibility
     item_map_dots: ItemMapDots
     unvisited_room_names: UnvisitedRoomNames
+    map_rooms_reveal_dark_world_map: MapRoomsRevealDarkWorldMap
 
     death_link: DeathLink
 
