@@ -395,7 +395,7 @@ def patch_iso_with_ap(
     from open_prime_rando.patcher_editor import IsoFileProvider, IsoFileWriter, PatcherEditor
     from retro_data_structures.game_check import Game
 
-    from . import elevator_prescan_patch
+    from . import elevator_prescan_patch, item_scan_patch
 
     apmp2_file = os.fspath(apmp2_file)
     input_iso = os.fspath(input_iso)
@@ -424,6 +424,7 @@ def patch_iso_with_ap(
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
     sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
     goal = int(apmp2_options.get("goal", constants.GOAL_BOTH_BOSSES))
+    item_scan_hint_indices = [int(index) for index in apmp2_options.get("item_scan_hint_indices", [])]
     translator_lore_colors = {
         int(strg_id): str(color) for strg_id, color in apmp2_options.get("translator_lore_colors", {}).items()
     }
@@ -479,6 +480,8 @@ def patch_iso_with_ap(
                 patches.enter_context(goal_warp_installed(goal))
             if translator_lore_colors:
                 patches.enter_context(translator_lore_colors_installed(translator_lore_colors))
+            if item_scan_hint_indices:
+                patches.enter_context(item_scan_patch.installed(item_scan_hint_indices))
             if configuration.auto_enabled_elevators:
                 patches.enter_context(elevator_prescan_patch.installed())
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)

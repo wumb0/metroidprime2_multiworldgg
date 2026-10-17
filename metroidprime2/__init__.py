@@ -24,6 +24,8 @@ from .hint_scans import (
     SKY_TEMPLE_KEY_HINT_SCANS,
     TRANSLATOR_LORE_HINT_SCANS,
     encode_hint_scans,
+    item_scan_hint_entries,
+    item_scan_id,
     sky_temple_key_locations,
     translator_lore_hint_locations,
 )
@@ -361,6 +363,9 @@ class MetroidPrime2World(World):
                 "translator_lore_colors": {
                     str(strg_id): color.lower() for strg_id, color in self.translator_lore_assignment.items()
                 },
+                # item_scan_hints: pickup indices that get their own SCAN
+                # asset (client/item_scan_patch.py).
+                "item_scan_hint_indices": sorted(item_scan_hint_entries(self)),
                 # PLAN.md section P's compatibility gate: client/patcher_runner.py
                 # refuses to patch a .apmp2 whose pickup encoding it doesn't
                 # recognize, since the per-pickup resource mapping baked into
@@ -443,6 +448,12 @@ class MetroidPrime2World(World):
                     else HintStatus.HINT_UNSPECIFIED
                 )
                 hint_scans[hint_scan.scan_id] = (location.player, location.address, status)
+
+        # Item scan hints (PLAN.md section AA): scanning a pickup hints the
+        # item inside. The status is per entry (own item HINT_PRIORITY,
+        # someone else's HINT_UNSPECIFIED), decided in item_scan_hint_entries.
+        for pickup_index, (location, status) in item_scan_hint_entries(self).items():
+            hint_scans[item_scan_id(pickup_index)] = (location.player, location.address, status)
 
         slot_data["hint_scans"] = encode_hint_scans(hint_scans)
 

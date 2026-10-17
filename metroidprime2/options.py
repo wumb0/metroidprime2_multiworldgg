@@ -211,6 +211,27 @@ class TranslatorLoreHints(Choice):
     default = option_my_items
 
 
+class ItemScanHints(Choice):
+    """Whether scanning a pickup in the world (before collecting it) sends a
+    hint for the item inside to the server, so the item shows up in the
+    hint list just as if you had used `!hint`.
+
+    Other Players: only pickups holding another player's item.
+    All (default): also pickups holding your own items (your own traps are
+    skipped while `trap_disguise` is on, since hinting one would give it
+    away).
+    Off: scanning a pickup does nothing special.
+
+    Each pickup gets its own scan so the game can tell them apart; the scan
+    text itself is unchanged."""
+
+    display_name = "Item Scan Hints"
+    option_off = 0
+    option_other_players = 1
+    option_all = 2
+    default = option_all
+
+
 class TranslatorLoreRando(Choice):
     """How each of the 22 Luminoth lore holograms' required translator
     color is chosen. The hologram (and its glow) is recolored to match, so
@@ -933,6 +954,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     sky_temple_keys_required: SkyTempleKeysRequired
     sky_temple_key_hints: SkyTempleKeyHints
     translator_lore_hints: TranslatorLoreHints
+    item_scan_hints: ItemScanHints
     translator_lore_rando: TranslatorLoreRando
     progressive_suit: ProgressiveSuit
     progressive_grapple: ProgressiveGrapple
@@ -1032,6 +1054,7 @@ OPTION_GROUPS: list[OptionGroup] = [
             SkyTempleKeysRequired,
             SkyTempleKeyHints,
             TranslatorLoreHints,
+            ItemScanHints,
             TranslatorLoreRando,
         ],
     ),

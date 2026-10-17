@@ -1102,7 +1102,7 @@ Steps:
    **Expect:** No hint is sent and the client logs nothing about a hint scan.
    *(exercises: Only progress == 255 (a finished scan) counts.)*
 3. **Do:** Scan the Sky Temple Key 1 pillar to completion.
-   **Expect:** Text reads "Sky Temple Key 1 is in Filler1's The Button." in item/player/location colors. The client logs `Hint scan complete`, and a priority hint for key 1 at `Filler1`'s `The Button` shows up in both clients.
+   **Expect:** Text reads "Sky Temple Key 1 is in Filler1's The Button." in item/player/location colors. A priority hint for key 1 at `Filler1`'s `The Button` shows up in both clients.
 4. **Do:** Scan the Sky Temple Key 2 pillar.
    **Expect:** Text reads "Sky Temple Key 2 is in your Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)." and the matching hint appears.
 5. **Do:** Scan the Sky Temple Key 8 and 9 pillars.
@@ -1261,7 +1261,7 @@ Steps:
    **Expect:** No hint is sent.
    *(exercises: Only a finished scan (progress 255) counts.)*
 3. **Do:** Scan the Meeting Grounds hologram to completion.
-   **Expect:** The text matches the spoiler's Meeting Grounds line ("Your <item> can be found in ... .", colored). The client logs `Hint scan complete` and one priority hint for that item appears in both clients.
+   **Expect:** The text matches the spoiler's Meeting Grounds line ("Your <item> can be found in ... .", colored). One priority hint for that item appears in both clients.
 4. **Do:** Scan the Path of Eyes hologram and one or two more Violet holograms.
    **Expect:** Each matches its spoiler line and sends exactly one hint.
 5. **Do:** Open the Logbook entry for one of them.
@@ -1942,6 +1942,103 @@ If it fails, look at:
 * `client/game_interface.py::freeze_player` / `set_item_amount`
 * `client/versions.py::player_freeze` (CPlayer::Freeze; NTSC 0x800144A4, PAL 0x80014540)
 * `test/test_client_traps.py`
+
+### MT23_ITEM_SCAN_HINTS -- `mt23_item_scan_hints` (P1)
+
+*Proves: scanning a pickup to completion, before collecting it, sends a hint for the item inside, and each pickup's scan is independent of every other pickup showing the same text*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Prime1 (Metroid Prime) slot with a text client, so hint messages are visible from both sides.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt23_item_scan_hints --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Hive Save Station/Save Station`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=on`, `item_scan_hints=other_players`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+* companion slots: Prime1 (Metroid Prime)
+
+Notes / derived values:
+* `Temple Grounds: Hive Chamber A - Pickup (Missile)` and `Temple Grounds: Hive Chamber B - Pickup (Missile)` each hold a `Prime1` Missile Expansion (identical scan text); `Temple Grounds: Communication Area - Pickup (Missile)` holds one of your own items.
+* Any other pickup holding a `Prime1` item is hinted too; check the spoiler for the full list.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt23_item_scan_hints --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt23_item_scan_hints/mt23_item_scan_hints.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt23_item_scan_hints/mt23_item_scan_hints.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Go to `Temple Grounds: Hive Chamber A - Pickup (Missile)` and Scan Visor the pickup, but let go before the bar fills.
+   **Expect:** No hint is sent.
+   *(exercises: Only a finished scan (progress 255) counts.)*
+2. **Do:** Scan the same pickup to completion, without collecting it.
+   **Expect:** The scan text reads "Prime1's Missile Expansion." as before. A hint for that location appears in both clients.
+3. **Do:** Scan the pickup at `Temple Grounds: Hive Chamber B - Pickup (Missile)`, which shows the exact same scan text.
+   **Expect:** It sends its own hint. (A shared scan asset would have counted it as already scanned.)
+   *(exercises: open-prime-rando pools identical scan text into one SCAN; item_scan_patch gives each pickup its own.)*
+4. **Do:** Scan your own item at `Temple Grounds: Communication Area - Pickup (Missile)`.
+   **Expect:** The scan completes normally and no hint is sent (`other_players`).
+5. **Do:** Collect a pickup you have not scanned, then close and restart the client and reconnect.
+   **Expect:** No hints are re-sent for already-scanned pickups.
+
+Pass if:
+* A partial scan sends nothing; a completed scan sends exactly one hint for that pickup's location.
+* Two pickups with identical scan text hint independently.
+* Pickups with your own items hint only under `all`.
+* The scan text and collection of every pickup are unchanged.
+
+If it fails, look at:
+* `client/item_scan_patch.py` (unique SCAN creation) and `hint_scans.py::item_scan_id`
+* `hint_scans.py::item_scan_hint_entries` / slot_data `hint_scans`
+* `client/client.py::_handle_hint_scans`
+
+### MT23_ITEM_SCAN_HINTS -- `mt23_item_scan_hints_all` (P1)
+
+*Proves: scanning a pickup to completion, before collecting it, sends a hint for the item inside, and each pickup's scan is independent of every other pickup showing the same text*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Prime1 (Metroid Prime) slot with a text client, so hint messages are visible from both sides.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt23_item_scan_hints --iso <vanilla.iso> --variant all
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Hive Save Station/Save Station`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=on`, `item_scan_hints=all`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+* companion slots: Prime1 (Metroid Prime)
+
+Notes / derived values:
+* `Temple Grounds: Hive Chamber A - Pickup (Missile)` and `Temple Grounds: Hive Chamber B - Pickup (Missile)` each hold a `Prime1` Missile Expansion (identical scan text); `Temple Grounds: Communication Area - Pickup (Missile)` holds one of your own items.
+* Any other pickup holding a `Prime1` item is hinted too; check the spoiler for the full list.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt23_item_scan_hints --iso <vanilla.iso> --variant all
+2. Host       python MultiServer.py manual_tests/mt23_item_scan_hints_all/mt23_item_scan_hints_all.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt23_item_scan_hints_all/mt23_item_scan_hints_all.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Scan your own item at `Temple Grounds: Communication Area - Pickup (Missile)` to completion.
+   **Expect:** A priority hint for it is sent.
+
+Pass if:
+* Pickups holding your own items hint too, at priority.
+
+If it fails, look at:
+* `client/item_scan_patch.py` (unique SCAN creation) and `hint_scans.py::item_scan_id`
+* `hint_scans.py::item_scan_hint_entries` / slot_data `hint_scans`
+* `client/client.py::_handle_hint_scans`
 
 ## Suggested runs
 

@@ -100,6 +100,18 @@ Disabled. If there are fewer eligible items than holograms, the extras just say 
 The "Translator Lore Randomization" option can also give each hologram a random translator color instead of its
 region's usual one. The hologram and its glow are recolored to match, so you can still see which translator you need.
 
+### Item scan hints
+
+With the "Item Scan Hints" option, scanning a pickup with the Scan Visor (before you collect it) sends a hint for
+the item inside to the multiworld server, exactly as if you had used `!hint`:
+
+- **Off**: scanning a pickup does nothing special.
+- **Other Players**: only pickups holding another player's item are hinted.
+- **All** (default): pickups holding your own items are hinted too. Your own trap items are skipped while "Trap Disguise" is
+  on, since hinting one would give it away.
+
+The scan text is unchanged. The scan has to be completed; letting go partway sends nothing.
+
 ## What does the logic that places my items know about?
 
 Reachability is computed from Randovania's Metroid Prime 2: Echoes logic database -- the same data the standalone

@@ -1976,3 +1976,20 @@ build it once with `--iso` and `--repin`).
 - `great_temple_always_mapped` (when `unvisited_room_names` is on): wraps `general_changes.change_map_visibility` and sets every non-`Never` Great Temple MAPA to `Always`. It is always drawn (so its names show) instead of waiting on a station that does not exist.
 
 Verified by patching both real ISOs end to end: patched DOL disassembled at both addresses, Great Temple MAPAs all `Always`, Agon unchanged. Unit tests in `test/test_map_reveal_patch.py`. **Not run in Dolphin.**
+
+## AA. Item scan hints (`item_scan_hints`)
+
+**Request (2026-10-15):** scanning a pickup (before collecting it) should send a hint for the item inside to the server, detected from the save's scan-state vector like the Sky Temple Key / lore hints rather than by hooking the scan function.
+
+**Why it needed a patch.** The detection half is already generic (section Q: `read_scan_progress` + `hint_scans` slot data + `_handle_hint_scans`), and OPR already gives every pickup a SCAN (`create_simple_scan`) and appends it to the area's SAVW `scannable_objects`, which is what makes the game track it. But `PatcherEditor._create_scan` *pools* by `(strings, model)`, so every "Missile Expansion." pickup (and every "Foo's Great Sword." for the same recipient and item) shares one SCAN: scanning one completes all of them. A hint per location needs a SCAN per location.
+
+**Design.**
+- `hint_scans.item_scan_asset_name(i)` = `ItemHintScan{i}.SCAN`; `item_scan_id(i)` is its asset id. Echoes hashes asset names with Retro's CRC32 = standard CRC-32 without the final inversion, so it is `zlib.crc32(name) ^ 0xFFFFFFFF` (a test checks it against `retro_data_structures`). Generation therefore knows every scan id without running the patcher.
+- `hint_scans.item_scan_hint_entries(world)` -> `{pickup_index: (location, status)}` per the option (`off`, `other_players`, `all` default). One source of truth for slot_data and `options.json`. Another player's item is `HINT_UNSPECIFIED`, your own `HINT_PRIORITY` (section R.1 rules); your own traps are skipped while `trap_disguise` is on (the hint would unmask them).
+- `__init__.py`: `hint_scans[item_scan_id(i)] = (player, address, status)` in slot_data; `options.json["item_scan_hint_indices"]` lists the pickups that need their own SCAN. The client path is unchanged.
+- `client/item_scan_patch.py::installed(indices)` (entered in `patcher_runner.patch_iso_with_ap`): wraps `pickup_editing.patch_simple_pickup`; for a listed pickup, `editor.create_simple_scan` is swapped for an unpooled one (same body as `_create_scan`, same Light Beam SCAN template, names from `item_scan_asset_name`) for the duration of that call. The pickup is recognised from its single-bit counter resource (`pickup_encoding.pickup_index_for`, the inverse of `counter_and_amount`), so no marker in the patch data. OPR's `scannable_objects.append` then lists the new id.
+- Not in the SAVW-less case: a pickup scan is the SCAN OPR creates, so no SAVW editing of our own.
+
+**Facts checked.** `CMemoryCard` builds its scan list with `find` before `push_back` (dedupes) and sorts it, so the extra ~100 entries need no save-format change in the decomp; `SCAN_STATES_MAX_COUNT` (2048) still covers retail's ~820 plus 119.
+
+**Verification.** Unit tests (`test_item_scan_hints.py`): ids, entry selection per mode, slot_data from a real two-player generation, the `installed` wrapper. Manual test `mt23_item_scan_hints` (config pin not set; build once with `--iso` then `--repin`). **Not run in Dolphin**: still unconfirmed that finishing a pickup scan writes progress 255 into the scan-state vector. The decompiled Prime 1 `CPlayer` scan update calls `SetScanTime` for any scannable object regardless of logbook entry, and Echoes' scan code is the same lineage, but the Echoes version is not decompiled here.

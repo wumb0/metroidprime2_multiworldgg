@@ -19,6 +19,7 @@ uses.
   Aether portals, translator gates, and the starting room (vanilla, any save station, or anywhere
   Randovania considers valid).
 - Translator lore hologram color randomization (`translator_lore_rando`).
+- Item scan hints (`item_scan_hints`): scanning a pickup hints the item inside to the server.
 - Sky Temple Keys: shuffle them into the pool, pre-place them on bosses/guardians, start with some
   pre-collected, and require fewer than 9 to open the Sky Temple Gateway.
 - Goals: both bosses (vanilla), Emperor Ing only, or just opening the Sky Temple Gateway -- the

@@ -38,14 +38,17 @@ batch needs one ``CreateHints`` call per status).
 from __future__ import annotations
 
 import random
+import zlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from BaseClasses import ItemClassification
 from NetUtils import HintStatus
 
+from . import constants
 from .item_pool import STK_ITEM_NAMES
-from .options import TranslatorLoreHints
+from .items import TRAP_ITEM_NAMES
+from .options import ItemScanHints, TranslatorLoreHints
 
 if TYPE_CHECKING:
     from BaseClasses import Location
@@ -488,3 +491,58 @@ def translator_lore_hint_locations(world: MetroidPrime2World) -> list[Location |
     chosen.extend([None] * (total - len(chosen)))
     world._translator_lore_hints = chosen
     return chosen
+
+
+# --------------------------------------------------------------------------
+# Item scan hints: scanning a pickup (before collecting it) hints its item
+# --------------------------------------------------------------------------
+
+
+def item_scan_asset_name(pickup_index: int) -> str:
+    """Name of the dedicated SCAN asset ``client/item_scan_patch.py`` gives
+    pickup ``pickup_index`` (open-prime-rando pools identical scan text into
+    one shared SCAN, which would make two pickups indistinguishable in the
+    save's scan-state vector)."""
+    return f"ItemHintScan{pickup_index}.SCAN"
+
+
+def item_scan_id(pickup_index: int) -> int:
+    """The SCAN asset id ``item_scan_asset_name(pickup_index)`` resolves to.
+    Echoes hashes asset names with Retro's CRC32, which is the standard
+    CRC-32 without the final inversion (``retro_data_structures.crc.crc32``;
+    ``test_hint_scans.py`` checks the two agree)."""
+    return zlib.crc32(item_scan_asset_name(pickup_index).encode("utf-8")) ^ 0xFFFFFFFF
+
+
+def item_scan_hint_entries(world: MetroidPrime2World) -> dict[int, tuple[Location, int]]:
+    """``{pickup_index: (location, HintStatus)}`` for every location in this
+    world whose pickup scan sends a hint, per ``item_scan_hints``.
+
+    Single source of truth for the patch-time scan assets (``options.json``)
+    and the slot_data hint table, so the two can never disagree about which
+    scans exist.
+
+    A location holding another player's item is hinted ``HINT_UNSPECIFIED``,
+    your own ``HINT_PRIORITY`` (``CreateHints`` allows nothing else for each;
+    see section R.1). Your own trap items are skipped while ``trap_disguise``
+    is on: the hint would name the trap the scan text is hiding.
+    """
+    mode = world.options.item_scan_hints.value
+    if mode == ItemScanHints.option_off:
+        return {}
+
+    entries: dict[int, tuple[Location, int]] = {}
+    for location in world.multiworld.get_locations(world.player):
+        item = location.item
+        if item is None or location.address is None:
+            continue
+        if item.player == world.player:
+            if mode != ItemScanHints.option_all:
+                continue
+            if item.name in TRAP_ITEM_NAMES and world.options.trap_disguise:
+                continue
+            status = HintStatus.HINT_PRIORITY
+        else:
+            status = HintStatus.HINT_UNSPECIFIED
+        entries[location.address - constants.LOCATION_ID_BASE] = (location, status)
+    return entries

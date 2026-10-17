@@ -922,7 +922,7 @@ class TestHintScansSlotDataScanned(MP2TestBase):
     """slot_data's ``hint_scans`` (PLAN.md section Q.4/Q.5): one entry per
     actually-placed key under the default ("scanned") mode."""
 
-    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses", "item_scan_hints": "off"}
 
     def setUp(self) -> None:
         super().setUp()
@@ -955,6 +955,7 @@ class TestHintScansSlotDataDisabled(MP2TestBase):
         "sky_temple_keys_locations": "all_bosses",
         "sky_temple_key_hints": "disabled",
         "translator_lore_hints": "off",
+        "item_scan_hints": "off",
     }
 
     def setUp(self) -> None:
@@ -972,7 +973,12 @@ class TestHintScansSlotDataPrecollected(MP2TestBase):
     hint already went out via start_hints in post_fill), and every placed
     key's item name lands in options.start_hints."""
 
-    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses", "sky_temple_key_hints": "precollected"}
+    options = {
+        "sky_temple_keys": 9,
+        "sky_temple_keys_locations": "all_bosses",
+        "sky_temple_key_hints": "precollected",
+        "item_scan_hints": "off",
+    }
 
     def setUp(self) -> None:
         super().setUp()
