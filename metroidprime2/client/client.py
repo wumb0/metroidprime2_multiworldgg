@@ -998,7 +998,7 @@ async def _handle_hint_scans(ctx: MetroidPrime2Context) -> None:
     )
     ctx.sent_hint_scans |= newly_completed
     for scan_id in sorted(newly_completed):
-        logger.info(f"Hint scan complete (scan {scan_id:#x}); sent the hint to the server.")
+        logger.debug(f"Hint scan complete (scan {scan_id:#x}); sent the hint to the server.")
 
 
 def get_options_from_apmp2(apmp2_file: str) -> dict[str, Any]:
