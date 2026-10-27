@@ -232,6 +232,14 @@ requires:
   # Options: true, false
   dangerous_energy_tanks: false
 
+  # Let the Flying Ing Caches holding the Sky Temple Keys be shot without
+  # the Dark Visor. They stay invisible until hit, so you have to know
+  # where they are. Logic stops requiring the Dark Visor for those keys
+  # (Battleground still needs it unless trick_invisibleobjects is
+  # intermediate or higher).
+  # Options: true, false
+  flying_ing_caches_without_dark_visor: false
+
   # ------------------------------------------------------------------
   # Combat
   # ------------------------------------------------------------------

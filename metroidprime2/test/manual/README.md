@@ -2040,6 +2040,149 @@ If it fails, look at:
 * `hint_scans.py::item_scan_hint_entries` / slot_data `hint_scans`
 * `client/client.py::_handle_hint_scans`
 
+### MT26_FLYING_ING_CACHE_WITHOUT_DARK_VISOR -- `mt26_flying_ing_cache_without_dark_visor` (P1)
+
+*Proves: client/flying_ing_cache_patch.py leaves each key cache's `Collision Dummy_Dark Visor` active outside the Dark Visor, so a shot at the hidden cache lands, reveals it and the key drops as in vanilla*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; the last steps need it.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Defiled Shrine/Door to Shrine Access`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `flying_ing_caches_without_dark_visor=True`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* You start with everything except the Dark Visor.
+* The cache hangs about 3 m above head height, roughly 15 m south-west of the safe zone crystal on the west side of the room (the one farthest from the door you spawn at). An invisible field under it knocks you back; that happens in vanilla too and is the easiest way to find the spot.
+* While the cache is invisible it doesn't move, so it stays where it started.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt26_flying_ing_cache_without_dark_visor/mt26_flying_ing_cache_without_dark_visor.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt26_flying_ing_cache_without_dark_visor/mt26_flying_ing_cache_without_dark_visor.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client and look around Defiled Shrine.
+   **Expect:** No Ing Cache is visible anywhere.
+2. **Do:** Walk to the spot described in the notes until the invisible field knocks you back, then back off a few metres.
+   **Expect:** You get pushed away from an empty-looking spot.
+3. **Do:** Without locking on, fire Power Beam shots upward through the space above that spot.
+   **Expect:** One shot hits something: the cache cries out, appears and starts flying its route.
+   *(exercises: The first hit kills the 1 HP dummy, which turns the visible cache on (vanilla scripting).)*
+4. **Do:** Destroy the now-visible cache and collect the key it drops.
+   **Expect:** The cache bursts, the pickup appears and collecting it checks `Sky Temple Grounds: Defiled Shrine - Pickup (Sky Temple Key 8)` in the client.
+5. **Do:** From the server console run `/send <player> Dark Visor`, leave the room, come back and look around in each visor.
+   **Expect:** Nothing new appears: the cache is gone for good.
+
+Pass if:
+* The cache can't be seen without the Dark Visor, but a shot at it lands.
+* After the first hit it is visible and destroyable, and its key checks the location.
+* No client traceback.
+
+If it fails, look at:
+* `client/flying_ing_cache_patch.py::make_cache_shootable`
+* `client/patcher_runner.py::flying_ing_caches_shootable_installed`
+* `test/test_flying_ing_cache.py`
+
+### MT26_FLYING_ING_CACHE_WITHOUT_DARK_VISOR -- `mt26_flying_ing_cache_without_dark_visor_dark_visor` (P1)
+
+*Proves: client/flying_ing_cache_patch.py leaves each key cache's `Collision Dummy_Dark Visor` active outside the Dark Visor, so a shot at the hidden cache lands, reveals it and the key drops as in vanilla*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; the last steps need it.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso> --variant dark_visor
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Defiled Shrine/Door to Shrine Access`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `flying_ing_caches_without_dark_visor=True`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* You start with everything, the Dark Visor included.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso> --variant dark_visor
+2. Host       python MultiServer.py manual_tests/mt26_flying_ing_cache_without_dark_visor_dark_visor/mt26_flying_ing_cache_without_dark_visor_dark_visor.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt26_flying_ing_cache_without_dark_visor_dark_visor/mt26_flying_ing_cache_without_dark_visor_dark_visor.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client and switch to the Dark Visor.
+   **Expect:** The cache is visible and flying its route, as in vanilla.
+2. **Do:** Watch it for a moment, then switch back to the Combat Visor.
+   **Expect:** It vanishes. Note where it was.
+3. **Do:** Without locking on, shoot the spot where it vanished.
+   **Expect:** The shot hits: the cache cries out, appears and starts moving again.
+   *(exercises: Hidden, the cache stops moving, and its hitbox stays where it was.)*
+4. **Do:** Destroy it and collect the key.
+   **Expect:** Collecting it checks `Sky Temple Grounds: Defiled Shrine - Pickup (Sky Temple Key 8)`.
+
+Pass if:
+* With the Dark Visor the cache behaves as in vanilla.
+* Hidden mid-route, the cache can be shot at the spot where it vanished.
+
+If it fails, look at:
+* `client/flying_ing_cache_patch.py::make_cache_shootable`
+* `client/patcher_runner.py::flying_ing_caches_shootable_installed`
+* `test/test_flying_ing_cache.py`
+
+### MT26_FLYING_ING_CACHE_WITHOUT_DARK_VISOR -- `mt26_flying_ing_cache_without_dark_visor_off` (P1)
+
+*Proves: client/flying_ing_cache_patch.py leaves each key cache's `Collision Dummy_Dark Visor` active outside the Dark Visor, so a shot at the hidden cache lands, reveals it and the key drops as in vanilla*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; the last steps need it.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso> --variant off
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Defiled Shrine/Door to Shrine Access`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `flying_ing_caches_without_dark_visor=False`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* You start with everything except the Dark Visor.
+* The cache hangs about 3 m above head height, roughly 15 m south-west of the safe zone crystal on the west side of the room (the one farthest from the door you spawn at). An invisible field under it knocks you back; that happens in vanilla too and is the easiest way to find the spot.
+* While the cache is invisible it doesn't move, so it stays where it started.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso> --variant off
+2. Host       python MultiServer.py manual_tests/mt26_flying_ing_cache_without_dark_visor_off/mt26_flying_ing_cache_without_dark_visor_off.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt26_flying_ing_cache_without_dark_visor_off/mt26_flying_ing_cache_without_dark_visor_off.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client, find the spot (see notes) and shoot through the space above it, sweeping widely.
+   **Expect:** Nothing is ever hit and no cache appears, as in vanilla.
+
+Pass if:
+* With the option off, shots never hit the hidden cache.
+
+If it fails, look at:
+* `client/flying_ing_cache_patch.py::make_cache_shootable`
+* `client/patcher_runner.py::flying_ing_caches_shootable_installed`
+* `test/test_flying_ing_cache.py`
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).

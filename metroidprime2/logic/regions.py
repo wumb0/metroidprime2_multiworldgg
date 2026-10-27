@@ -62,6 +62,35 @@ SKY_TEMPLE_GATEWAY_KEY_TARGET = "Elevator to Sky Temple"
 
 SKY_TEMPLE_KEY_ITEM_NAMES = tuple(f"Sky Temple Key {n}" for n in range(1, 10))
 
+# The nine Flying Ing Cache pickups (client/flying_ing_cache_patch.py). Every
+# edge into one ANDs a single top-level Dark Visor requirement, which
+# flying_ing_caches_without_dark_visor replaces with the value here: Trivial
+# (None), or for Battleground, whose route to the key rides the room's
+# invisible Dark Visor platforms, "Dark Visor or Invisible Objects
+# (Intermediate)" like the DB's other Dark Visor platform edges.
+_DARK_VISOR = {"type": "resource", "data": {"type": "items", "name": "DarkVisor", "amount": 1, "negate": False}}
+_DARK_VISOR_OR_INVISIBLE_OBJECTS = {
+    "type": "or",
+    "data": {
+        "comment": None,
+        "items": [
+            _DARK_VISOR,
+            {"type": "resource", "data": {"type": "tricks", "name": "InvisibleObjects", "amount": 2, "negate": False}},
+        ],
+    },
+}
+FLYING_ING_CACHE_DARK_VISOR_REPLACEMENTS: dict[NodeId, dict | None] = {
+    NodeId("Dark Agon Wastes", "Battleground", "Pickup 2 (Sky Temple Key 1)"): _DARK_VISOR_OR_INVISIBLE_OBJECTS,
+    NodeId("Dark Agon Wastes", "Dark Oasis", "Pickup (Sky Temple Key 2)"): None,
+    NodeId("Dark Torvus Bog", "Poisoned Bog", "Pickup (Sky Temple Key 3)"): None,
+    NodeId("Dark Torvus Bog", "Dungeon", "Pickup (Sky Temple Key 4)"): None,
+    NodeId("Ing Hive", "Hive Entrance", "Pickup (Sky Temple Key 5)"): None,
+    NodeId("Ing Hive", "Hive Dynamo Works", "Pickup (Sky Temple Key 6)"): None,
+    NodeId("Sky Temple Grounds", "Ing Reliquary", "Pickup (Sky Temple Key 7)"): None,
+    NodeId("Sky Temple Grounds", "Defiled Shrine", "Pickup (Sky Temple Key 8)"): None,
+    NodeId("Sky Temple Grounds", "Accursed Lake", "Pickup (Sky Temple Key 9)"): None,
+}
+
 
 # --------------------------------------------------------------------------
 # Override points (v1: vanilla-only; see module docstring).
@@ -190,6 +219,24 @@ def _strip_sky_temple_key_items(req: dict) -> dict:
     return {"type": "and", "data": {"comment": None, "items": remaining}}
 
 
+def _replace_cache_dark_visor(req: dict, replacement: dict | None) -> dict:
+    """``req`` with its one top-level Dark Visor requirement swapped for
+    ``replacement`` (dropped if None). Only called on edges into
+    ``FLYING_ING_CACHE_DARK_VISOR_REPLACEMENTS``; raises if the edge no
+    longer has exactly that shape, so a logic DB resync can't silently
+    change what the option does."""
+    if req == _DARK_VISOR:
+        items = [req]
+    elif req["type"] == "and":
+        items = req["data"]["items"]
+    else:
+        raise ValueError(f"Flying Ing Cache edge has no top-level Dark Visor requirement: {req!r}")
+    if sum(1 for item in items if item == _DARK_VISOR) != 1:
+        raise ValueError(f"Flying Ing Cache edge has no single top-level Dark Visor requirement: {req!r}")
+    remaining = [replacement if item == _DARK_VISOR else item for item in items]
+    return {"type": "and", "data": {"comment": None, "items": [item for item in remaining if item is not None]}}
+
+
 def _sky_temple_key_count_rule(world: MetroidPrime2World) -> Rule:
     """True iff the player holds at least ``sky_temple_keys_required_count``
     of the 9 Sky Temple Keys -- the count-based replacement for the DB's
@@ -291,6 +338,8 @@ def _intra_area_edges(
         if node.id == SKY_TEMPLE_GATEWAY_KEY_NODE and target_name == SKY_TEMPLE_GATEWAY_KEY_TARGET:
             req = _strip_sky_temple_key_items(req)
             extra_rule = _sky_temple_key_count_rule(world)
+        if target_id in FLYING_ING_CACHE_DARK_VISOR_REPLACEMENTS and world.options.flying_ing_caches_without_dark_visor:
+            req = _replace_cache_dark_visor(req, FLYING_ING_CACHE_DARK_VISOR_REPLACEMENTS[target_id])
         try:
             rule = compiler.compile_all([req, leave_req])
         except Impossible:

@@ -595,6 +595,20 @@ class RevealMapRemoved(FreeText):
         super().__init__("")
 
 
+class FlyingIngCachesWithoutDarkVisor(Toggle):
+    """If enabled, the Flying Ing Caches holding the Sky Temple Keys can be
+    shot without the Dark Visor. They stay invisible until the first hit,
+    so you need to know where each one is; while you can't see it, it
+    doesn't move.
+
+    Logic stops requiring the Dark Visor to collect those keys. The one
+    exception is Battleground, where the route to the key crosses the
+    room's invisible Dark Visor platforms: that one still needs the Dark
+    Visor unless the Invisible Objects trick is at intermediate or higher."""
+
+    display_name = "Flying Ing Caches Without Dark Visor"
+
+
 class WarpToStart(DefaultOnToggle):
     """If enabled, declining to save at any Save Station while holding L+R
     warps you back to the starting room (Samus' ship in Landing Site).
@@ -1008,6 +1022,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     dark_aether_damage: DarkAetherDamage
     dark_suit_damage: DarkSuitDamage
     dangerous_energy_tanks: DangerousEnergyTanks
+    flying_ing_caches_without_dark_visor: FlyingIngCachesWithoutDarkVisor
 
     beam_ammo_costs: BeamAmmoCosts
     annihilator_ammo_source: AnnihilatorAmmoSource
@@ -1091,6 +1106,7 @@ OPTION_GROUPS: list[OptionGroup] = [
             DarkAetherDamage,
             DarkSuitDamage,
             DangerousEnergyTanks,
+            FlyingIngCachesWithoutDarkVisor,
         ],
     ),
     OptionGroup(

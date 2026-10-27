@@ -249,6 +249,29 @@ def translator_lore_colors_installed(colors: dict[int, str]):
 
 
 @contextlib.contextmanager
+def flying_ing_caches_shootable_installed():
+    """Context manager installing the shoot-without-Dark-Visor cache rewrite
+    (``client/flying_ing_cache_patch.py``) for the duration of one
+    ``_apply_patches`` call, through the same ``register_world_changes``
+    hook as ``sky_temple_keys_required_installed`` above."""
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import flying_ing_cache_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_caches(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        flying_ing_cache_patch.register(area_patcher)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_caches
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
 def map_reveal_installed(editor: Any, dol_version: Any, *, dark_world: bool, great_temple: bool):
     """Context manager installing ``client/map_reveal_patch.py`` for the
     duration of one ``_apply_patches`` call: the DOL write that lets a map
@@ -424,6 +447,7 @@ def patch_iso_with_ap(
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
     sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
     goal = int(apmp2_options.get("goal", constants.GOAL_BOTH_BOSSES))
+    flying_ing_caches_without_dark_visor = bool(apmp2_options.get("flying_ing_caches_without_dark_visor", False))
     item_scan_hint_indices = [int(index) for index in apmp2_options.get("item_scan_hint_indices", [])]
     translator_lore_colors = {
         int(strg_id): str(color) for strg_id, color in apmp2_options.get("translator_lore_colors", {}).items()
@@ -478,6 +502,8 @@ def patch_iso_with_ap(
                 patches.enter_context(sky_temple_keys_required_installed(sky_temple_keys_required))
             if goal != constants.GOAL_BOTH_BOSSES:
                 patches.enter_context(goal_warp_installed(goal))
+            if flying_ing_caches_without_dark_visor:
+                patches.enter_context(flying_ing_caches_shootable_installed())
             if translator_lore_colors:
                 patches.enter_context(translator_lore_colors_installed(translator_lore_colors))
             if item_scan_hint_indices:

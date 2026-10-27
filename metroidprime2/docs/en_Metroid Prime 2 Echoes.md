@@ -179,6 +179,18 @@ Not by default. With `move_while_scanning` enabled, you can move around freely w
 scan point, instead of the game freezing you in place for the duration of the scan. This is purely cosmetic --
 logic never assumes you can move during a scan either way.
 
+## Can I get Sky Temple Keys without the Dark Visor?
+
+Not by default: in vanilla, the Flying Ing Caches that hold the keys can only be hit while the Dark Visor is on.
+With `flying_ing_caches_without_dark_visor` enabled, a shot hits them in any visor. They still can't be seen without
+the Dark Visor until the first hit, so you need to know where each one is. While a cache is hidden it doesn't move,
+so it stays where it started (or where it was when you last switched out of the Dark Visor). After the first hit it
+shows up and the fight goes as in vanilla.
+
+Logic follows along and stops requiring the Dark Visor for those keys. The exception is Battleground in Dark Agon
+Wastes, where getting to the key means riding the room's invisible Dark Visor platforms: that key still needs the
+Dark Visor unless the Invisible Objects trick is set to intermediate or higher.
+
 ## What are the known limitations of this randomizer?
 
 - Damage logic is evaluated per damaging edge, independently, rather than as a cumulative trip like Randovania's

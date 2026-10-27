@@ -357,6 +357,9 @@ class MetroidPrime2World(World):
                 # client/goal_warp_patch.py: the boss-skip goals warp to the
                 # Credits in-game (Goal's option_* values, constants.GOAL_*).
                 "goal": int(self.options.goal.value),
+                # client/flying_ing_cache_patch.py: SCLY rewiring of the nine
+                # Sky Temple Key caches; config.json has no field for it.
+                "flying_ing_caches_without_dark_visor": bool(self.options.flying_ing_caches_without_dark_visor),
                 # translator_lore_rando: {str(strg_id): color} for each
                 # recolored lore hologram (client/lore_translator_patch.py);
                 # empty under "vanilla".
