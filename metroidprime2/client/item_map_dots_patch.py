@@ -74,8 +74,9 @@ ALWAYS = 1
 """Visible whenever the room is drawn."""
 
 MAP_STATION_OR_VISIT = 2
-"""Visible once the room is visited or mapped, or (light world only) once
-the world's map station has been used."""
+"""Visible once the room is visited or mapped, or once the world's map
+station has been used (light world only, unless ``map_rooms_reveal_dark_world_map``
+installs ``map_reveal_patch.reveal_dark_rooms_on_map_station``)."""
 
 MAP_STATION = 5
 """Our own mode, visible once the world's map station has been used and

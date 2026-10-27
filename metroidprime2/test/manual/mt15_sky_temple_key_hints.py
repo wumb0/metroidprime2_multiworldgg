@@ -67,7 +67,7 @@ TEST = ManualTest(
         Step(
             "Scan the Sky Temple Key 1 pillar to completion.",
             f"Text reads \"Sky Temple Key 1 is in {_COMPANION}'s The Button.\" in item/player/location "
-            "colors. The client logs `Hint scan complete`, and a priority hint for key 1 at "
+            "colors. A priority hint for key 1 at "
             f"`{_COMPANION}`'s `The Button` shows up in both clients.",
         ),
         Step(

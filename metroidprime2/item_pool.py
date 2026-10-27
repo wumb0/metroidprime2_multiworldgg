@@ -14,9 +14,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from BaseClasses import Item
+from Options import OptionError
 
 from . import constants
-from .items import ITEM_TABLE
+from .items import ITEM_TABLE, TRAP_ITEM_NAMES
 from .locations import LOCATION_TABLE
 from .options import SkyTempleKeysLocations
 
@@ -35,6 +36,18 @@ _GRAPPLE_TRIO = ("Grapple Beam", "Screw Attack", "Progressive Grapple")
 # Ammo Expansions. Both total 200 Dark + 200 Light ammo across 20 pickups.
 _SPLIT_AMMO_COUNT = 10
 _UNIFIED_AMMO_COUNT = 20
+
+# Items that are only in the pool when their enable_*_pickup toggle is on.
+_OPTIONAL_PICKUP_OPTIONS: dict[str, str] = {
+    "Unlimited Missiles": "enable_unlimited_missiles_pickup",
+    "Double Damage": "enable_double_damage_pickup",
+    "Unlimited Beam Ammo": "enable_unlimited_beam_ammo_pickup",
+}
+
+# The highest Missile requirement in the logic database is 65 (13 units of 5
+# ammo), so traps never replace Missile Expansions below this count even
+# though the Missile Launcher and Seeker Launcher also carry ammo.
+_MIN_MISSILE_EXPANSIONS = 13
 
 # Guardian pickup_index values (Amorbis, Chykka, Quadraxis), in the order
 # Sky Temple Keys 1-3 are locked onto them for the "all_guardians" mode.
@@ -64,6 +77,10 @@ def _pool_count_for(item_name: str, world: MetroidPrime2World) -> int:
         return _SPLIT_AMMO_COUNT if split_beam_ammo else 0
     if item_name == "Beam Ammo Expansion":
         return 0 if split_beam_ammo else _UNIFIED_AMMO_COUNT
+
+    optional_pickup = _OPTIONAL_PICKUP_OPTIONS.get(item_name)
+    if optional_pickup is not None:
+        return int(bool(getattr(world.options, optional_pickup)))
 
     return data.default_pool_count
 
@@ -148,6 +165,85 @@ def _apply_sky_temple_keys(world: MetroidPrime2World, pool: list[Item]) -> None:
         multiworld.push_precollected(world.create_item(key_name))
 
 
+def _trap_total(world: MetroidPrime2World, expansion_count: int) -> int:
+    """Total traps to place: ``trap_percentage`` of the Missile Expansions,
+    capped so ``_MIN_MISSILE_EXPANSIONS`` remain."""
+    wanted = expansion_count * world.options.trap_percentage.value // 100
+    return min(wanted, max(0, expansion_count - _MIN_MISSILE_EXPANSIONS))
+
+
+def removed_expansion_count(world: MetroidPrime2World) -> int:
+    """Number of Missile Expansions that never reach a location: the ones
+    ``create_item_pool`` drops because the other items already fill (or
+    overfill) the unlocked locations, plus the ones replaced by traps.
+    Computed from the options alone so logic, which is compiled before the
+    pool exists, can agree with the pool.
+    """
+    keys = world.options.sky_temple_keys.value
+    locations_mode = world.options.sky_temple_keys_locations.value
+    if locations_mode == SkyTempleKeysLocations.option_all_bosses:
+        locked_keys, pooled_keys = len(STK_ITEM_NAMES), 0
+    elif locations_mode == SkyTempleKeysLocations.option_all_guardians:
+        locked_keys, pooled_keys = len(_GUARDIAN_PICKUP_INDICES), max(0, keys - len(_GUARDIAN_PICKUP_INDICES))
+    else:
+        locked_keys, pooled_keys = 0, keys
+
+    filler_count = _pool_count_for(world.get_filler_item_name(), world)
+    pool_size = pooled_keys + sum(
+        _pool_count_for(name, world) for name in ITEM_TABLE if name not in STK_ITEM_NAMES
+    )
+    surplus = pool_size - (len(LOCATION_TABLE) - locked_keys)
+    trimmed = max(0, min(surplus, filler_count))
+    padded = max(0, -surplus)
+    return trimmed + _trap_total(world, filler_count - trimmed + padded)
+
+
+def missile_launcher_bonus(world: MetroidPrime2World) -> int:
+    """Extra missiles the Missile Launcher grants, standing in for the
+    Missile Expansions removed from the pool (trimmed or turned into traps);
+    0 when ``launcher_gains_removed_missiles`` is off."""
+    if not world.options.launcher_gains_removed_missiles:
+        return 0
+    return constants.MISSILES_PER_EXPANSION * removed_expansion_count(world)
+
+
+def _trap_counts(world: MetroidPrime2World, expansion_count: int) -> dict[str, int]:
+    """Number of each trap to place: ``trap_percentage`` of the Missile
+    Expansions (capped so ``_MIN_MISSILE_EXPANSIONS`` remain), split across
+    the trap types by ``trap_weights``. The remainder after the proportional
+    split is handed out round-robin over the enabled traps in a random
+    order."""
+    total = _trap_total(world, expansion_count)
+    if total == 0:
+        return {}
+
+    weights = {name: world.options.trap_weights.value.get(name, 0) for name in TRAP_ITEM_NAMES}
+    weight_sum = sum(weights.values())
+    if weight_sum == 0:
+        raise OptionError(
+            f"{world.player_name}'s Metroid Prime 2: Echoes world: trap_percentage is "
+            f"{world.options.trap_percentage.value} but every trap weight is 0; enable at least one trap."
+        )
+
+    counts = {name: weight * total // weight_sum for name, weight in weights.items()}
+    enabled = [name for name, weight in weights.items() if weight > 0]
+    world.random.shuffle(enabled)
+    for index in range(total - sum(counts.values())):
+        counts[enabled[index % len(enabled)]] += 1
+    return {name: count for name, count in counts.items() if count > 0}
+
+
+def _apply_traps(world: MetroidPrime2World, pool: list[Item]) -> None:
+    """Replaces Missile Expansions in the finished pool with traps."""
+    filler_name = world.get_filler_item_name()
+    expansion_indices = [index for index, item in enumerate(pool) if item.name == filler_name]
+    counts = _trap_counts(world, len(expansion_indices))
+    replace_indices = iter(reversed(expansion_indices))
+    for trap_name, count in counts.items():
+        for _ in range(count):
+            pool[next(replace_indices)] = world.create_item(trap_name)
+
+
 def create_item_pool(world: MetroidPrime2World) -> list[Item]:
     multiworld = world.multiworld
     player = world.player
@@ -182,8 +278,17 @@ def create_item_pool(world: MetroidPrime2World) -> list[Item]:
     filler_name = world.get_filler_item_name()
     while len(pool) < target:
         pool.append(world.create_item(filler_name))
+    # Drop surplus filler first so a full pool never loses a real item
+    # (the tail of the pool is the Sky Temple Keys).
+    while len(pool) > target and any(item.name == filler_name for item in pool):
+        for index in range(len(pool) - 1, -1, -1):
+            if pool[index].name == filler_name:
+                del pool[index]
+                break
     if len(pool) > target:
         pool = pool[:target]
+
+    _apply_traps(world, pool)
 
     return pool
 

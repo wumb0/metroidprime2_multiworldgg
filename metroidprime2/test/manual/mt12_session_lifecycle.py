@@ -43,9 +43,8 @@ TEST = ManualTest(
             "The client refuses with an error.",
         ),
         Step(
-            "Run `/status`, `/test_hud hello`, and `/mp2_debug_inventory`.",
-            "`/status` prints the connection state; `/test_hud` shows a HUD memo; the inventory dump "
-            "lists non-empty slots.",
+            "Run `/status` and `/test_hud hello`.",
+            "`/status` prints the connection state; `/test_hud` shows a HUD memo.",
         ),
     ],
     pass_criteria=[

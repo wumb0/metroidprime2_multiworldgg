@@ -27,6 +27,7 @@ double-damage value of 2.0)."""
 from __future__ import annotations
 
 import copy
+import random
 from typing import TYPE_CHECKING, Any
 
 from . import constants
@@ -36,7 +37,8 @@ from .hint_scans import (
     sky_temple_key_locations,
     translator_lore_hint_locations,
 )
-from .items import ITEM_TABLE, gains_for
+from .item_pool import missile_launcher_bonus
+from .items import ITEM_TABLE, TRAP_ITEM_NAMES, gains_for
 from .locations import LOCATION_TABLE
 from .logic.db_reader import GameDatabase, Node, NodeId, load_game_database
 from .options import (
@@ -167,6 +169,9 @@ def starting_items_config(world: MetroidPrime2World) -> list[dict[str, int]]:
             continue
         for item_id, amount in gains_for(item.name, index):
             capacities[item_id] = capacities.get(item_id, 0) + amount
+
+    if has_missile_launcher:
+        capacities[_MISSILE_ITEM_ID] = capacities.get(_MISSILE_ITEM_ID, 0) + missile_launcher_bonus(world)
 
     for item_id, amount in _MANDATORY_STARTING_ITEM_IDS.items():
         capacities.setdefault(item_id, amount)
@@ -427,6 +432,19 @@ def _sound_kind(model_name: str) -> str:
     return "standard"
 
 
+def _trap_disguise_name(world: MetroidPrime2World, location_name: str) -> str:
+    """Ordinary pickup a trap at ``location_name`` is dressed up as. Seeded
+    from the seed/player/location (not ``world.random``) so the choice is
+    stable no matter when or how often the patch data is built."""
+    if world.options.split_beam_ammo:
+        ammo = ["Dark Ammo Expansion", "Light Ammo Expansion"]
+    else:
+        ammo = ["Beam Ammo Expansion"]
+    candidates = ["Missile Expansion", "Power Bomb Expansion", "Energy Tank", *ammo]
+    rng = random.Random(f"{world.multiworld.seed_name}/{world.player}/{location_name}")
+    return rng.choice(candidates)
+
+
 def _pickup_appearance(world: MetroidPrime2World, location_name: str) -> dict[str, Any]:
     """``model_data``/``hud_text``/``scan`` for whatever item (if any) is
     currently placed at ``location_name`` (PLAN.md section H).
@@ -452,9 +470,12 @@ def _pickup_appearance(world: MetroidPrime2World, location_name: str) -> dict[st
         scan = "Nothing."
     elif item.player == world.player:
         # Own item: always get their real model/name.
-        model = ITEM_TABLE[item.name].model if item.name in ITEM_TABLE else _FALLBACK_MODEL
-        hud_text = f"{item.name} acquired!"
-        scan = f"{item.name}."
+        shown_name = item.name
+        if item.name in TRAP_ITEM_NAMES and world.options.trap_disguise:
+            shown_name = _trap_disguise_name(world, location_name)
+        model = ITEM_TABLE[shown_name].model if shown_name in ITEM_TABLE else _FALLBACK_MODEL
+        hud_text = f"{shown_name} acquired!"
+        scan = f"{shown_name}."
     else:
         recipient = world.multiworld.get_player_name(item.player)
         if item.game == constants.GAME_NAME:

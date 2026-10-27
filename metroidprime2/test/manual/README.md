@@ -410,7 +410,7 @@ Run:
 Steps:
 1. **Do:** Connect the client before collecting anything.
    **Expect:** Baseline inventory matches the table's baseline row.
-2. **Do:** Collect the 14 pickups in the printed order, running `/mp2_debug_inventory` after each.
+2. **Do:** Collect the 14 pickups in the printed order, checking the pause-screen inventory (and the client item strip, if Universal Tracker is installed) after each.
    **Expect:** After each pickup, the item amounts/capacities match the script's expected table. In this variant the Missile Expansions before the launcher raise the capacity but leave 0 usable missiles until the launcher is collected.
 3. **Do:** From the server console, run `/send <player> Dark Ammo Expansion`.
    **Expect:** The corresponding ammo capacity goes up by exactly one expansion's worth, not to a stranded raw value.
@@ -484,7 +484,7 @@ Run:
 Steps:
 1. **Do:** Connect the client before collecting anything.
    **Expect:** Baseline inventory matches the table's baseline row.
-2. **Do:** Collect the 14 pickups in the printed order, running `/mp2_debug_inventory` after each.
+2. **Do:** Collect the 14 pickups in the printed order, checking the pause-screen inventory (and the client item strip, if Universal Tracker is installed) after each.
    **Expect:** After each pickup, the item amounts/capacities match the script's expected table. In this variant the Missile Expansions before the launcher raise the capacity but leave 0 usable missiles until the launcher is collected.
 3. **Do:** From the server console, run `/send <player> Beam Ammo Expansion`.
    **Expect:** The corresponding ammo capacity goes up by exactly one expansion's worth, not to a stranded raw value.
@@ -738,16 +738,16 @@ Run:
 ```
 
 Steps:
-1. **Do:** In the client chat, run `/test_deathlink outgoing`.
-   **Expect:** The other slot dies.
-2. **Do:** Run `/test_deathlink incoming`.
+1. **Do:** Cause a *real* death (stand in Dark Aether without a suit).
+   **Expect:** The other slot dies, and the death is sent exactly once.
+2. **Do:** Have the DeathLinkPartner slot die in its own game.
    **Expect:** You die in-game.
-3. **Do:** Cause a *real* death (stand in Dark Aether without a suit).
-   **Expect:** The other slot dies. No death loop: receiving a death while already dead or during the death animation does not re-broadcast.
+3. **Do:** Watch the partner slot after your death from the previous step.
+   **Expect:** No death loop: receiving a death while already dead or during the death animation does not re-broadcast, so the partner is not killed a second time.
 
 Pass if:
-* Outgoing and incoming test deaths both work.
-* A real in-game death is sent exactly once.
+* A real in-game death is sent to the partner exactly once.
+* A death from the partner kills you in-game.
 * No death loop (the incoming death is not echoed back out).
 
 If it fails, look at:
@@ -788,8 +788,8 @@ Steps:
    **Expect:** The existing ISO is deleted and re-patched.
 6. **Do:** Run `/export_iso` with the game open.
    **Expect:** The client refuses with an error.
-7. **Do:** Run `/status`, `/test_hud hello`, and `/mp2_debug_inventory`.
-   **Expect:** `/status` prints the connection state; `/test_hud` shows a HUD memo; the inventory dump lists non-empty slots.
+7. **Do:** Run `/status` and `/test_hud hello`.
+   **Expect:** `/status` prints the connection state; `/test_hud` shows a HUD memo.
 
 Pass if:
 * Every command behaves as listed.
@@ -834,8 +834,8 @@ Steps:
    **Expect:** The existing ISO is deleted and re-patched.
 6. **Do:** Run `/export_iso` with the game open.
    **Expect:** The client refuses with an error.
-7. **Do:** Run `/status`, `/test_hud hello`, and `/mp2_debug_inventory`.
-   **Expect:** `/status` prints the connection state; `/test_hud` shows a HUD memo; the inventory dump lists non-empty slots.
+7. **Do:** Run `/status` and `/test_hud hello`.
+   **Expect:** `/status` prints the connection state; `/test_hud` shows a HUD memo.
 
 Pass if:
 * Every command behaves as listed.
@@ -1102,7 +1102,7 @@ Steps:
    **Expect:** No hint is sent and the client logs nothing about a hint scan.
    *(exercises: Only progress == 255 (a finished scan) counts.)*
 3. **Do:** Scan the Sky Temple Key 1 pillar to completion.
-   **Expect:** Text reads "Sky Temple Key 1 is in Filler1's The Button." in item/player/location colors. The client logs `Hint scan complete`, and a priority hint for key 1 at `Filler1`'s `The Button` shows up in both clients.
+   **Expect:** Text reads "Sky Temple Key 1 is in Filler1's The Button." in item/player/location colors. A priority hint for key 1 at `Filler1`'s `The Button` shows up in both clients.
 4. **Do:** Scan the Sky Temple Key 2 pillar.
    **Expect:** Text reads "Sky Temple Key 2 is in your Sky Temple Grounds: War Ritual Grounds - Pickup (Missile)." and the matching hint appears.
 5. **Do:** Scan the Sky Temple Key 8 and 9 pillars.
@@ -1261,7 +1261,7 @@ Steps:
    **Expect:** No hint is sent.
    *(exercises: Only a finished scan (progress 255) counts.)*
 3. **Do:** Scan the Meeting Grounds hologram to completion.
-   **Expect:** The text matches the spoiler's Meeting Grounds line ("Your <item> can be found in ... .", colored). The client logs `Hint scan complete` and one priority hint for that item appears in both clients.
+   **Expect:** The text matches the spoiler's Meeting Grounds line ("Your <item> can be found in ... .", colored). One priority hint for that item appears in both clients.
 4. **Do:** Scan the Path of Eyes hologram and one or two more Violet holograms.
    **Expect:** Each matches its spoiler line and sends exactly one hint.
 5. **Do:** Open the Logbook entry for one of them.
@@ -1427,10 +1427,10 @@ What the build contains:
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
-* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (`!mp2_debug_inventory` shows item 74 at 16384/16384). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
+* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (item 74 reads 16384/16384 in a Dolphin memory viewer). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
 * Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival cinematic with a HUD memo and a 3s timer into a WorldTeleporter to `!!game_end_part3`; their wiring was checked against the retail NTSC-U and PAL rooms but never run in-game before this test.
 * If the warp misbehaves (stuck camera, white screen, wrong room), suspect the removed cinematic: it normally hands control back to the player, and the warp leaves before that would happen.
-* If the warp works but the goal is still not reported, check item 74 with `/mp2_debug_inventory`: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
+* If the warp works but the goal is still not reported, check item 74 in a Dolphin memory viewer: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
 
 Run:
 ```
@@ -1479,10 +1479,10 @@ What the build contains:
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
-* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (`!mp2_debug_inventory` shows item 74 at 16384/16384). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
+* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (item 74 reads 16384/16384 in a Dolphin memory viewer). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
 * Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival cinematic with a HUD memo and a 3s timer into a WorldTeleporter to `!!game_end_part3`; their wiring was checked against the retail NTSC-U and PAL rooms but never run in-game before this test.
 * If the warp misbehaves (stuck camera, white screen, wrong room), suspect the removed cinematic: it normally hands control back to the player, and the warp leaves before that would happen.
-* If the warp works but the goal is still not reported, check item 74 with `/mp2_debug_inventory`: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
+* If the warp works but the goal is still not reported, check item 74 in a Dolphin memory viewer: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
 
 Run:
 ```
@@ -1529,10 +1529,10 @@ What the build contains:
 * start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
 
 Notes / derived values:
-* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (`!mp2_debug_inventory` shows item 74 at 16384/16384). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
+* The Credits areas (current MLVL + CStateManager::m_nextAreaId, EchoesInterface.current_mlvl/current_area_id) report every goal, plus Sky Temple Energy Controller for keys. That read never fired after the warps in play, so the warps also write constants.GOAL_MARKER_AMOUNT onto inventory item GOAL_MARKER_ITEM (74) with a SetInventoryAmountAndCapacity SpecialFunction, and the client reports emperor_ing/keys when it reads it (item 74 reads 16384/16384 in a Dolphin memory viewer). emperor_ing has no client-side proxy for Ing's death; the ISO patch keys off the game's own state instead (Sanctum's death sequence activates the Gateway's `Dark Samus Battle3 Intro` layer, and the warp hangs off that layer's OcclusionRelay).
 * Both warps are SCLY-only edits (no DOL patch) that replace the room's own arrival cinematic with a HUD memo and a 3s timer into a WorldTeleporter to `!!game_end_part3`; their wiring was checked against the retail NTSC-U and PAL rooms but never run in-game before this test.
 * If the warp misbehaves (stuck camera, white screen, wrong room), suspect the removed cinematic: it normally hands control back to the player, and the warp leaves before that would happen.
-* If the warp works but the goal is still not reported, check item 74 with `/mp2_debug_inventory`: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
+* If the warp works but the goal is still not reported, check item 74 in a Dolphin memory viewer: 0/0 means the SetInventoryAmountAndCapacity SpecialFunction (function 45; its int_parm layout was never confirmed in-game) did not write the marker.
 
 Run:
 ```
@@ -1865,6 +1865,323 @@ If it fails, look at:
 * `client/client.py::_announce_received_items`
 * `client/notification_manager.py::queue_received_items`
 * `test/test_client_grant_message.py`
+
+### MT22_TRAPS -- `mt22_traps` (P1)
+
+*Proves: client._handle_traps announces each received trap on the HUD, then applies it once the game has shown the message: Damage Trap removes a random 25-75% of maximum energy and never kills, Ammo Depletion Trap zeroes Missiles / Power Bombs / Dark Ammo / Light Ammo without touching capacities, and Freeze Trap opens a `freeze_trap_duration`-second window in which Samus is frozen via CPlayer::Freeze at random moments; none of them replays after a client restart*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; every step pastes a `/send` into it.
+* The start inventory holds 14 Energy Tanks, so maximum energy is 1499 and one Damage Trap removes a random 25-75% of that (about 375 to 1124). Traps cannot be in the start inventory, so none fire on connect.
+* The start inventory leaves out Unlimited Missiles and Unlimited Beam Ammo so ammo is a real count. Open the pause screen's inventory once to note your Missile / Power Bomb / Dark / Light ammo totals (or watch the HUD counters).
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt22_traps --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `vanilla (Temple Grounds/Landing Site/Save Station)`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `energy_per_tank=100`, `freeze_trap_duration=60`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Violet Translator` x1
+
+Notes / derived values:
+* A trap takes effect one HUD message after it arrives, and no sooner than ~5 s after the previous trap. Send several at once to see them drip out one by one.
+* Freeze is the engine's own player freeze (the effect Samus gets from ice attacks). A Freeze Trap does not freeze immediately: it opens a window (60 s here, 120 s by default) in which a freeze of 4-6 s (by default) happens every 5-20 s (by default). Mashing jump breaks a freeze early. The game refuses a freeze in a few player states (e.g. mid morph-ball transition); the client retries about a second later.
+* Disguised traps (`trap_disguise`) and the pool placement are generation-time and covered by `test/test_pool.py` and `test/test_patch_data.py`.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt22_traps --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt22_traps/mt22_traps.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt22_traps/mt22_traps.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client, and let the first room settle.
+   **Expect:** Full energy, nothing frozen, no trap messages.
+2. **Do:** Server console: `/send mt22_traps Damage Trap`
+   **Expect:** A HUD memo `Damage Trap! You lose N% of your maximum energy.` with N between 25 and 75, and then energy drops by N% of the maximum (of 1499), not N% of the current value. Send a few more: N varies from trap to trap.
+3. **Do:** Repeat `/send mt22_traps Damage Trap` until energy is below ~375, then send one more.
+   **Expect:** Energy drops to exactly 1 and Samus does not die. No DeathLink is sent if enabled.
+   *(exercises: A trap must never be lethal.)*
+4. **Do:** Heal up (pick up a refill or reload), then `/send mt22_traps Ammo Depletion Trap`
+   **Expect:** A HUD memo `Ammo Depletion Trap! Your ammo is gone.` and Missiles, Power Bombs, Dark Ammo and Light Ammo are all 0. Pause screen still shows the full capacities (Energy Tanks etc. unchanged), and collecting an ammo pickup works normally afterwards.
+   *(exercises: Only the amounts are zeroed; plan_grants compares capacities, so nothing refills them.)*
+5. **Do:** Server console: `/send mt22_traps Freeze Trap`
+   **Expect:** A HUD memo `Freeze Trap! You will freeze at random for 1 minute.` Over the next 60 s Samus freezes in ice 2-6 times for 4-6 s each, at uneven intervals, unable to move or shoot. Mashing jump shatters a freeze early. After 60 s no more freezes happen and a HUD memo `The Freeze Trap has worn off.` appears.
+6. **Do:** `/send mt22_traps Freeze Trap`, then stay in Morph Ball (rolling around) for the whole minute.
+   **Expect:** Either Samus freezes as a ball or the freezes are skipped and land once she unmorphs. No crash, no permanent stuck state.
+   *(exercises: CPlayer::Freeze bails out in some states; the client retries about a second later.)*
+7. **Do:** Paste all three in one go: `/send mt22_traps Damage Trap`, `/send mt22_traps Ammo Depletion Trap`, `/send mt22_traps Freeze Trap`
+   **Expect:** Three memos and the three effects, one at a time, at least ~5 s apart, none dropped; the freezes then start within the next 5-20 s.
+8. **Do:** Pause the game (or trigger a cutscene) and `/send mt22_traps Damage Trap`, then unpause.
+   **Expect:** The effect lands only after the game resumes, not during the pause / cutscene.
+9. **Do:** Wait for everything to settle, kill the client and restart it, reconnect.
+   **Expect:** No trap fires again: no memos, no energy loss, no freeze.
+   *(exercises: The handled-trap index lives in AP DataStorage, not the save, so a reconnect does not replay.)*
+10. **Do:** `/send mt22_traps Freeze Trap` twice, 10 s apart.
+   **Expect:** The random freezes keep going for about two windows (~2 minutes) in total, not two overlapping schedules (no double-freeze bursts).
+   *(exercises: A second Freeze Trap extends the window instead of stacking a second schedule.)*
+11. **Do:** Reload an older save (or die and reload) while connected.
+   **Expect:** Still no replayed traps.
+
+Pass if:
+* Each trap shows its HUD memo and then applies exactly once.
+* Damage Trap removes the announced 25-75% of maximum energy, floors at 1 HP, and never kills.
+* Ammo Depletion Trap zeroes all four ammo amounts and leaves capacities alone.
+* Freeze Trap freezes Samus at random moments for the configured window, each freeze can be broken by mashing jump, and a memo announces when the window ends.
+* Traps wait out pauses and cutscenes, and drip out ~5 s apart.
+* A client restart or save reload never replays a trap.
+* No client traceback.
+
+If it fails, look at:
+* `client/client.py::_handle_traps` / `_apply_trap` / `_handle_freeze_window`
+* `client/traps.py`
+* `client/game_interface.py::freeze_player` / `set_item_amount`
+* `client/versions.py::player_freeze` (CPlayer::Freeze; NTSC 0x800144A4, PAL 0x80014540)
+* `test/test_client_traps.py`
+
+### MT23_ITEM_SCAN_HINTS -- `mt23_item_scan_hints` (P1)
+
+*Proves: scanning a pickup to completion, before collecting it, sends a hint for the item inside, and each pickup's scan is independent of every other pickup showing the same text*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Prime1 (Metroid Prime) slot with a text client, so hint messages are visible from both sides.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt23_item_scan_hints --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Hive Save Station/Save Station`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=on`, `item_scan_hints=other_players`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+* companion slots: Prime1 (Metroid Prime)
+
+Notes / derived values:
+* `Temple Grounds: Hive Chamber A - Pickup (Missile)` and `Temple Grounds: Hive Chamber B - Pickup (Missile)` each hold a `Prime1` Missile Expansion (identical scan text); `Temple Grounds: Communication Area - Pickup (Missile)` holds one of your own items.
+* Any other pickup holding a `Prime1` item is hinted too; check the spoiler for the full list.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt23_item_scan_hints --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt23_item_scan_hints/mt23_item_scan_hints.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt23_item_scan_hints/mt23_item_scan_hints.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Go to `Temple Grounds: Hive Chamber A - Pickup (Missile)` and Scan Visor the pickup, but let go before the bar fills.
+   **Expect:** No hint is sent.
+   *(exercises: Only a finished scan (progress 255) counts.)*
+2. **Do:** Scan the same pickup to completion, without collecting it.
+   **Expect:** The scan text reads "Prime1's Missile Expansion." as before. A hint for that location appears in both clients.
+3. **Do:** Scan the pickup at `Temple Grounds: Hive Chamber B - Pickup (Missile)`, which shows the exact same scan text.
+   **Expect:** It sends its own hint. (A shared scan asset would have counted it as already scanned.)
+   *(exercises: open-prime-rando pools identical scan text into one SCAN; item_scan_patch gives each pickup its own.)*
+4. **Do:** Scan your own item at `Temple Grounds: Communication Area - Pickup (Missile)`.
+   **Expect:** The scan completes normally and no hint is sent (`other_players`).
+5. **Do:** Collect a pickup you have not scanned, then close and restart the client and reconnect.
+   **Expect:** No hints are re-sent for already-scanned pickups.
+
+Pass if:
+* A partial scan sends nothing; a completed scan sends exactly one hint for that pickup's location.
+* Two pickups with identical scan text hint independently.
+* Pickups with your own items hint only under `all`.
+* The scan text and collection of every pickup are unchanged.
+
+If it fails, look at:
+* `client/item_scan_patch.py` (unique SCAN creation) and `hint_scans.py::item_scan_id`
+* `hint_scans.py::item_scan_hint_entries` / slot_data `hint_scans`
+* `client/client.py::_handle_hint_scans`
+
+### MT23_ITEM_SCAN_HINTS -- `mt23_item_scan_hints_all` (P1)
+
+*Proves: scanning a pickup to completion, before collecting it, sends a hint for the item inside, and each pickup's scan is independent of every other pickup showing the same text*
+
+Prerequisites for this test:
+* Host the generated multiworld and connect the MP2 client **and** the Prime1 (Metroid Prime) slot with a text client, so hint messages are visible from both sides.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt23_item_scan_hints --iso <vanilla.iso> --variant all
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Hive Save Station/Save Station`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=on`, `item_scan_hints=all`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+* companion slots: Prime1 (Metroid Prime)
+
+Notes / derived values:
+* `Temple Grounds: Hive Chamber A - Pickup (Missile)` and `Temple Grounds: Hive Chamber B - Pickup (Missile)` each hold a `Prime1` Missile Expansion (identical scan text); `Temple Grounds: Communication Area - Pickup (Missile)` holds one of your own items.
+* Any other pickup holding a `Prime1` item is hinted too; check the spoiler for the full list.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt23_item_scan_hints --iso <vanilla.iso> --variant all
+2. Host       python MultiServer.py manual_tests/mt23_item_scan_hints_all/mt23_item_scan_hints_all.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt23_item_scan_hints_all/mt23_item_scan_hints_all.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Scan your own item at `Temple Grounds: Communication Area - Pickup (Missile)` to completion.
+   **Expect:** A priority hint for it is sent.
+
+Pass if:
+* Pickups holding your own items hint too, at priority.
+
+If it fails, look at:
+* `client/item_scan_patch.py` (unique SCAN creation) and `hint_scans.py::item_scan_id`
+* `hint_scans.py::item_scan_hint_entries` / slot_data `hint_scans`
+* `client/client.py::_handle_hint_scans`
+
+### MT26_FLYING_ING_CACHE_WITHOUT_DARK_VISOR -- `mt26_flying_ing_cache_without_dark_visor` (P1)
+
+*Proves: client/flying_ing_cache_patch.py leaves each key cache's `Collision Dummy_Dark Visor` active outside the Dark Visor, so a shot at the hidden cache lands, reveals it and the key drops as in vanilla*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; the last steps need it.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Defiled Shrine/Door to Shrine Access`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `flying_ing_caches_without_dark_visor=True`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* You start with everything except the Dark Visor.
+* The cache hangs about 3 m above head height, roughly 15 m south-west of the safe zone crystal on the west side of the room (the one farthest from the door you spawn at). An invisible field under it knocks you back; that happens in vanilla too and is the easiest way to find the spot.
+* While the cache is invisible it doesn't move, so it stays where it started.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt26_flying_ing_cache_without_dark_visor/mt26_flying_ing_cache_without_dark_visor.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt26_flying_ing_cache_without_dark_visor/mt26_flying_ing_cache_without_dark_visor.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client and look around Defiled Shrine.
+   **Expect:** No Ing Cache is visible anywhere.
+2. **Do:** Walk to the spot described in the notes until the invisible field knocks you back, then back off a few metres.
+   **Expect:** You get pushed away from an empty-looking spot.
+3. **Do:** Without locking on, fire Power Beam shots upward through the space above that spot.
+   **Expect:** One shot hits something: the cache cries out, appears and starts flying its route.
+   *(exercises: The first hit kills the 1 HP dummy, which turns the visible cache on (vanilla scripting).)*
+4. **Do:** Destroy the now-visible cache and collect the key it drops.
+   **Expect:** The cache bursts, the pickup appears and collecting it checks `Sky Temple Grounds: Defiled Shrine - Pickup (Sky Temple Key 8)` in the client.
+5. **Do:** From the server console run `/send <player> Dark Visor`, leave the room, come back and look around in each visor.
+   **Expect:** Nothing new appears: the cache is gone for good.
+
+Pass if:
+* The cache can't be seen without the Dark Visor, but a shot at it lands.
+* After the first hit it is visible and destroyable, and its key checks the location.
+* No client traceback.
+
+If it fails, look at:
+* `client/flying_ing_cache_patch.py::make_cache_shootable`
+* `client/patcher_runner.py::flying_ing_caches_shootable_installed`
+* `test/test_flying_ing_cache.py`
+
+### MT26_FLYING_ING_CACHE_WITHOUT_DARK_VISOR -- `mt26_flying_ing_cache_without_dark_visor_dark_visor` (P1)
+
+*Proves: client/flying_ing_cache_patch.py leaves each key cache's `Collision Dummy_Dark Visor` active outside the Dark Visor, so a shot at the hidden cache lands, reveals it and the key drops as in vanilla*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; the last steps need it.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso> --variant dark_visor
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Defiled Shrine/Door to Shrine Access`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `flying_ing_caches_without_dark_visor=True`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* You start with everything, the Dark Visor included.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso> --variant dark_visor
+2. Host       python MultiServer.py manual_tests/mt26_flying_ing_cache_without_dark_visor_dark_visor/mt26_flying_ing_cache_without_dark_visor_dark_visor.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt26_flying_ing_cache_without_dark_visor_dark_visor/mt26_flying_ing_cache_without_dark_visor_dark_visor.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client and switch to the Dark Visor.
+   **Expect:** The cache is visible and flying its route, as in vanilla.
+2. **Do:** Watch it for a moment, then switch back to the Combat Visor.
+   **Expect:** It vanishes. Note where it was.
+3. **Do:** Without locking on, shoot the spot where it vanished.
+   **Expect:** The shot hits: the cache cries out, appears and starts moving again.
+   *(exercises: Hidden, the cache stops moving, and its hitbox stays where it was.)*
+4. **Do:** Destroy it and collect the key.
+   **Expect:** Collecting it checks `Sky Temple Grounds: Defiled Shrine - Pickup (Sky Temple Key 8)`.
+
+Pass if:
+* With the Dark Visor the cache behaves as in vanilla.
+* Hidden mid-route, the cache can be shot at the spot where it vanished.
+
+If it fails, look at:
+* `client/flying_ing_cache_patch.py::make_cache_shootable`
+* `client/patcher_runner.py::flying_ing_caches_shootable_installed`
+* `test/test_flying_ing_cache.py`
+
+### MT26_FLYING_ING_CACHE_WITHOUT_DARK_VISOR -- `mt26_flying_ing_cache_without_dark_visor_off` (P1)
+
+*Proves: client/flying_ing_cache_patch.py leaves each key cache's `Collision Dummy_Dark Visor` active outside the Dark Visor, so a shot at the hidden cache lands, reveals it and the key drops as in vanilla*
+
+Prerequisites for this test:
+* Host the generated multiworld and keep the server console open; the last steps need it.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso> --variant off
+```
+
+What the build contains:
+* starting room: `Sky Temple Grounds/Defiled Shrine/Door to Shrine Access`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `flying_ing_caches_without_dark_visor=False`, `item_map_dots=on`, `map_visibility=full_map`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* You start with everything except the Dark Visor.
+* The cache hangs about 3 m above head height, roughly 15 m south-west of the safe zone crystal on the west side of the room (the one farthest from the door you spawn at). An invisible field under it knocks you back; that happens in vanilla too and is the easiest way to find the spot.
+* While the cache is invisible it doesn't move, so it stays where it started.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt26_flying_ing_cache_without_dark_visor --iso <vanilla.iso> --variant off
+2. Host       python MultiServer.py manual_tests/mt26_flying_ing_cache_without_dark_visor_off/mt26_flying_ing_cache_without_dark_visor_off.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt26_flying_ing_cache_without_dark_visor_off/mt26_flying_ing_cache_without_dark_visor_off.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client, find the spot (see notes) and shoot through the space above it, sweeping widely.
+   **Expect:** Nothing is ever hit and no cache appears, as in vanilla.
+
+Pass if:
+* With the option off, shots never hit the hidden cache.
+
+If it fails, look at:
+* `client/flying_ing_cache_patch.py::make_cache_shootable`
+* `client/patcher_runner.py::flying_ing_caches_shootable_installed`
+* `test/test_flying_ing_cache.py`
 
 ## Suggested runs
 

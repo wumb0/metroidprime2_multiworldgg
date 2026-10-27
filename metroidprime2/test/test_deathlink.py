@@ -40,7 +40,8 @@ if "network_data_package" not in worlds.__dict__:
     worlds.network_data_package_single_game = {}
 
 from ..client.client import MetroidPrime2Context
-from ..client.death_link import death_link_check
+from ..client.death_link import death_link_check, death_message
+from ..tracker_data import area_region_name, area_room_name
 
 
 class TestDeathLinkCheck(unittest.TestCase):
@@ -62,31 +63,90 @@ class TestDeathLinkCheck(unittest.TestCase):
     def test_positive_health_without_pending_flag_is_a_noop(self) -> None:
         self.assertEqual((False, False), death_link_check(99.0, False))
 
+    def test_cleared_alive_flag_sends_even_with_positive_health(self) -> None:
+        self.assertEqual((True, True), death_link_check(50.0, False, alive=False))
+
+    def test_cleared_alive_flag_does_not_resend_while_pending(self) -> None:
+        self.assertEqual((False, True), death_link_check(50.0, True, alive=False))
+
+    def test_pending_flag_holds_until_alive_flag_returns(self) -> None:
+        self.assertEqual((False, True), death_link_check(99.0, True, alive=False))
+        self.assertEqual((False, False), death_link_check(99.0, True, alive=True))
+
+    def test_unknown_alive_flag_falls_back_to_health(self) -> None:
+        self.assertEqual((False, False), death_link_check(99.0, False, alive=None))
+        self.assertEqual((True, True), death_link_check(0.0, False, alive=None))
+
+
+class TestDeathMessage(unittest.TestCase):
+    def test_names_room_and_region_when_known(self) -> None:
+        self.assertEqual(
+            "Sam died in Sanctuary Fortress's Main Research",
+            death_message("Sam", "Main Research", "Sanctuary Fortress"),
+        )
+
+    def test_names_whichever_is_known(self) -> None:
+        self.assertEqual("Sam died in Agon Wastes", death_message("Sam", None, "Agon Wastes"))
+        self.assertEqual("Sam died in Main Research", death_message("Sam", "Main Research", None))
+
+    def test_falls_back_without_location(self) -> None:
+        self.assertEqual("Sam ran out of energy.", death_message("Sam", None, None))
+
+    def test_room_lookup_uses_live_mlvl_and_area_index(self) -> None:
+        self.assertEqual("Main Research", area_room_name(0x1BAA96C2, 11))
+        self.assertIsNone(area_room_name(None, 11))
+        self.assertIsNone(area_room_name(0x1BAA96C2, 9999))
+        self.assertIsNone(area_room_name(0xDEADBEEF, 0))
+
+    def test_region_lookup_uses_live_mlvl_and_area_index(self) -> None:
+        self.assertEqual("Sanctuary Fortress", area_region_name(0x1BAA96C2, 0))
+        self.assertEqual("Ing Hive", area_region_name(0x1BAA96C2, 12))
+
+    def test_region_lookup_unknown_is_none(self) -> None:
+        self.assertIsNone(area_region_name(None, 0))
+        self.assertIsNone(area_region_name(0x1BAA96C2, None))
+        self.assertIsNone(area_region_name(0x1BAA96C2, 9999))
+        self.assertIsNone(area_region_name(0xDEADBEEF, 0))
+
 
 class _FakeGameInterface:
     """Stands in for ``EchoesInterface``: records the health/alive writes
-    ``on_deathlink`` performs without touching Dolphin."""
+    ``on_deathlink`` performs without touching Dolphin. ``health=None``
+    simulates a null CPlayerState (writes fail)."""
 
-    def __init__(self) -> None:
+    def __init__(self, health: float | None = 99.0) -> None:
+        self.health = health
         self.last_health_written: float | None = None
         self.last_alive_written: bool | None = None
 
-    def set_current_health(self, new_health_amount: float) -> None:
+    def get_current_health(self) -> float | None:
+        return self.health
+
+    def set_current_health(self, new_health_amount: float) -> bool:
+        if self.health is None:
+            return False
         self.last_health_written = new_health_amount
+        self.health = new_health_amount
+        return True
 
-    def set_alive(self, alive: bool) -> None:
+    def set_alive(self, alive: bool) -> bool:
+        if self.health is None:
+            return False
         self.last_alive_written = alive
+        return True
 
 
-def _bare_context() -> MetroidPrime2Context:
+def _bare_context(health: float | None = 99.0) -> MetroidPrime2Context:
     """Builds a ``MetroidPrime2Context`` instance without running
     ``CommonContext.__init__`` (which schedules an asyncio task and needs a
     running event loop) -- only the attributes ``on_deathlink`` and its
     ``super().on_deathlink()`` call actually touch are set by hand."""
     ctx = object.__new__(MetroidPrime2Context)
     ctx.last_death_link = 0.0
-    ctx.game_interface = _FakeGameInterface()  # type: ignore[assignment]
+    ctx.game_interface = _FakeGameInterface(health)  # type: ignore[assignment]
     ctx.is_pending_death_link_reset = False
+    ctx.pending_incoming_death = False
+    ctx.pending_incoming_death_since = 0.0
     return ctx
 
 
@@ -114,6 +174,46 @@ class TestOnDeathlink(unittest.TestCase):
             ctx.is_pending_death_link_reset,
         )
         self.assertEqual((False, True), (should_send, new_pending))
+
+    def test_null_player_state_queues_death_until_valid(self) -> None:
+        ctx = _bare_context(health=None)
+        ctx.on_deathlink({"time": 1.0, "cause": "x", "source": "Other"})
+
+        self.assertTrue(ctx.pending_incoming_death)
+        self.assertFalse(ctx.is_pending_death_link_reset)
+        self.assertIsNone(ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
+
+        # Still null on a later tick: stays queued.
+        ctx.apply_pending_death()
+        self.assertTrue(ctx.pending_incoming_death)
+
+        # Player state becomes valid: the queued death lands and arms the debounce.
+        ctx.game_interface.health = 99.0  # type: ignore[attr-defined]
+        ctx.apply_pending_death()
+        self.assertFalse(ctx.pending_incoming_death)
+        self.assertEqual(-1.0, ctx.game_interface.last_health_written)  # type: ignore[attr-defined]
+        self.assertEqual(False, ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
+        self.assertTrue(ctx.is_pending_death_link_reset)
+
+    def test_queued_death_expires_after_timeout(self) -> None:
+        ctx = _bare_context(health=None)
+        ctx.on_deathlink({"time": 1.0, "cause": "x", "source": "Other"})
+        self.assertTrue(ctx.pending_incoming_death)
+
+        ctx.pending_incoming_death_since -= 31.0
+        ctx.game_interface.health = 99.0  # type: ignore[attr-defined]
+        ctx.apply_pending_death()
+
+        self.assertFalse(ctx.pending_incoming_death)
+        self.assertIsNone(ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
+        self.assertFalse(ctx.is_pending_death_link_reset)
+
+    def test_already_dead_player_drops_queued_death(self) -> None:
+        ctx = _bare_context(health=0.0)
+        ctx.on_deathlink({"time": 1.0, "cause": "x", "source": "Other"})
+
+        self.assertFalse(ctx.pending_incoming_death)
+        self.assertIsNone(ctx.game_interface.last_alive_written)  # type: ignore[attr-defined]
 
 
 if __name__ == "__main__":

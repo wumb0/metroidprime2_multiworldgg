@@ -23,22 +23,22 @@ TEST = ManualTest(
     ],
     steps=[
         Step(
-            "In the client chat, run `/test_deathlink outgoing`.",
-            "The other slot dies.",
+            "Cause a *real* death (stand in Dark Aether without a suit).",
+            "The other slot dies, and the death is sent exactly once.",
         ),
         Step(
-            "Run `/test_deathlink incoming`.",
+            "Have the DeathLinkPartner slot die in its own game.",
             "You die in-game.",
         ),
         Step(
-            "Cause a *real* death (stand in Dark Aether without a suit).",
-            "The other slot dies. No death loop: receiving a death while already dead or during the "
-            "death animation does not re-broadcast.",
+            "Watch the partner slot after your death from the previous step.",
+            "No death loop: receiving a death while already dead or during the death animation "
+            "does not re-broadcast, so the partner is not killed a second time.",
         ),
     ],
     pass_criteria=[
-        "Outgoing and incoming test deaths both work.",
-        "A real in-game death is sent exactly once.",
+        "A real in-game death is sent to the partner exactly once.",
+        "A death from the partner kills you in-game.",
         "No death loop (the incoming death is not echoed back out).",
     ],
     on_failure=[

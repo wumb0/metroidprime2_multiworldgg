@@ -105,7 +105,8 @@ def _steps(ammo_item: str) -> list[Step]:
             "Baseline inventory matches the table's baseline row.",
         ),
         Step(
-            "Collect the 14 pickups in the printed order, running `/mp2_debug_inventory` after each.",
+            "Collect the 14 pickups in the printed order, checking the pause-screen inventory (and the client item strip, if Universal Tracker is "
+            "installed) after each.",
             "After each pickup, the item amounts/capacities match the script's expected table. In "
             "this variant the Missile Expansions before the launcher raise the capacity but leave "
             "0 usable missiles until the launcher is collected.",

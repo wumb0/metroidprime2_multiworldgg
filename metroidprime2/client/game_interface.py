@@ -154,6 +154,30 @@ def _wide_decrement_patch(
     ]
 
 
+def _freeze_patch(freeze_address: int, seconds: float) -> list[BaseInstruction]:
+    """``CPlayer::Freeze(seconds, mgr, -1, -1, -1)`` for a remote-execution
+    body (r31 = CStateManager). ``-1`` as the sound is what the vanilla
+    callers pass (their 16-bit "none" constant is 0xFFFF; Freeze compares
+    ``clrlwi r3, r6, 16``), so all three resources fall back to the
+    player's own. The float argument goes through 8(r1): the body's stack
+    frame is free below 0x10(r1), where the HUD memo call starts."""
+    from ppc_asm.assembler.ppc import bl, f1, lfs, li, lis, lwz, mr, ori, r0, r1, r3, r4, r5, r6, r7, r31, stw
+
+    (bits,) = struct.unpack(">I", struct.pack(">f", seconds))
+    return [
+        lwz(r3, versions.CPLAYER_OFFSET, r31),
+        mr(r4, r31),
+        li(r5, -1),
+        li(r6, -1),
+        li(r7, -1),
+        lis(r0, bits >> 16),
+        ori(r0, r0, bits & 0xFFFF),
+        stw(r0, 8, r1),
+        lfs(f1, 8, r1),
+        bl(freeze_address),
+    ]
+
+
 class EchoesInterface:
     logger: Logger
     dolphin_client: DolphinClient
@@ -448,28 +472,58 @@ class EchoesInterface:
             return None
         return struct.unpack(">f", data)[0]
 
-    def set_current_health(self, new_health_amount: float) -> None:
+    def set_current_health(self, new_health_amount: float) -> bool:
         """Direct write to the same field ``get_current_health`` reads --
         drops the HUD-displayed energy on an incoming DeathLink. This alone
         does NOT kill the player (it bypasses the game's own damage/death
         pipeline, leaving camera and gun-model state stuck); pair with
         ``set_alive(False)``, which is what actually triggers death. There's
         no remote-execution-safe way to force a death through the normal
-        item-grant call path, hence the raw poke."""
+        item-grant call path, hence the raw poke. Returns False if the write
+        didn't happen (null CPlayerState or Dolphin error)."""
         player_state = self._player_state_pointer()
         if player_state is None:
-            return
+            return False
         try:
             self.dolphin_client.write_address(
                 player_state + versions.HEALTH_OFFSET, struct.pack(">f", new_health_amount)
             )
+            return True
         except DolphinException:
             # Called from on_deathlink(), which runs on the server-loop package
             # handler -- a dropped connection mid-write must not propagate out
             # of that handler, matching every other Dolphin access in this class.
+            return False
+
+    def set_item_amount(self, item_id: int, amount: int) -> None:
+        """Direct write of the *amount* (not the capacity) of one inventory
+        slot. Used by the Ammo Depletion Trap: ``plan_grants`` compares
+        capacities only, so an emptied ammo slot is not refilled."""
+        player_state = self._player_state_pointer()
+        if player_state is None:
+            return
+        address = player_state + versions.INVENTORY_OFFSET + item_id * versions.INVENTORY_ITEM_SIZE
+        try:
+            self.dolphin_client.write_address(address, struct.pack(">I", amount))
+        except DolphinException:
             return
 
-    def set_alive(self, alive: bool) -> None:
+    def get_alive(self) -> bool | None:
+        """``versions.ALIVE_BIT_MASK`` bit of the byte at
+        ``versions.ALIVE_OFFSET`` (``CPlayerState::alive``). None if the
+        CPlayerState pointer is null or Dolphin isn't connected."""
+        player_state = self._player_state_pointer()
+        if player_state is None:
+            return None
+        try:
+            data = self.dolphin_client.read_address(player_state + versions.ALIVE_OFFSET, 1)
+        except DolphinException:
+            return None
+        if data is None:
+            return None
+        return bool(data[0] & versions.ALIVE_BIT_MASK)
+
+    def set_alive(self, alive: bool) -> bool:
         """Read-modify-write the ``versions.ALIVE_BIT_MASK`` bit of the byte
         at ``versions.ALIVE_OFFSET`` (``CPlayerState::alive``, packed
         alongside an unrelated ``firingComboBeam`` bit in the same byte --
@@ -479,22 +533,23 @@ class EchoesInterface:
         (unconfirmed) bit-position reasoning."""
         player_state = self._player_state_pointer()
         if player_state is None:
-            return
+            return False
         try:
             data = self.dolphin_client.read_address(player_state + versions.ALIVE_OFFSET, 1)
             if data is None:
-                return
+                return False
             value = data[0]
             if alive:
                 value |= versions.ALIVE_BIT_MASK
             else:
                 value &= ~versions.ALIVE_BIT_MASK & 0xFF
             self.dolphin_client.write_address(player_state + versions.ALIVE_OFFSET, bytes([value]))
+            return True
         except DolphinException:
             # Called from on_deathlink(), which runs on the server-loop package
             # handler -- a dropped connection mid-write must not propagate out
             # of that handler, matching every other Dolphin access in this class.
-            return
+            return False
 
     # ----------------------------------------------------------------
     # OPR dataclass construction (lazy import)
@@ -561,6 +616,32 @@ class EchoesInterface:
 
         self.dolphin_client.write_address(address, body)
         self.write_pending_op()
+
+    def freeze_player(self, seconds: float) -> None:
+        """Arms a remote-execution body calling ``CPlayer::Freeze`` the way the
+        game's own callers do (default textures and sound); the freeze then
+        runs for ``seconds`` unless the player mashes jump to break it. Call
+        only with no op pending. Freeze quietly does nothing in states it
+        refuses (morph ball transitions and the like), so check
+        ``read_frozen_timeout`` once the body has run."""
+        assert self.version is not None
+        self.execute(_freeze_patch(self.version.player_freeze, seconds))
+
+    def read_frozen_timeout(self) -> float | None:
+        """``CPlayer::mFrozenTimeout`` (seconds of freeze left, 0 when not
+        frozen); None if there is no CPlayer or Dolphin isn't connected."""
+        if self.version is None:
+            return None
+        cplayer = self._read_u32(self.version.cstate_manager_global + versions.CPLAYER_OFFSET)
+        if not cplayer:
+            return None
+        try:
+            data = self.dolphin_client.read_address(cplayer + versions.FROZEN_TIMEOUT_OFFSET, 4)
+        except DolphinException:
+            return None
+        if data is None:
+            return None
+        return struct.unpack(">f", data)[0]
 
     def grant(
         self, deltas: list[tuple[int, int]], message: str | None = None

@@ -58,7 +58,7 @@ RECOLORS: dict[str, tuple[str, float | None, float, float]] = {
     "darkvisor": ("xrayvisor", 0, 2.2, 0.8),
     "echovisor": ("scanvisor", 185, 1.0, 1.0),
     # suits
-    "darksuit": ("gravitysuit", 265, 0.9, 0.45),
+    "darksuit": ("gravitysuit", 265, 0.9, 0.8),
     "lightsuit": ("variasuit", 55, 0.35, 1.3),
     # launchers
     "seekerlauncher": ("missilelauncher", 300, 0.9, 0.95),

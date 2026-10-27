@@ -1912,3 +1912,102 @@ the strip (mock GL), every location appearing exactly once on its region's
 map with unique in-bounds pixels, the auto-tab mapping, and UT's own
 `UTMapTabData` accepting `TRACKER_WORLD`. Nothing has been run in a live UT
 session, so how the strip and the map actually look is unchecked.
+
+## X. Trap items
+
+Three `ItemClassification.trap` items (`items.py` 61-63: Damage Trap, Ammo
+Depletion Trap, Freeze Trap; `gains=()`, `default_pool_count=0`), mixed into the
+pool by `trap_percentage` / `trap_weights` (Lingo-style `OptionCounter`).
+
+Generation: `item_pool._apply_traps` runs on the finished pool and replaces
+`trap_percentage`% of the Missile Expansions, capped so `_MIN_MISSILE_EXPANSIONS`
+(13: the logic database's highest Missile requirement is 65) remain; the
+remainder after the proportional split is handed out round-robin in a random
+order. All weights 0 with a nonzero percentage, or a trap in `start_inventory`,
+is an `OptionError`. `trap_disguise` dresses own-world traps as an ordinary
+pickup in `patch_data._pickup_appearance` (seeded per location, not from
+`world.random`). `freeze_trap_duration` rides in slot data.
+
+Client (`client/traps.py`, `client.py::_handle_traps`): a trap is an event, not
+state, so it has its own handled-index in AP DataStorage
+(`constants.TRAP_INDEX_DATASTORAGE_KEY`, fetched on `Connected`, nothing applied
+until it arrives, advanced with a `max` Set). Positions below
+`first_non_starting_item_index` never fire. One trap per tick, >= 5 s apart.
+Two phases: send the HUD memo (the remote-execution hook only runs outside
+cutscenes), and apply the effect once the pending-op flag has cleared.
+
+- Damage: a random whole percent in [`damage_trap_min_percent`, `damage_trap_max_percent`]
+  (default 25-75, rolled from `ctx.trap_rng` when the memo is announced so the memo
+  can state it) of max energy (`energy_per_tank * (tanks + 1) - 1`), floored at 1.
+- Ammo Depletion: `set_item_amount(id, 0)` for items 43-46, a direct write of the
+  amount only; `plan_grants` compares capacities, so nothing refills it.
+- Freeze: a *window* rather than a single freeze. Receiving the trap opens a
+  `freeze_trap_duration`-second window (default 120, range 30-600; a second trap
+  extends it); `_handle_freeze_window` freezes the player for a random time in
+  [`freeze_trap_min_seconds`, `freeze_trap_max_seconds`] (default 4-6 s) every random
+  [`freeze_trap_min_gap_seconds`, `freeze_trap_max_gap_seconds`] (default 5-20 s) after the previous one started (both drawn from
+  `ctx.trap_rng`). The window is wall-clock state in memory only, so a client
+  restart drops what is left of it. Each freeze is
+  `CPlayer::Freeze(seconds, mgr, -1, -1, -1)` through `execute()`. Found by
+  disassembling the retail DOL: both vanilla callers pass `-1` textures and the
+  16-bit "no sfx" constant (0xFFFF on NTSC and PAL), which selects the player's
+  built-in frozen resources (allocated in the CPlayer constructor).
+  NTSC `0x800144A4`, PAL `0x80014540` (`versions.player_freeze`, PAL by masked
+  signature match). `mFrozenTimeout` is at CPlayer+0x1158 (seconds, decremented
+  per frame by `UpdateFrozenState`; mashing jump breaks it early). Freeze bails
+  out silently in some player states, so after each attempt the client reads
+  `mFrozenTimeout` and retries after `FREEZE_RETRY_DELAY` if it did not take; it
+  also skips a freeze while one is already running or the player is dead.
+
+Verification: unit tests cover the pool, option errors, disguise, the effect
+maths, the announce/apply/record flow, the Freeze body's assembly on both
+versions, and fill beatability at `trap_percentage: 100`. Nothing has been run
+in-game: `mt22_traps` is the manual test (its `config_sha256` is not pinned yet;
+build it once with `--iso` and `--repin`).
+
+## Z. Map station reveal (`unvisited_room_names`)
+
+**Report (2026-10-14):** using a map station gave no room names for any dark world room, for a large part of Temple Grounds, or for the Great Temple.
+
+**Cause (disassembly of NTSC + PAL, MAPA dump of the NTSC ISO).** OPR's `apply_unvisited_room_names` is a one-instruction DOL write (`li r28, 1` at NTSC 0x8008B714 in `CAutoMapper::Update`, PAL 0x8008B850) that forces the hover name on, but a name only shows for a room the map draws *and* the cursor can select, and both go through `CMapArea::GetIsVisibleToAutoMapper` (NTSC 0x8007F300). OPR leaves every area on MAPA mode 1 (`VisitOrMapStation`): drawn when `worldVis || IsAreaVisible`. `worldVis` is `CMapWorldInfo::IsWorldVisible(area, dark)` = `IsMapped(area) || (mMapStationUsed && !dark)` (NTSC 0x8010F3E0, PAL 0x8010F594), so a station never reveals a room whose MAPA header `type` is 1 (dark). Temple Grounds has 20 dark rooms of 55 real ones. The Great Temple MLVL has no `SpecialFunction` MapStation at all (only Agon, Sanctuary, Torvus, and two in Temple Grounds: Hive Chamber A and GFMC Compound), and each world has its own `CMapWorldInfo`, so Temple Grounds' stations cannot map it.
+
+**Fix (`client/map_reveal_patch.py`).**
+- `reveal_dark_rooms_on_map_station` (its own option, `map_rooms_reveal_dark_world_map`, default on; independent of `unvisited_room_names`, which only decides whether revealed rooms show names; an `.apmp2` without the key reads as off): the `clrlwi/cntlzw/srwi r3` triple that computes `!inDarkWorld` (NTSC 0x8010F428, PAL 0x8010F5DC) becomes `li r3, 1; nop; nop`. Refuses a DOL whose three words differ. This also lets `item_map_dots: on` dots follow a station into the dark world; `map_station` mode already read the flag directly.
+- `great_temple_always_mapped` (when `unvisited_room_names` is on): wraps `general_changes.change_map_visibility` and sets every non-`Never` Great Temple MAPA to `Always`. It is always drawn (so its names show) instead of waiting on a station that does not exist.
+
+Verified by patching both real ISOs end to end: patched DOL disassembled at both addresses, Great Temple MAPAs all `Always`, Agon unchanged. Unit tests in `test/test_map_reveal_patch.py`. **Not run in Dolphin.**
+
+## AA. Item scan hints (`item_scan_hints`)
+
+**Request (2026-10-15):** scanning a pickup (before collecting it) should send a hint for the item inside to the server, detected from the save's scan-state vector like the Sky Temple Key / lore hints rather than by hooking the scan function.
+
+**Why it needed a patch.** The detection half is already generic (section Q: `read_scan_progress` + `hint_scans` slot data + `_handle_hint_scans`), and OPR already gives every pickup a SCAN (`create_simple_scan`) and appends it to the area's SAVW `scannable_objects`, which is what makes the game track it. But `PatcherEditor._create_scan` *pools* by `(strings, model)`, so every "Missile Expansion." pickup (and every "Foo's Great Sword." for the same recipient and item) shares one SCAN: scanning one completes all of them. A hint per location needs a SCAN per location.
+
+**Design.**
+- `hint_scans.item_scan_asset_name(i)` = `ItemHintScan{i}.SCAN`; `item_scan_id(i)` is its asset id. Echoes hashes asset names with Retro's CRC32 = standard CRC-32 without the final inversion, so it is `zlib.crc32(name) ^ 0xFFFFFFFF` (a test checks it against `retro_data_structures`). Generation therefore knows every scan id without running the patcher.
+- `hint_scans.item_scan_hint_entries(world)` -> `{pickup_index: (location, status)}` per the option (`off`, `other_players`, `all` default). One source of truth for slot_data and `options.json`. Another player's item is `HINT_UNSPECIFIED`, your own `HINT_PRIORITY` (section R.1 rules); your own traps are skipped while `trap_disguise` is on (the hint would unmask them).
+- `__init__.py`: `hint_scans[item_scan_id(i)] = (player, address, status)` in slot_data; `options.json["item_scan_hint_indices"]` lists the pickups that need their own SCAN. The client path is unchanged.
+- `client/item_scan_patch.py::installed(indices)` (entered in `patcher_runner.patch_iso_with_ap`): wraps `pickup_editing.patch_simple_pickup`; for a listed pickup, `editor.create_simple_scan` is swapped for an unpooled one (same body as `_create_scan`, same Light Beam SCAN template, names from `item_scan_asset_name`) for the duration of that call. The pickup is recognised from its single-bit counter resource (`pickup_encoding.pickup_index_for`, the inverse of `counter_and_amount`), so no marker in the patch data. OPR's `scannable_objects.append` then lists the new id.
+- Not in the SAVW-less case: a pickup scan is the SCAN OPR creates, so no SAVW editing of our own.
+
+**Facts checked.** `CMemoryCard` builds its scan list with `find` before `push_back` (dedupes) and sorts it, so the extra ~100 entries need no save-format change in the decomp; `SCAN_STATES_MAX_COUNT` (2048) still covers retail's ~820 plus 119.
+
+**Verification.** Unit tests (`test_item_scan_hints.py`): ids, entry selection per mode, slot_data from a real two-player generation, the `installed` wrapper. Manual test `mt23_item_scan_hints` (config pin not set; build once with `--iso` then `--repin`). **Not run in Dolphin**: still unconfirmed that finishing a pickup scan writes progress 255 into the scan-state vector. The decompiled Prime 1 `CPlayer` scan update calls `SetScanTime` for any scannable object regardless of logbook entry, and Echoes' scan code is the same lineage, but the Echoes version is not decompiled here.
+
+## AB. Flying Ing Caches without the Dark Visor (`flying_ing_caches_without_dark_visor`)
+
+**Request (2026-10-27):** let a skilled player who knows where a Sky Temple Key's Flying Ing Cache is shoot it without the Dark Visor. The cache stays invisible until hit; logic stops requiring the Dark Visor for those keys.
+
+**Mechanism (reverse engineered from both ISOs).** Exactly nine rooms in the five worlds have the cache rig, one per key: Battleground, Dark Oasis, Poisoned Bog, Dungeon, Hive Entrance, Hive Dynamo Works, Ing Reliquary, Defiled Shrine, Accursed Lake. Object names and wiring are identical in all nine and between NTSC-U and PAL.
+- `PLAT "War Chest"` is the visible cache. Its `Play -> Activate` connections make the dummies, damageable triggers, push-back trigger and radial damage platform slaves.
+- `ACTR "Collision Dummy_Dark Visor"`: inactive in the SCLY, 1 HP, collision-cube model (no textures, invisible), `visor_flags` 0. That field is `CActor::m_targetableVisorFlags` (lock-on mask, decomp `CActor.cpp`), not a render mask.
+- `PLCT "DARK VISOR DETECTOR"` (PlayerController, proxy type 7): `Entered`/`Exited` follow the Dark Visor. `Entered` activates the War Chest and the dummy; `Exited` deactivates both. Outside the Dark Visor there is nothing to hit.
+- Dummy `Damage` deactivates the detector; `Dead` activates the War Chest, `Collision Dummy_Other Visor` (50 HP, the hitbox in every visor from then on) and `DARK VISOR DETECTOR_2`. `DETECTOR_2` hides the War Chest in the Dark Visor but leaves `Other Visor` active, so vanilla already has an "invisible but shootable" state, with the same actor parameters.
+- `isHighlightedInDarkVisor` (`0xcd4c81a1`) is the War Chest's only visor-specific actor flag, and it's cosmetic.
+- Battleground's four `Dark Visor Platform`s are always-active solid PLATs whose normal model is the same invisible cube (`dark_model` is what the Dark Visor shows), so they can be stood on without it. Poisoned Bog / Hive Dynamo Works `darkbutton` seeker targets belong to other events.
+
+**Patch.** `client/flying_ing_cache_patch.py::make_cache_shootable`, registered for the nine rooms through `patcher_runner.flying_ing_caches_shootable_installed` (the `register_world_changes` hook): set the dummy `active=True` and remove the detector's `Exited -> Deactivate` to it. SCLY only, no DOL. While hidden, the War Chest is inactive (no `Think`), so the cache and the dummy stay put. Dark Oasis's rig lives on its "2nd pass" layer and is untouched by this.
+
+**Logic.** `regions.FLYING_ING_CACHE_DARK_VISOR_REPLACEMENTS`: every edge into the nine key pickups ANDs one top-level `DarkVisor`. With the option on, `_intra_area_edges` replaces it with Trivial, except Battleground: there it becomes `DarkVisor or InvisibleObjects >= 2`, because its Space Jump route rides the moving invisible platforms (the DB's other Dark Visor platform edges use the same form). `_replace_cache_dark_visor` raises if an edge stops having exactly one top-level `DarkVisor`. The dock-rando probe shares `_intra_area_edges`, so it sees the same edges.
+
+**Verification.** `test/test_flying_ing_cache.py`: the table equals the DB's `SkyTempleKey` pickups and the patched rooms; every incoming edge relaxes; reachability without the Dark Visor (none by default, eight with the option, nine with Invisible Objects intermediate); options.json route; the SCLY rewrite on fakes; the hook. The patch was also applied to all nine real rooms from both ISOs and the MREAs round-tripped. Manual test `mt26_flying_ing_cache_without_dark_visor` (+ `dark_visor`, `off` variants, pinned) is **not run in Dolphin**.

@@ -2,7 +2,8 @@
 one schematic top-down map image per logic-database region, a poptracker
 ``maps.json`` / ``locations.json`` placing every pickup location on its map,
 ``area_maps.json`` (which map tab a given in-game area belongs to, for
-auto-tabbing), and ``room_icons.json`` plus ``images/rooms/`` (a highlight
+auto-tabbing), ``area_names.json`` (room name per area index, for the
+client's DeathLink message), and ``room_icons.json`` plus ``images/rooms/`` (a highlight
 overlay per room, marking the player's current room).
 
 The maps are drawn from room geometry (each room's bounding box), not game
@@ -464,6 +465,7 @@ def main() -> None:
     locations: list[dict] = []
     area_maps: dict[str, dict[str, str]] = {}
     room_icons: dict[str, dict[str, dict]] = {}
+    area_names: dict[str, dict[str, str]] = {}
     shutil.rmtree(OUT_DIR / "images" / "rooms", ignore_errors=True)
     for region in regions:
         areas = layout_areas(bounds[region]["areas"])
@@ -482,14 +484,17 @@ def main() -> None:
         locations.append(build_locations(db, region, areas, projection))
         mlvl_areas = area_maps.setdefault(bounds[region]["mlvl"], {})
         mlvl_icons = room_icons.setdefault(bounds[region]["mlvl"], {})
-        for area in areas.values():
+        mlvl_names = area_names.setdefault(bounds[region]["mlvl"], {})
+        for area_name, area in areas.items():
             mlvl_areas[str(area["index"])] = region
+            mlvl_names[str(area["index"])] = area_name
         for index, placement in placements.items():
             mlvl_icons[index] = {"map": region, **placement}
 
     (OUT_DIR / "maps" / "maps.json").write_text(json.dumps(maps, indent=2), encoding="utf-8")
     (OUT_DIR / "locations" / "locations.json").write_text(json.dumps(locations, indent=2), encoding="utf-8")
     (OUT_DIR / "area_maps.json").write_text(json.dumps(area_maps, indent=1, sort_keys=True), encoding="utf-8")
+    (OUT_DIR / "area_names.json").write_text(json.dumps(area_names, indent=1, sort_keys=True), encoding="utf-8")
     (OUT_DIR / "room_icons.json").write_text(json.dumps(room_icons, indent=1, sort_keys=True), encoding="utf-8")
     total = sum(len(pickup_nodes(db, region)) for region in regions)
     print(f"wrote {len(maps)} maps, {total} locations to {OUT_DIR}")

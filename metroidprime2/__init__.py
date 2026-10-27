@@ -24,11 +24,18 @@ from .hint_scans import (
     SKY_TEMPLE_KEY_HINT_SCANS,
     TRANSLATOR_LORE_HINT_SCANS,
     encode_hint_scans,
+    item_scan_hint_entries,
+    item_scan_id,
     sky_temple_key_locations,
     translator_lore_hint_locations,
 )
-from .item_pool import STK_ITEM_NAMES, create_item_pool, sky_temple_keys_required_count
-from .items import ITEM_GROUPS, ITEM_TABLE, MetroidPrime2Item, item_name_to_id
+from .item_pool import (
+    STK_ITEM_NAMES,
+    create_item_pool,
+    missile_launcher_bonus,
+    sky_temple_keys_required_count,
+)
+from .items import ITEM_GROUPS, ITEM_TABLE, TRAP_ITEM_NAMES, MetroidPrime2Item, item_name_to_id
 from .locations import LOCATION_GROUPS, location_name_to_id
 from .logic import regions as logic_regions
 from .logic.db_reader import NodeId, load_game_database
@@ -216,6 +223,15 @@ class MetroidPrime2World(World):
                 f"{constants.MAX_ENERGY_TANKS}."
             )
 
+        for trap_name in TRAP_ITEM_NAMES:
+            if self.options.start_inventory.value.get(trap_name, 0) or self.options.start_inventory_from_pool.value.get(
+                trap_name, 0
+            ):
+                raise OptionError(
+                    f"{self.player_name}'s Metroid Prime 2: Echoes world: {trap_name} cannot be "
+                    "in start_inventory."
+                )
+
         self.trick_levels = trick_levels_from_options(self.options)
         self.world_uuid = str(
             uuid.uuid5(constants.NAMESPACE_UUID, f"{multiworld.seed_name}/{self.player}")
@@ -329,6 +345,9 @@ class MetroidPrime2World(World):
                 # client/item_map_dots_patch.py: a DOL cave plus a MAPA
                 # visibility rewrite, neither of which config.json can carry.
                 "item_map_dots": int(self.options.item_map_dots.value),
+                # client/map_reveal_patch.py: one DOL write, which
+                # config.json can't carry.
+                "map_rooms_reveal_dark_world_map": bool(self.options.map_rooms_reveal_dark_world_map),
                 # PLAN.md section S: physically rewires the Sky Temple
                 # Gateway's key-count gate (client/sky_temple_key_gate_
                 # patch.py) -- open-prime-rando has no field for this, so
@@ -338,12 +357,18 @@ class MetroidPrime2World(World):
                 # client/goal_warp_patch.py: the boss-skip goals warp to the
                 # Credits in-game (Goal's option_* values, constants.GOAL_*).
                 "goal": int(self.options.goal.value),
+                # client/flying_ing_cache_patch.py: SCLY rewiring of the nine
+                # Sky Temple Key caches; config.json has no field for it.
+                "flying_ing_caches_without_dark_visor": bool(self.options.flying_ing_caches_without_dark_visor),
                 # translator_lore_rando: {str(strg_id): color} for each
                 # recolored lore hologram (client/lore_translator_patch.py);
                 # empty under "vanilla".
                 "translator_lore_colors": {
                     str(strg_id): color.lower() for strg_id, color in self.translator_lore_assignment.items()
                 },
+                # item_scan_hints: pickup indices that get their own SCAN
+                # asset (client/item_scan_patch.py).
+                "item_scan_hint_indices": sorted(item_scan_hint_entries(self)),
                 # PLAN.md section P's compatibility gate: client/patcher_runner.py
                 # refuses to patch a .apmp2 whose pickup encoding it doesn't
                 # recognize, since the per-pickup resource mapping baked into
@@ -389,6 +414,7 @@ class MetroidPrime2World(World):
         slot_data["expansion_totals"]["Energy Tank"] = min(
             slot_data["expansion_totals"]["Energy Tank"], constants.MAX_ENERGY_TANKS
         )
+        slot_data["missile_launcher_bonus"] = missile_launcher_bonus(self)
         slot_data.update(encode_randomization(self))
         slot_data["apworld_version"] = get_apworld_version()
 
@@ -425,6 +451,12 @@ class MetroidPrime2World(World):
                     else HintStatus.HINT_UNSPECIFIED
                 )
                 hint_scans[hint_scan.scan_id] = (location.player, location.address, status)
+
+        # Item scan hints (PLAN.md section AA): scanning a pickup hints the
+        # item inside. The status is per entry (own item HINT_PRIORITY,
+        # someone else's HINT_UNSPECIFIED), decided in item_scan_hint_entries.
+        for pickup_index, (location, status) in item_scan_hint_entries(self).items():
+            hint_scans[item_scan_id(pickup_index)] = (location.player, location.address, status)
 
         slot_data["hint_scans"] = encode_hint_scans(hint_scans)
 
