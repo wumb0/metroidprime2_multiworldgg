@@ -56,7 +56,7 @@ TEST = ManualTest(
             "Scan the Meeting Grounds hologram to completion.",
             (
                 "The text matches the spoiler's Meeting Grounds line (\"Your <item> can be found in ... .\", "
-                "colored). The client logs `Hint scan complete` and one priority hint for that item appears "
+                "colored). One priority hint for that item appears "
                 "in both clients."
             ),
         ),

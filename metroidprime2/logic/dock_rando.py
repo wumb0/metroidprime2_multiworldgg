@@ -91,6 +91,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .. import constants
+from ..item_pool import missile_launcher_bonus
 from ..options import damage_strictness_multiplier, dark_damage_per_second
 from .db_reader import GameDatabase, Node, NodeId, load_game_database
 from .item_mapping import event_item_name
@@ -714,6 +715,7 @@ def _build_compiler(world: MetroidPrime2World, db: GameDatabase) -> RequirementC
         power_bomb_expansions_unlock_power_bombs=bool(
             world.options.power_bomb_expansions_unlock_power_bombs
         ),
+        missile_launcher_bonus=missile_launcher_bonus(world),
     )
     return RequirementCompiler(db, ctx)
 

@@ -29,6 +29,16 @@ class TestMissileGating(unittest.TestCase):
         self.assertEqual(1, desired[73])
         self.assertEqual(5, desired[44])
 
+    def test_launcher_bonus_only_with_launcher(self) -> None:
+        with_launcher = compute_desired_capacities(
+            _received("Missile Launcher", "Missile Expansion", "Seeker Launcher"), 0, False, False, 10
+        )
+        self.assertEqual(25, with_launcher[44])
+        no_launcher = compute_desired_capacities(_received("Missile Expansion"), 0, True, False, 10)
+        self.assertEqual(5, no_launcher[44])
+        nothing = compute_desired_capacities(_received("Seeker Launcher"), 0, False, False, 10)
+        self.assertEqual(0, nothing[44])
+
     def test_expansions_add_five_each_only_with_launcher(self) -> None:
         desired = compute_desired_capacities(
             _received("Missile Launcher", "Missile Expansion", "Missile Expansion"), 0

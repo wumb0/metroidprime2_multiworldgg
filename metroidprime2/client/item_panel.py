@@ -151,6 +151,7 @@ def compute_panel_state(received_names: Iterable[str], slot_data: dict[str, Any]
         0,
         bool(slot_data.get("missile_expansions_unlock_launcher", False)),
         bool(slot_data.get("power_bomb_expansions_unlock_power_bombs", False)),
+        int(slot_data.get("missile_launcher_bonus", 0)),
     )
 
     state = PanelState()

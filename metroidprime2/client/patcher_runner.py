@@ -249,6 +249,48 @@ def translator_lore_colors_installed(colors: dict[int, str]):
 
 
 @contextlib.contextmanager
+def flying_ing_caches_shootable_installed():
+    """Context manager installing the shoot-without-Dark-Visor cache rewrite
+    (``client/flying_ing_cache_patch.py``) for the duration of one
+    ``_apply_patches`` call, through the same ``register_world_changes``
+    hook as ``sky_temple_keys_required_installed`` above."""
+    from open_prime_rando.echoes import patcher as opr_patcher
+
+    from . import flying_ing_cache_patch
+
+    original_register_world_changes = opr_patcher.register_world_changes
+
+    def _register_world_changes_with_caches(area_patcher: AreaPatcher, world_changes: list[Any]) -> None:
+        original_register_world_changes(area_patcher, world_changes)
+        flying_ing_cache_patch.register(area_patcher)
+
+    opr_patcher.register_world_changes = _register_world_changes_with_caches
+    try:
+        yield
+    finally:
+        opr_patcher.register_world_changes = original_register_world_changes
+
+
+@contextlib.contextmanager
+def map_reveal_installed(editor: Any, dol_version: Any, *, dark_world: bool, great_temple: bool):
+    """Context manager installing ``client/map_reveal_patch.py`` for the
+    duration of one ``_apply_patches`` call: the DOL write that lets a map
+    station reveal dark world rooms (``dark_world``, the
+    ``map_rooms_reveal_dark_world_map`` option), and the Great Temple
+    always-drawn override (``great_temple``, ``unvisited_room_names``; it has
+    no map station)."""
+    from . import map_reveal_patch
+
+    if dark_world:
+        version_info = _client_version_info(dol_version, "Map reveal", "Map Rooms Reveal Dark World Map")
+        map_reveal_patch.reveal_dark_rooms_on_map_station(editor.dol, version_info.map_reveal)
+    with contextlib.ExitStack() as stack:
+        if great_temple:
+            stack.enter_context(map_reveal_patch.great_temple_always_mapped())
+        yield
+
+
+@contextlib.contextmanager
 def item_map_dots_installed(editor: Any, dol_version: Any, mode: int):
     """Context manager installing both halves of item map dots
     (``client/item_map_dots_patch.py``) for the duration of one
@@ -376,7 +418,7 @@ def patch_iso_with_ap(
     from open_prime_rando.patcher_editor import IsoFileProvider, IsoFileWriter, PatcherEditor
     from retro_data_structures.game_check import Game
 
-    from . import elevator_prescan_patch
+    from . import elevator_prescan_patch, item_scan_patch
 
     apmp2_file = os.fspath(apmp2_file)
     input_iso = os.fspath(input_iso)
@@ -400,10 +442,13 @@ def patch_iso_with_ap(
     move_while_scanning = bool(apmp2_options.get("move_while_scanning", False))
     # int(): .apmp2 files from before the "always" mode carry a bool here.
     item_map_dots = int(apmp2_options.get("item_map_dots", constants.ITEM_MAP_DOTS_OFF))
+    map_rooms_reveal_dark_world_map = bool(apmp2_options.get("map_rooms_reveal_dark_world_map", False))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
     sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
     goal = int(apmp2_options.get("goal", constants.GOAL_BOTH_BOSSES))
+    flying_ing_caches_without_dark_visor = bool(apmp2_options.get("flying_ing_caches_without_dark_visor", False))
+    item_scan_hint_indices = [int(index) for index in apmp2_options.get("item_scan_hint_indices", [])]
     translator_lore_colors = {
         int(strg_id): str(color) for strg_id, color in apmp2_options.get("translator_lore_colors", {}).items()
     }
@@ -442,14 +487,27 @@ def patch_iso_with_ap(
                 patches.enter_context(
                     warp_to_start_installed(dol_version, configuration.starting_area)
                 )
+            if map_rooms_reveal_dark_world_map or configuration.map_visibility.unvisited_room_names:
+                patches.enter_context(
+                    map_reveal_installed(
+                        editor,
+                        dol_version,
+                        dark_world=map_rooms_reveal_dark_world_map,
+                        great_temple=configuration.map_visibility.unvisited_room_names,
+                    )
+                )
             if item_map_dots != constants.ITEM_MAP_DOTS_OFF:
                 patches.enter_context(item_map_dots_installed(editor, dol_version, item_map_dots))
             if sky_temple_keys_required != 9:
                 patches.enter_context(sky_temple_keys_required_installed(sky_temple_keys_required))
             if goal != constants.GOAL_BOTH_BOSSES:
                 patches.enter_context(goal_warp_installed(goal))
+            if flying_ing_caches_without_dark_visor:
+                patches.enter_context(flying_ing_caches_shootable_installed())
             if translator_lore_colors:
                 patches.enter_context(translator_lore_colors_installed(translator_lore_colors))
+            if item_scan_hint_indices:
+                patches.enter_context(item_scan_patch.installed(item_scan_hint_indices))
             if configuration.auto_enabled_elevators:
                 patches.enter_context(elevator_prescan_patch.installed())
             opr_patcher._apply_patches(editor, configuration, output, _report, _report, _report)

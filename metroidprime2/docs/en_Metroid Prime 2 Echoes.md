@@ -24,6 +24,26 @@ The starting room is vanilla (Temple Grounds - Landing Site) unless the `startin
 start otherwise means taking Dark Aether damage every second from the moment the game begins, until a suit or a
 safe zone is reached, so it can be an immediately dangerous opening.
 
+## Traps
+
+With `trap_percentage` above 0, some of the Missile Expansions in the pool are replaced by traps: items that do
+something bad when you receive them. Logic never relies on them and enough Missile Expansions always remain.
+`trap_weights` chooses which traps appear, and `trap_disguise` makes the ones in your own world look like ordinary
+pickups until you receive them.
+
+- **Damage Trap**: removes a random share of your maximum energy, between `damage_trap_min_percent` and
+  `damage_trap_max_percent` (25% to 75% by default). It can never kill you; it leaves you at 1 energy at worst.
+- **Ammo Depletion Trap**: sets your Missiles, Power Bombs, Dark Ammo and Light Ammo to 0. Your capacities are
+  unchanged, so any ammo you pick up afterwards works normally.
+- **Freeze Trap**: for `freeze_trap_duration` seconds (two minutes by default) you are frozen in ice at random
+  moments, for 4 to 6 seconds each time by default (`freeze_trap_min_seconds` / `freeze_trap_max_seconds`), as ice
+  attacks do. Mashing jump breaks a freeze early. A second Freeze Trap
+  received meanwhile extends the time.
+
+A trap takes effect a moment after it is received, once the game is not in a cutscene, and traps received together
+are applied one at a time. Reconnecting or reloading a save never repeats a trap you have already suffered. A Freeze
+Trap's remaining time is lost if you restart the client partway through it.
+
 ## What is the goal of Metroid Prime 2: Echoes when randomized?
 
 Defeat Dark Samus at the Sky Temple Gateway, the same final encounter as the base game. Reaching it still requires
@@ -79,6 +99,18 @@ Disabled. If there are fewer eligible items than holograms, the extras just say 
 
 The "Translator Lore Randomization" option can also give each hologram a random translator color instead of its
 region's usual one. The hologram and its glow are recolored to match, so you can still see which translator you need.
+
+### Item scan hints
+
+With the "Item Scan Hints" option, scanning a pickup with the Scan Visor (before you collect it) sends a hint for
+the item inside to the multiworld server, exactly as if you had used `!hint`:
+
+- **Off**: scanning a pickup does nothing special.
+- **Other Players**: only pickups holding another player's item are hinted.
+- **All** (default): pickups holding your own items are hinted too. Your own trap items are skipped while "Trap Disguise" is
+  on, since hinting one would give it away.
+
+The scan text is unchanged. The scan has to be completed; letting go partway sends nothing.
 
 ## What does the logic that places my items know about?
 
@@ -146,6 +178,18 @@ This is purely cosmetic -- elevators are never logically gated on Scan Visor eit
 Not by default. With `move_while_scanning` enabled, you can move around freely while Scan Visor is locked onto a
 scan point, instead of the game freezing you in place for the duration of the scan. This is purely cosmetic --
 logic never assumes you can move during a scan either way.
+
+## Can I get Sky Temple Keys without the Dark Visor?
+
+Not by default: in vanilla, the Flying Ing Caches that hold the keys can only be hit while the Dark Visor is on.
+With `flying_ing_caches_without_dark_visor` enabled, a shot hits them in any visor. They still can't be seen without
+the Dark Visor until the first hit, so you need to know where each one is. While a cache is hidden it doesn't move,
+so it stays where it started (or where it was when you last switched out of the Dark Visor). After the first hit it
+shows up and the fight goes as in vanilla.
+
+Logic follows along and stops requiring the Dark Visor for those keys. The exception is Battleground in Dark Agon
+Wastes, where getting to the key means riding the room's invisible Dark Visor platforms: that key still needs the
+Dark Visor unless the Invisible Objects trick is set to intermediate or higher.
 
 ## What are the known limitations of this randomizer?
 

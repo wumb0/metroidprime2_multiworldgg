@@ -95,6 +95,19 @@ def counter_and_amount(pickup_index: int) -> tuple[int, int]:
     return PICKUP_COUNTER_ITEMS[counter_slot], 1 << bit
 
 
+def pickup_index_for(item_id: int, amount: int) -> int | None:
+    """Inverse of ``counter_and_amount``: the pickup index whose resource is
+    ``amount`` of counter ``item_id``, or ``None`` if it is not exactly one
+    pickup's (counter, single bit) pair. Used by the patcher to recognise
+    which location it is editing from the resource generation baked in."""
+    if item_id not in PICKUP_COUNTER_ITEMS or amount <= 0 or amount & (amount - 1):
+        return None
+    bit = amount.bit_length() - 1
+    if bit >= BITS_PER_COUNTER:
+        return None
+    return PICKUP_COUNTER_ITEMS.index(item_id) * BITS_PER_COUNTER + bit
+
+
 @dataclass
 class Decoded:
     """Result of decoding every pickup counter's live inventory amount.

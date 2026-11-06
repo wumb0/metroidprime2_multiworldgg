@@ -9,6 +9,7 @@ import json
 import logging
 import multiprocessing
 import os
+import random
 import subprocess
 import threading
 import time
@@ -24,9 +25,10 @@ from settings import get_settings
 
 from .. import constants
 from ..hint_scans import decode_hint_scans, newly_completed_hints
+from ..items import TRAP_ITEM_NAMES
 from ..pickup_encoding import decode
 from ..utils import get_apworld_version, get_output_path, setup_libs
-from .death_link import death_link_check
+from .death_link import death_link_check, death_message
 from .dolphin_client import (
     DolphinException,
     assert_no_running_dolphin,
@@ -36,6 +38,28 @@ from .game_interface import ConnectionState, EchoesInterface
 from .item_panel import ItemPanel, compute_panel_state, required_width_dp
 from .notification_manager import NotificationManager
 from .receive_items import compute_desired_capacities, plan_grants
+from .traps import (
+    AMMO_DEPLETION_TRAP,
+    AMMO_ITEM_IDS,
+    DAMAGE_TRAP,
+    DEFAULT_DAMAGE_PERCENT_RANGE,
+    DEFAULT_FREEZE_GAP_RANGE,
+    DEFAULT_FREEZE_LENGTH_RANGE,
+    ENERGY_TANK_ITEM,
+    FREEZE_TRAP,
+    FREEZE_OVER_MESSAGE,
+    FREEZE_RETRY_DELAY,
+    INDEX_REQUEST_RETRY,
+    MIN_TRAP_SPACING,
+    TrapState,
+    max_health,
+    pending_traps,
+    plan_damage,
+    random_damage_percent,
+    random_freeze_gap,
+    random_freeze_length,
+    trap_message,
+)
 
 apname = Utils.instance_name if Utils.instance_name else "Archipelago"
 
@@ -131,24 +155,10 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         """Queue a HUD message to display in-game."""
         self.ctx.notification_manager.queue_notification(" ".join(map(str, args)))
 
-    def _cmd_mp2_debug_inventory(self, *_args: list[Any]) -> None:
-        """Print the raw inventory (amount/capacity per item id) read from
-        game memory, skipping empty slots. Requires debug: true under
-        metroidprime2_options in host.yaml."""
-        if not self.ctx.debug_enabled:
-            logger.error("This command requires debug: true under metroidprime2_options in host.yaml.")
-            return
-        inventory = self.ctx.game_interface.read_inventory()
-        if inventory is None:
-            logger.info("Not connected to a running game.")
-            return
-        for item_id, (amount, capacity) in sorted(inventory.items()):
-            if amount or capacity:
-                logger.info(f"  item {item_id:3d}: {amount}/{capacity}")
-
     def _cmd_deathlink(self) -> None:
         """Toggle DeathLink from the client. Overrides the default setting."""
         self.ctx.death_link_enabled = not self.ctx.death_link_enabled
+        self.ctx.pending_incoming_death = False
         Utils.async_start(
             self.ctx.update_death_link(self.ctx.death_link_enabled),
             name="Update Deathlink",
@@ -156,47 +166,6 @@ class MetroidPrime2CommandProcessor(ClientCommandProcessor):
         message = f"DeathLink {'enabled' if self.ctx.death_link_enabled else 'disabled'}"
         logger.info(message)
         self.ctx.notification_manager.queue_notification(message)
-
-    def _cmd_test_deathlink(self, *args: list[Any]) -> None:
-        """Test the DeathLink send or receive path. Usage:
-        /test_deathlink <incoming|outgoing> [reason]. 'outgoing' sends a
-        test DeathLink to the rest of the group without touching in-game
-        health, to verify the send path. 'incoming' simulates a DeathLink
-        arriving from another player, which does kill you in-game, to
-        verify the receive path. Requires DeathLink to be enabled (see
-        /deathlink), a connection to the server, and debug: true under
-        metroidprime2_options in host.yaml."""
-        if not self.ctx.debug_enabled:
-            logger.error("This command requires debug: true under metroidprime2_options in host.yaml.")
-            return
-        if not self.ctx.death_link_enabled:
-            logger.error("DeathLink is disabled; enable it with /deathlink first.")
-            return
-        if not self.ctx.slot:
-            logger.error("Not connected to a server.")
-            return
-        if not args or str(args[0]).lower() not in ("incoming", "outgoing"):
-            logger.error("Usage: /test_deathlink <incoming|outgoing> [reason]")
-            return
-
-        direction, *reason_words = args
-        reason = " ".join(map(str, reason_words)) if reason_words else "triggered a test DeathLink"
-
-        if str(direction).lower() == "outgoing":
-            Utils.async_start(
-                self.ctx.send_death(f"{self.ctx.player_names[self.ctx.slot]} {reason}"),
-                name="Test Deathlink",
-            )
-            logger.info("Sent test DeathLink.")
-        else:
-            self.ctx.on_deathlink(
-                {
-                    "time": time.time(),
-                    "source": self.ctx.player_names[self.ctx.slot],
-                    "cause": reason,
-                }
-            )
-            logger.info("Simulated an incoming DeathLink.")
 
 
 class MetroidPrime2Context(CommonContext):
@@ -219,13 +188,17 @@ class MetroidPrime2Context(CommonContext):
     mp2_iso: str | None = None
     death_link_enabled: bool = False
     is_pending_death_link_reset: bool = False
+    alive_flag_seen_set: bool = False
+    pending_incoming_death: bool = False
+    pending_incoming_death_since: float = 0.0
     # See _handle_check_goal: set once a read shows the goal marker absent.
     goal_marker_armed: bool = False
-    debug_enabled: bool = False
     # Set by the client's -v/--verbose flag: log ISO patching progress to the console.
     verbose: bool = False
     hint_scans: dict[int, tuple[int, int, int]] = {}  # noqa: RUF012 -- reassigned wholesale in on_package, never mutated in place
     sent_hint_scans: set[int] = set()  # noqa: RUF012 -- same as hint_scans above
+    trap_state: TrapState
+    trap_rng: random.Random
 
     def __init__(
         self,
@@ -237,6 +210,8 @@ class MetroidPrime2Context(CommonContext):
         super().__init__(server_address, password)
 
         self.game_interface = EchoesInterface(logger)
+        self.trap_state = TrapState()
+        self.trap_rng = random.Random()
         self.notification_manager = NotificationManager(HUD_MESSAGE_DURATION, self.game_interface.send_hud_message)
         self.apmp2_file = apmp2_file
         self.mp2_iso = mp2_iso
@@ -250,7 +225,35 @@ class MetroidPrime2Context(CommonContext):
 
     def on_deathlink(self, data: dict[str, Any]) -> None:
         super().on_deathlink(data)
-        self.game_interface.set_current_health(-1.0)
+        self.pending_incoming_death = True
+        self.pending_incoming_death_since = time.monotonic()
+        self.apply_pending_death()
+
+    def apply_pending_death(self) -> None:
+        """Kills the player for a queued incoming DeathLink. While the
+        CPlayerState pointer is null (elevator/area transitions, loading) the
+        writes can't land, so the request stays queued and the main loop
+        retries every tick (``_handle_check_deathlink``) until it does, giving
+        up after ``_PENDING_DEATH_TIMEOUT`` seconds so a stale DeathLink doesn't
+        kill the player long after it was sent."""
+        if not self.pending_incoming_death:
+            return
+        if time.monotonic() - self.pending_incoming_death_since > _PENDING_DEATH_TIMEOUT:
+            self.pending_incoming_death = False
+            logger.info("Dropped queued DeathLink: player state stayed unavailable too long")
+            return
+        health = self.game_interface.get_current_health()
+        if health is None:
+            return
+        self.pending_incoming_death = False
+        if health <= 0:
+            # Already dead (an organic death that was reported, or this one
+            # arrived twice); nothing to kill, and the debounce flag is
+            # already armed or about to be by the poll.
+            return
+        if not self.game_interface.set_current_health(-1.0):
+            self.pending_incoming_death = True
+            return
         # set_current_health alone doesn't kill the player -- it bypasses the
         # game's damage/death pipeline entirely, leaving the camera and gun
         # model stuck in whatever state they were in. set_alive(False) is
@@ -280,14 +283,25 @@ class MetroidPrime2Context(CommonContext):
             self.last_announced_index = None
             self.last_sent_mlvl = None
             self.last_sent_area = None
+            self.trap_state = TrapState()
 
             if "death_link" in self.slot_data:
                 self.death_link_enabled = bool(self.slot_data["death_link"])
                 Utils.async_start(self.update_death_link(self.death_link_enabled))
 
             self._refresh_item_panel()
+        elif cmd == "Retrieved":
+            keys = args.get("keys", {})
+            trap_key = self._trap_index_key()
+            # Every Get the framework itself sends is answered with a Retrieved
+            # too; only the reply that carries our key is ours.
+            if trap_key in keys and self.trap_state.processed_index is None:
+                self.trap_state.processed_index = int(keys[trap_key] or 0)
         elif cmd == "ReceivedItems":
             self._refresh_item_panel()
+
+    def _trap_index_key(self) -> str:
+        return constants.TRAP_INDEX_DATASTORAGE_KEY.format(team=self.team, slot=self.slot)
 
     def _refresh_item_panel(self) -> None:
         panel = getattr(self.ui, "item_panel", None) if self.ui else None
@@ -453,6 +467,8 @@ async def _handle_game_not_ready(ctx: MetroidPrime2Context) -> None:
 
 
 _DEFAULT_TICK_DELAY = 0.5
+_PENDING_DEATH_TIMEOUT = 30.0
+"""Seconds a queued incoming DeathLink waits for a valid CPlayerState."""
 
 
 async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
@@ -498,6 +514,13 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
         if ctx.notification_manager.handle_notifications():
             return
 
+        # 2c. Traps (one-shot effects) and the Freeze Trap's window. Like the
+        # HUD flush these must not sit behind the grant step: a grant that
+        # keeps arming a body every tick would otherwise starve them. Taking
+        # the remote-execution slot ends the tick.
+        if await _handle_traps(ctx, inventory) or await _handle_freeze_window(ctx):
+            return
+
         # 3./4. Pickup-counter protocol: any of the four pickup bitmask
         # counters being nonzero takes priority over granting received
         # items, exactly one body per tick.
@@ -518,10 +541,28 @@ async def _handle_game_ready(ctx: MetroidPrime2Context) -> None:
 
 
 async def _handle_check_deathlink(ctx: MetroidPrime2Context) -> None:
+    ctx.apply_pending_death()
     health = ctx.game_interface.get_current_health()
-    should_send, ctx.is_pending_death_link_reset = death_link_check(health, ctx.is_pending_death_link_reset)
+    alive = ctx.game_interface.get_alive()
+    # ALIVE_BIT_MASK is unconfirmed against a live game, so a cleared flag only
+    # counts as a death once the bit has been observed set; a wrong bit that
+    # never reads set is ignored rather than reported as a permanent death.
+    if alive:
+        ctx.alive_flag_seen_set = True
+    flag_alive = alive if ctx.alive_flag_seen_set else None
+    should_send, ctx.is_pending_death_link_reset = death_link_check(
+        health, ctx.is_pending_death_link_reset, flag_alive
+    )
     if should_send and ctx.slot:
-        await ctx.send_death(f"{ctx.player_names[ctx.slot]} ran out of energy.")
+        logger.info(f"DeathLink send: health={health} alive={alive}")
+        # Imported here: tracker_data pulls in the logic package, which the
+        # rest of the client doesn't need.
+        from ..tracker_data import area_region_name, area_room_name
+
+        mlvl = ctx.game_interface.current_mlvl()
+        area = ctx.game_interface.current_area_id()
+        message = death_message(ctx.player_names[ctx.slot], area_room_name(mlvl, area), area_region_name(mlvl, area))
+        await ctx.send_death(message)
 
 
 async def _handle_check_goal(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]] | None = None) -> None:
@@ -673,7 +714,11 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
     unlock_launcher = bool(ctx.slot_data.get("missile_expansions_unlock_launcher", False))
     unlock_power_bombs = bool(ctx.slot_data.get("power_bomb_expansions_unlock_power_bombs", False))
     desired = compute_desired_capacities(
-        received, first_non_starting, unlock_launcher, unlock_power_bombs
+        received,
+        first_non_starting,
+        unlock_launcher,
+        unlock_power_bombs,
+        int(ctx.slot_data.get("missile_launcher_bonus", 0)),
     )
     deltas = plan_grants(desired, inventory)
     if ctx.last_announced_index is None and not deltas:
@@ -687,6 +732,165 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
     leftovers = ctx.game_interface.grant(deltas)
     if leftovers:
         logger.debug(f"{len(leftovers)} item grant(s) deferred to a later tick (remote-execution body budget).")
+
+
+async def _handle_traps(ctx: MetroidPrime2Context, inventory: dict[int, tuple[int, int]]) -> bool:
+    """Applies received traps one at a time, in two phases so an effect only
+    lands once the player is controllable: first the HUD message is sent
+    through the remote-execution hook (which the game only runs outside
+    cutscenes), then, once the game has consumed it (the pending-op flag is
+    clear again), the effect is applied and the trap recorded as handled in
+    DataStorage. Returns True when it armed a remote-execution body (the
+    HUD message). Nothing happens before the stored index has been fetched;
+    it is requested from here (and re-requested until answered) rather than
+    from ``on_package``, which another base class's handler can cut short."""
+    state = ctx.trap_state
+    if state.processed_index is None:
+        if time.time() - state.index_requested_at >= INDEX_REQUEST_RETRY:
+            state.index_requested_at = time.time()
+            await ctx.send_msgs([{"cmd": "Get", "keys": [ctx._trap_index_key()]}])
+        return False
+    if not ctx.items_received:
+        return False
+    game = ctx.game_interface
+    if game.has_pending_op():
+        return False
+
+    if state.announced is not None:
+        index, trap_name = state.announced
+        if not _apply_trap(ctx, trap_name, inventory):
+            return False
+        state.announced = None
+        state.processed_index = index + 1
+        state.last_applied = time.time()
+        await ctx.send_msgs(
+            [
+                {
+                    "cmd": "Set",
+                    "key": ctx._trap_index_key(),
+                    "default": 0,
+                    "want_reply": False,
+                    "operations": [{"operation": "max", "value": index + 1}],
+                }
+            ]
+        )
+        return False
+
+    if time.time() - state.last_applied < MIN_TRAP_SPACING:
+        return False
+    received = [ctx.item_names.lookup_in_game(network_item.item, ctx.game) for network_item in ctx.items_received]
+    first_non_starting = ctx.slot_data.get("first_non_starting_item_index", 0)
+    pending = pending_traps(received, first_non_starting, state.processed_index)
+    if not pending:
+        return False
+    index, trap_name = pending[0]
+    if trap_name == DAMAGE_TRAP:
+        state.damage_percent = random_damage_percent(
+            ctx.trap_rng,
+            int(ctx.slot_data.get("damage_trap_min_percent", DEFAULT_DAMAGE_PERCENT_RANGE[0])),
+            int(ctx.slot_data.get("damage_trap_max_percent", DEFAULT_DAMAGE_PERCENT_RANGE[1])),
+        )
+    if not game.send_hud_message(trap_message(trap_name, _freeze_window_seconds(ctx), state.damage_percent)):
+        return False
+    state.announced = (index, trap_name)
+    return True
+
+
+def _freeze_window_seconds(ctx: MetroidPrime2Context) -> int:
+    return int(ctx.slot_data.get("freeze_trap_duration", 120))
+
+
+def _next_freeze_gap(ctx: MetroidPrime2Context) -> float:
+    return random_freeze_gap(
+        ctx.trap_rng,
+        float(ctx.slot_data.get("freeze_trap_min_gap_seconds", DEFAULT_FREEZE_GAP_RANGE[0])),
+        float(ctx.slot_data.get("freeze_trap_max_gap_seconds", DEFAULT_FREEZE_GAP_RANGE[1])),
+    )
+
+
+def _start_freeze_window(ctx: MetroidPrime2Context) -> None:
+    """Opens the Freeze Trap's window; a trap received while one is running
+    extends it instead of stacking a second schedule."""
+    state = ctx.trap_state
+    now = time.time()
+    if state.freeze_window_end > now:
+        state.freeze_window_end += _freeze_window_seconds(ctx)
+        return
+    state.freeze_over_pending = True
+    state.freeze_window_end = now + _freeze_window_seconds(ctx)
+    state.next_freeze_at = now + _next_freeze_gap(ctx)
+
+
+async def _handle_freeze_window(ctx: MetroidPrime2Context) -> bool:
+    """While a Freeze Trap window is open, freezes the player at random
+    moments. ``CPlayer::Freeze`` only runs once the game consumes the
+    remote-execution body (so never during a cutscene) and quietly refuses
+    in some player states, so after each attempt the next free tick reads
+    ``mFrozenTimeout`` to see whether it took: if so the next freeze is
+    scheduled a random gap later, if not it is retried shortly. Once the
+    window closes a HUD message says so. Returns True when it armed a body."""
+    state = ctx.trap_state
+    game = ctx.game_interface
+    now = time.time()
+    window_over = now >= state.freeze_window_end
+    if window_over and not state.freeze_armed and not state.freeze_over_pending:
+        return False
+    if game.has_pending_op():
+        return False
+
+    if state.freeze_armed:
+        state.freeze_armed = False
+        timeout = game.read_frozen_timeout()
+        took = timeout is not None and timeout > 0
+        state.next_freeze_at = now + (_next_freeze_gap(ctx) if took else FREEZE_RETRY_DELAY)
+        return False
+
+    if window_over:
+        if game.send_hud_message(FREEZE_OVER_MESSAGE):
+            state.freeze_over_pending = False
+            return True
+        return False
+
+    if now < state.next_freeze_at:
+        return False
+    health = game.get_current_health()
+    if health is None or health <= 0:
+        return False
+    frozen = game.read_frozen_timeout()
+    if frozen is not None and frozen > 0:
+        state.next_freeze_at = now + _next_freeze_gap(ctx)
+        return False
+    game.freeze_player(
+        random_freeze_length(
+            ctx.trap_rng,
+            float(ctx.slot_data.get("freeze_trap_min_seconds", DEFAULT_FREEZE_LENGTH_RANGE[0])),
+            float(ctx.slot_data.get("freeze_trap_max_seconds", DEFAULT_FREEZE_LENGTH_RANGE[1])),
+        )
+    )
+    state.freeze_armed = True
+    return True
+
+
+def _apply_trap(ctx: MetroidPrime2Context, trap_name: str, inventory: dict[int, tuple[int, int]]) -> bool:
+    """Applies one trap's effect; False means "not now, retry next tick"."""
+    game = ctx.game_interface
+    if trap_name == DAMAGE_TRAP:
+        health = game.get_current_health()
+        if health is None or health <= 0:
+            return False
+        energy_per_tank = int(ctx.slot_data.get("energy_per_tank", 100))
+        max_energy = max_health(energy_per_tank, inventory[ENERGY_TANK_ITEM][0])
+        game.set_current_health(plan_damage(health, max_energy, ctx.trap_state.damage_percent))
+        return True
+    if trap_name == AMMO_DEPLETION_TRAP:
+        for item_id in AMMO_ITEM_IDS:
+            game.set_item_amount(item_id, 0)
+        return True
+    if trap_name == FREEZE_TRAP:
+        _start_freeze_window(ctx)
+        return True
+    logger.warning(f"Unknown trap {trap_name!r}; skipping it.")
+    return True
 
 
 def _announce_received_items(
@@ -712,6 +916,8 @@ def _announce_received_items(
 
     groups: dict[tuple[int, str], int] = {}
     for (item_name, sender), network_item in zip(received[start:], ctx.items_received[start:], strict=True):
+        if item_name in TRAP_ITEM_NAMES:
+            continue  # announced by _handle_traps when it takes effect
         if network_item.location == SERVER_CHEAT_LOCATION:
             sender = SERVER_PLAYER_SLOT
         elif sender == ctx.slot:
@@ -792,7 +998,7 @@ async def _handle_hint_scans(ctx: MetroidPrime2Context) -> None:
     )
     ctx.sent_hint_scans |= newly_completed
     for scan_id in sorted(newly_completed):
-        logger.info(f"Hint scan complete (scan {scan_id:#x}); sent the hint to the server.")
+        logger.debug(f"Hint scan complete (scan {scan_id:#x}); sent the hint to the server.")
 
 
 def get_options_from_apmp2(apmp2_file: str) -> dict[str, Any]:
@@ -944,7 +1150,6 @@ def main(*args: str) -> None:
         logger.info("main")
 
         ctx = MetroidPrime2Context(connect, password, apmp2_file, iso)
-        ctx.debug_enabled = bool(get_settings()["metroidprime2_options"]["debug"])
         ctx.verbose = verbose
 
         if apmp2_file:

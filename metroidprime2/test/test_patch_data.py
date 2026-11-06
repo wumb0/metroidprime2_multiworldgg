@@ -538,6 +538,20 @@ class TestStartingItemsWithPrecollectedMissileLauncher(MP2TestBase):
         self.assertEqual(5, capacities.get(44))
 
 
+class TestStartingLauncherIncludesTrimmedMissiles(MP2TestBase):
+    options = {
+        "enable_unlimited_missiles_pickup": True,
+        "enable_double_damage_pickup": True,
+        "enable_unlimited_beam_ammo_pickup": True,
+    }
+
+    def test_precollected_launcher_carries_bonus(self) -> None:
+        self.multiworld.push_precollected(self.multiworld.create_item("Missile Launcher", self.player))
+        capacities = {entry["item"]: entry["capacity"] for entry in patch_data.starting_items_config(self.world)}
+        self.assertEqual(15, capacities[44])
+        self.assertEqual(1, capacities[73])
+
+
 class TestStartingItemsWithPrecollectedMissileExpansionAndUnlockOption(MP2TestBase):
     """A precollected Missile Expansion (no Missile Launcher) writes
     capacity into id 44 via gains_for but never sets id 73 on its own; with
@@ -908,7 +922,7 @@ class TestHintScansSlotDataScanned(MP2TestBase):
     """slot_data's ``hint_scans`` (PLAN.md section Q.4/Q.5): one entry per
     actually-placed key under the default ("scanned") mode."""
 
-    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses"}
+    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses", "item_scan_hints": "off"}
 
     def setUp(self) -> None:
         super().setUp()
@@ -941,6 +955,7 @@ class TestHintScansSlotDataDisabled(MP2TestBase):
         "sky_temple_keys_locations": "all_bosses",
         "sky_temple_key_hints": "disabled",
         "translator_lore_hints": "off",
+        "item_scan_hints": "off",
     }
 
     def setUp(self) -> None:
@@ -958,7 +973,12 @@ class TestHintScansSlotDataPrecollected(MP2TestBase):
     hint already went out via start_hints in post_fill), and every placed
     key's item name lands in options.start_hints."""
 
-    options = {"sky_temple_keys": 9, "sky_temple_keys_locations": "all_bosses", "sky_temple_key_hints": "precollected"}
+    options = {
+        "sky_temple_keys": 9,
+        "sky_temple_keys_locations": "all_bosses",
+        "sky_temple_key_hints": "precollected",
+        "item_scan_hints": "off",
+    }
 
     def setUp(self) -> None:
         super().setUp()
@@ -1073,3 +1093,41 @@ class TestTranslatorLoreStringChanges(MP2TestBase):
         for change in self.config["string_changes"]:
             if change["strg_id"] in lore_strg_ids:
                 self.assertEqual("The Luminoth have nothing more to tell you.", change["strings"][0])
+
+
+class _TrapAppearanceBase(MP2TestBase):
+    def _appearance_for_trap(self, location_index: int = 0, name: str = "Damage Trap") -> dict:
+        location_name = LOCATION_TABLE[location_index].name
+        location = self.multiworld.get_location(location_name, self.world.player)
+        location.item = self.world.create_item(name)
+        return patch_data._pickup_appearance(self.world, location_name)
+
+
+class TestTrapAppearanceUndisguised(_TrapAppearanceBase):
+    def test_trap_shows_its_real_name(self) -> None:
+        appearance = self._appearance_for_trap()
+        self.assertEqual("Damage Trap acquired!", appearance["hud_text"])
+        self.assertEqual(ITEM_TABLE["Damage Trap"].model, appearance["model_data"])
+
+
+class TestTrapAppearanceDisguised(_TrapAppearanceBase):
+    options = {"trap_disguise": True}
+
+    def test_trap_looks_like_an_ordinary_pickup(self) -> None:
+        for index in range(10):
+            with self.subTest(location=index):
+                appearance = self._appearance_for_trap(index)
+                shown = appearance["hud_text"].removesuffix(" acquired!")
+                self.assertNotIn(shown, ("Damage Trap", "Ammo Depletion Trap", "Freeze Trap"))
+                self.assertIn(shown, ITEM_TABLE)
+                self.assertEqual(ITEM_TABLE[shown].model, appearance["model_data"])
+                self.assertEqual(f"{shown}.", appearance["scan"])
+
+    def test_disguise_is_stable_per_location(self) -> None:
+        self.assertEqual(self._appearance_for_trap(3), self._appearance_for_trap(3))
+
+    def test_real_items_are_untouched(self) -> None:
+        location_name = LOCATION_TABLE[0].name
+        location = self.multiworld.get_location(location_name, self.world.player)
+        location.item = self.world.create_item("Morph Ball")
+        self.assertEqual("Morph Ball acquired!", patch_data._pickup_appearance(self.world, location_name)["hud_text"])

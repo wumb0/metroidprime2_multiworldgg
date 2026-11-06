@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...items import ITEM_TABLE
+from ...items import ITEM_TABLE, TRAP_ITEM_NAMES
 from .harness import SlotSpec
 
 # --------------------------------------------------------------------------
@@ -20,7 +20,7 @@ def all_items_start() -> dict[str, int]:
     copy lands on the second stage), everything else gets at least one copy
     (items with ``default_pool_count == 0`` are still granted -- e.g. Power
     Beam or Double Damage -- and items the pool places many of get that
-    many).
+    many). Traps are skipped: they are rejected in ``start_inventory``.
 
     Uses ``start_inventory`` (not ``start_inventory_from_pool``), so every
     location keeps holding a real item while the connect-time grant path is
@@ -28,6 +28,8 @@ def all_items_start() -> dict[str, int]:
     """
     result: dict[str, int] = {}
     for name, data in ITEM_TABLE.items():
+        if name in TRAP_ITEM_NAMES:
+            continue
         if data.progression is not None:
             count = len(data.progression)
         else:

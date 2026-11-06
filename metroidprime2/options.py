@@ -17,6 +17,7 @@ from Options import (
     DeathLink,
     DefaultOnToggle,
     FreeText,
+    OptionCounter,
     OptionGroup,
     PerGameCommonOptions,
     Range,
@@ -54,6 +55,7 @@ from .options_tricks import (
     TrickWallBoost,
 )
 from . import constants
+from .items import TRAP_ITEM_NAMES
 
 # --------------------------------------------------------------------------
 # Goal / item pool options
@@ -207,6 +209,27 @@ class TranslatorLoreHints(Choice):
     option_my_items = 1
     option_any = 2
     default = option_my_items
+
+
+class ItemScanHints(Choice):
+    """Whether scanning a pickup in the world (before collecting it) sends a
+    hint for the item inside to the server, so the item shows up in the
+    hint list just as if you had used `!hint`.
+
+    Other Players: only pickups holding another player's item.
+    All (default): also pickups holding your own items (your own traps are
+    skipped while `trap_disguise` is on, since hinting one would give it
+    away).
+    Off: scanning a pickup does nothing special.
+
+    Each pickup gets its own scan so the game can tell them apart; the scan
+    text itself is unchanged."""
+
+    display_name = "Item Scan Hints"
+    option_off = 0
+    option_other_players = 1
+    option_all = 2
+    default = option_all
 
 
 class TranslatorLoreRando(Choice):
@@ -477,9 +500,19 @@ class DisplayNonLocalItems(Choice):
 
 class UnvisitedRoomNames(DefaultOnToggle):
     """If enabled, the map shows room names for rooms that have not been
-    visited yet."""
+    visited yet. The Great Temple, which has no map station, is also drawn
+    from the start."""
 
     display_name = "Unvisited Room Names"
+
+
+class MapRoomsRevealDarkWorldMap(DefaultOnToggle):
+    """If enabled, using a map station reveals the dark world rooms of its
+    world as well as the light world ones (vanilla only maps the light
+    world). Independent of `unvisited_room_names`, which decides whether the
+    revealed rooms show their names."""
+
+    display_name = "Map Rooms Reveal Dark World Map"
 
 
 class MapVisibility(Choice):
@@ -562,6 +595,20 @@ class RevealMapRemoved(FreeText):
         super().__init__("")
 
 
+class FlyingIngCachesWithoutDarkVisor(Toggle):
+    """If enabled, the Flying Ing Caches holding the Sky Temple Keys can be
+    shot without the Dark Visor. They stay invisible until the first hit,
+    so you need to know where each one is; while you can't see it, it
+    doesn't move.
+
+    Logic stops requiring the Dark Visor to collect those keys. The one
+    exception is Battleground, where the route to the key crosses the
+    room's invisible Dark Visor platforms: that one still needs the Dark
+    Visor unless the Invisible Objects trick is at intermediate or higher."""
+
+    display_name = "Flying Ing Caches Without Dark Visor"
+
+
 class WarpToStart(DefaultOnToggle):
     """If enabled, declining to save at any Save Station while holding L+R
     warps you back to the starting room (Samus' ship in Landing Site).
@@ -636,6 +683,20 @@ class MissileExpansionsUnlockLauncher(Toggle):
     display_name = "Missile Expansions Unlock Launcher"
 
 
+class LauncherGainsRemovedMissiles(DefaultOnToggle):
+    """If enabled, every Missile Expansion that never reaches a location (cut
+    to fit the 119 locations, or replaced by a trap) adds 5 missiles to what
+    the Missile Launcher grants, so your maximum missile capacity is kept.
+
+    Off removes those missiles from the seed entirely, reducing your maximum
+    missile capacity. The setting affects logic as well as the in-game
+    grant. The bonus only applies once the Missile Launcher item itself is
+    held.
+    """
+
+    display_name = "Launcher Gains Removed Missiles"
+
+
 class PowerBombExpansionsUnlockPowerBombs(Toggle):
     """If enabled, receiving any Power Bomb Expansion also unlocks Power
     Bombs themselves, so expansions are usable without finding the main
@@ -651,6 +712,146 @@ class PowerBombExpansionsUnlockPowerBombs(Toggle):
     """
 
     display_name = "Power Bomb Expansions Unlock Power Bombs"
+
+
+class EnableUnlimitedMissilesPickup(Toggle):
+    """If enabled, one Unlimited Missiles item is added to the item pool
+    (replacing a Missile Expansion). Receiving it makes missiles cost no
+    ammo. Logic never requires it."""
+
+    display_name = "Enable Unlimited Missiles Pickup"
+
+
+class EnableDoubleDamagePickup(Toggle):
+    """If enabled, one Double Damage item is added to the item pool
+    (replacing a Missile Expansion). Receiving it multiplies your damage
+    by `double_damage_multiplier`. Logic never requires it."""
+
+    display_name = "Enable Double Damage Pickup"
+
+
+class EnableUnlimitedBeamAmmoPickup(Toggle):
+    """If enabled, one Unlimited Beam Ammo item is added to the item pool
+    (replacing a Missile Expansion). Receiving it makes Dark, Light and
+    Annihilator beam shots cost no ammo. Logic never requires it."""
+
+    display_name = "Enable Unlimited Beam Ammo Pickup"
+
+
+class TrapPercentage(Range):
+    """Percentage of the Missile Expansions in the item pool that are replaced
+    with traps. Traps are items that do something bad when received (see
+    `trap_weights`). Logic never relies on traps, and enough Missile
+    Expansions are always kept to satisfy logic."""
+
+    display_name = "Trap Percentage"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
+class TrapWeights(OptionCounter):
+    """Relative weights of each trap type among the traps placed by
+    `trap_percentage`. Set a weight to 0 to disable that trap.
+
+    - Damage Trap: removes a random share of your maximum energy, between
+      `damage_trap_min_percent` and `damage_trap_max_percent` (never kills you).
+    - Ammo Depletion Trap: sets your Missiles, Power Bombs, Dark Ammo and
+      Light Ammo to 0 (capacities are unchanged).
+    - Freeze Trap: for `freeze_trap_duration` seconds you are frozen in
+      ice at random moments.
+    """
+
+    display_name = "Trap Weights"
+    valid_keys = TRAP_ITEM_NAMES
+    min = 0
+    default = dict.fromkeys(TRAP_ITEM_NAMES, 1)
+
+
+class FreezeTrapDuration(Range):
+    """How long, in seconds, the Freeze Trap lasts. For that long you are
+    frozen in ice at random moments, for a few seconds each time (mashing
+    jump breaks the ice early). A second Freeze Trap received meanwhile
+    extends the time."""
+
+    display_name = "Freeze Trap Duration"
+    range_start = 30
+    range_end = 600
+    default = 120
+
+
+class DamageTrapMinPercent(Range):
+    """The least a Damage Trap removes, as a percentage of your maximum
+    energy. Each trap removes a random whole percentage between this and
+    `damage_trap_max_percent` (swapped if this is the larger of the two).
+    A Damage Trap never kills you."""
+
+    display_name = "Damage Trap Minimum Percent"
+    range_start = 1
+    range_end = 100
+    default = 25
+
+
+class DamageTrapMaxPercent(Range):
+    """The most a Damage Trap removes, as a percentage of your maximum
+    energy. See `damage_trap_min_percent`."""
+
+    display_name = "Damage Trap Maximum Percent"
+    range_start = 1
+    range_end = 100
+    default = 75
+
+
+class FreezeTrapMinSeconds(Range):
+    """The shortest a single freeze during a Freeze Trap lasts, in seconds.
+    Each freeze lasts a random time between this and
+    `freeze_trap_max_seconds` (swapped if this is the larger of the two).
+    Mashing jump still breaks the ice early."""
+
+    display_name = "Freeze Trap Minimum Freeze Seconds"
+    range_start = 1
+    range_end = 30
+    default = 4
+
+
+class FreezeTrapMaxSeconds(Range):
+    """The longest a single freeze during a Freeze Trap lasts, in seconds.
+    See `freeze_trap_min_seconds`."""
+
+    display_name = "Freeze Trap Maximum Freeze Seconds"
+    range_start = 1
+    range_end = 30
+    default = 6
+
+
+class FreezeTrapMinGapSeconds(Range):
+    """The shortest wait between the start of one freeze and the next during
+    a Freeze Trap, in seconds. Each wait is a random time between this and
+    `freeze_trap_max_gap_seconds` (swapped if this is the larger of the two).
+    A freeze due while you are still frozen is pushed back by another wait."""
+
+    display_name = "Freeze Trap Minimum Gap Seconds"
+    range_start = 1
+    range_end = 300
+    default = 5
+
+
+class FreezeTrapMaxGapSeconds(Range):
+    """The longest wait between the start of one freeze and the next during a
+    Freeze Trap, in seconds. See `freeze_trap_min_gap_seconds`."""
+
+    display_name = "Freeze Trap Maximum Gap Seconds"
+    range_start = 1
+    range_end = 300
+    default = 20
+
+
+class TrapDisguise(Toggle):
+    """If enabled, traps found in your own world look like (and are announced
+    as) a random ordinary pickup such as a Missile Expansion or Energy Tank,
+    so you cannot tell them apart until you receive them."""
+
+    display_name = "Disguise Traps"
 
 
 class SplitBeamAmmo(DefaultOnToggle):
@@ -727,9 +928,8 @@ class DoubleDamageMultiplier(Range):
     world always sets it explicitly so the item does what its name says
     unless deliberately changed.
 
-    Double Damage isn't in the default item pool (`default_pool_count=0`
-    in ``items.py``) so this only matters if a copy reaches you some other
-    way (e.g. `start_inventory`)."""
+    Double Damage only reaches you if `enable_double_damage_pickup` is on
+    or you start with it (e.g. `start_inventory`)."""
 
     display_name = "Double Damage Multiplier"
     range_start = 100
@@ -768,12 +968,27 @@ class MetroidPrime2Options(PerGameCommonOptions):
     sky_temple_keys_required: SkyTempleKeysRequired
     sky_temple_key_hints: SkyTempleKeyHints
     translator_lore_hints: TranslatorLoreHints
+    item_scan_hints: ItemScanHints
     translator_lore_rando: TranslatorLoreRando
     progressive_suit: ProgressiveSuit
     progressive_grapple: ProgressiveGrapple
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
+    launcher_gains_removed_missiles: LauncherGainsRemovedMissiles
     power_bomb_expansions_unlock_power_bombs: PowerBombExpansionsUnlockPowerBombs
     split_beam_ammo: SplitBeamAmmo
+    enable_unlimited_missiles_pickup: EnableUnlimitedMissilesPickup
+    enable_double_damage_pickup: EnableDoubleDamagePickup
+    enable_unlimited_beam_ammo_pickup: EnableUnlimitedBeamAmmoPickup
+    trap_percentage: TrapPercentage
+    trap_weights: TrapWeights
+    damage_trap_min_percent: DamageTrapMinPercent
+    damage_trap_max_percent: DamageTrapMaxPercent
+    freeze_trap_duration: FreezeTrapDuration
+    freeze_trap_min_seconds: FreezeTrapMinSeconds
+    freeze_trap_max_seconds: FreezeTrapMaxSeconds
+    freeze_trap_min_gap_seconds: FreezeTrapMinGapSeconds
+    freeze_trap_max_gap_seconds: FreezeTrapMaxGapSeconds
+    trap_disguise: TrapDisguise
 
     trick_level: TrickLevel
     trick_airunderwater: TrickAirUnderwater
@@ -807,6 +1022,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     dark_aether_damage: DarkAetherDamage
     dark_suit_damage: DarkSuitDamage
     dangerous_energy_tanks: DangerousEnergyTanks
+    flying_ing_caches_without_dark_visor: FlyingIngCachesWithoutDarkVisor
 
     beam_ammo_costs: BeamAmmoCosts
     annihilator_ammo_source: AnnihilatorAmmoSource
@@ -831,6 +1047,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
     map_visibility: MapVisibility
     item_map_dots: ItemMapDots
     unvisited_room_names: UnvisitedRoomNames
+    map_rooms_reveal_dark_world_map: MapRoomsRevealDarkWorldMap
 
     death_link: DeathLink
 
@@ -852,6 +1069,7 @@ OPTION_GROUPS: list[OptionGroup] = [
             SkyTempleKeysRequired,
             SkyTempleKeyHints,
             TranslatorLoreHints,
+            ItemScanHints,
             TranslatorLoreRando,
         ],
     ),
@@ -861,8 +1079,22 @@ OPTION_GROUPS: list[OptionGroup] = [
             ProgressiveSuit,
             ProgressiveGrapple,
             MissileExpansionsUnlockLauncher,
+            LauncherGainsRemovedMissiles,
             PowerBombExpansionsUnlockPowerBombs,
             SplitBeamAmmo,
+            EnableUnlimitedMissilesPickup,
+            EnableDoubleDamagePickup,
+            EnableUnlimitedBeamAmmoPickup,
+            TrapPercentage,
+            TrapWeights,
+            DamageTrapMinPercent,
+            DamageTrapMaxPercent,
+            FreezeTrapDuration,
+            FreezeTrapMinSeconds,
+            FreezeTrapMaxSeconds,
+            FreezeTrapMinGapSeconds,
+            FreezeTrapMaxGapSeconds,
+            TrapDisguise,
         ],
     ),
     OptionGroup(
@@ -874,6 +1106,7 @@ OPTION_GROUPS: list[OptionGroup] = [
             DarkAetherDamage,
             DarkSuitDamage,
             DangerousEnergyTanks,
+            FlyingIngCachesWithoutDarkVisor,
         ],
     ),
     OptionGroup(
