@@ -2183,6 +2183,146 @@ If it fails, look at:
 * `client/patcher_runner.py::flying_ing_caches_shootable_installed`
 * `test/test_flying_ing_cache.py`
 
+### MT27_MAP_ROOMS_REVEAL_DARK_WORLD_MAP -- `mt27_map_rooms_reveal_dark_world_map` (P1)
+
+*Proves: client/map_reveal_patch.py makes a map station reveal the dark-world rooms of its world (vanilla only maps the light world), and does nothing when the option is off*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt27_map_rooms_reveal_dark_world_map --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Agon Wastes/Mining Plaza/Door to Plaza Access`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=off`, `map_rooms_reveal_dark_world_map=True`, `map_visibility=vanilla`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* You start in Mining Plaza with everything. Agon Map Station is the room right next to the start (through the Morph Ball door); the route to the dark world is Mining Plaza -> Save Station A -> Transport Center -> Portal Terminal, whose portal leads to Dark Agon Wastes (Portal Site).
+* Don't explore Dark Agon Wastes in step 1 beyond Portal Site: the test needs the other dark rooms to be unvisited.
+* If the Portal Terminal portal won't activate, Transport Center's portal (to Crossroads) works the same way; use that dark room as the one you stand in instead.
+* Each world has its own map station flag, so only Agon's station matters here. Temple Grounds and the other worlds are not part of this test.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt27_map_rooms_reveal_dark_world_map --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt27_map_rooms_reveal_dark_world_map/mt27_map_rooms_reveal_dark_world_map.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt27_map_rooms_reveal_dark_world_map/mt27_map_rooms_reveal_dark_world_map.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game and connect the client. Walk Mining Plaza -> Save Station A -> Transport Center -> Portal Terminal and take the portal to Portal Site (Dark Agon Wastes). Open the pause map and look at the Dark Agon Wastes rooms.
+   **Expect:** Only Portal Site (where you stand) is drawn among the dark rooms. Crossroads, Judgment Pit, Duelling Range, Trial Grounds, Dark Oasis and Doomed Entry are not.
+   *(exercises: vanilla map: an unvisited room isn't drawn without a map station. This is the baseline the rest of the test is compared with.)*
+2. **Do:** Return through the portal, walk back to Mining Plaza, go through the Morph Ball door to Agon Map Station and use the station.
+   **Expect:** The station plays its map download and the light-world Agon rooms you haven't visited become drawn on the map.
+3. **Do:** Go back to Portal Site through the same portal and open the pause map on the Dark Agon Wastes rooms. Hover the cursor over rooms you have never entered.
+   **Expect:** Every Dark Agon Wastes room is now drawn (Crossroads, Judgment Pit, Duelling Range, Trial Grounds, Dark Oasis, Doomed Entry and the rest), and hovering one shows its name.
+   *(exercises: the patch makes IsWorldVisible ignore the dark-world flag, so the station reveals dark rooms; unvisited_room_names (on here) then allows their names.)*
+4. **Do:** Save at a save station, quit to the main menu, reload the save and open the map in Dark Agon Wastes again.
+   **Expect:** The dark rooms are still drawn.
+   *(exercises: the map-station-used flag is saved with the world's map data.)*
+
+Pass if:
+* Before the station, only the visited dark room is drawn.
+* After Agon Map Station, every Dark Agon Wastes room is drawn and shows its name on hover.
+* The reveal survives a save and reload.
+* With the option off the dark rooms stay hidden; with unvisited_room_names off they are drawn without names.
+* No client traceback.
+
+If it fails, look at:
+* `client/map_reveal_patch.py::reveal_dark_rooms_on_map_station` (the `li r3, 1` write at NTSC 0x8010F428 / PAL 0x8010F5DC)
+* `client/patcher_runner.py::map_reveal_installed` and the `map_rooms_reveal_dark_world_map` key in options.json (a missing key reads as off)
+* `test/test_map_reveal_patch.py`
+
+### MT27_MAP_ROOMS_REVEAL_DARK_WORLD_MAP -- `mt27_map_rooms_reveal_dark_world_map_off` (P1)
+
+*Proves: client/map_reveal_patch.py makes a map station reveal the dark-world rooms of its world (vanilla only maps the light world), and does nothing when the option is off*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt27_map_rooms_reveal_dark_world_map --iso <vanilla.iso> --variant off
+```
+
+What the build contains:
+* starting room: `Agon Wastes/Mining Plaza/Door to Plaza Access`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=off`, `map_rooms_reveal_dark_world_map=False`, `map_visibility=vanilla`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* You start in Mining Plaza with everything. Agon Map Station is the room right next to the start (through the Morph Ball door); the route to the dark world is Mining Plaza -> Save Station A -> Transport Center -> Portal Terminal, whose portal leads to Dark Agon Wastes (Portal Site).
+* Don't explore Dark Agon Wastes in step 1 beyond Portal Site: the test needs the other dark rooms to be unvisited.
+* If the Portal Terminal portal won't activate, Transport Center's portal (to Crossroads) works the same way; use that dark room as the one you stand in instead.
+* Each world has its own map station flag, so only Agon's station matters here. Temple Grounds and the other worlds are not part of this test.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt27_map_rooms_reveal_dark_world_map --iso <vanilla.iso> --variant off
+2. Host       python MultiServer.py manual_tests/mt27_map_rooms_reveal_dark_world_map_off/mt27_map_rooms_reveal_dark_world_map_off.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt27_map_rooms_reveal_dark_world_map_off/mt27_map_rooms_reveal_dark_world_map_off.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client, take the portal at Portal Terminal to Portal Site and look at the pause map.
+   **Expect:** Only Portal Site is drawn among the dark rooms.
+2. **Do:** Return, use Agon Map Station in Mining Plaza's side room, go back to Portal Site and open the pause map again.
+   **Expect:** The unvisited light-world Agon rooms are drawn as in vanilla, but the Dark Agon Wastes rooms you haven't visited are still not drawn. Nothing changed on the dark side.
+   *(exercises: vanilla: a station only maps the light world.)*
+
+Pass if:
+* With the option off, using the station never reveals an unvisited dark room.
+* The light-world part of the station's reveal still works.
+
+If it fails, look at:
+* `client/map_reveal_patch.py::reveal_dark_rooms_on_map_station` (the `li r3, 1` write at NTSC 0x8010F428 / PAL 0x8010F5DC)
+* `client/patcher_runner.py::map_reveal_installed` and the `map_rooms_reveal_dark_world_map` key in options.json (a missing key reads as off)
+* `test/test_map_reveal_patch.py`
+
+### MT27_MAP_ROOMS_REVEAL_DARK_WORLD_MAP -- `mt27_map_rooms_reveal_dark_world_map_no_names` (P1)
+
+*Proves: client/map_reveal_patch.py makes a map station reveal the dark-world rooms of its world (vanilla only maps the light world), and does nothing when the option is off*
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt27_map_rooms_reveal_dark_world_map --iso <vanilla.iso> --variant no_names
+```
+
+What the build contains:
+* starting room: `Agon Wastes/Mining Plaza/Door to Plaza Access`
+* options: `defense_up_damage_reduction=90`, `door_lock_rando=False`, `double_damage_multiplier=500`, `elevator_rando=False`, `energy_per_tank=500`, `item_map_dots=off`, `map_rooms_reveal_dark_world_map=True`, `map_visibility=vanilla`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=False`, `warp_to_start=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* You start in Mining Plaza with everything. Agon Map Station is the room right next to the start (through the Morph Ball door); the route to the dark world is Mining Plaza -> Save Station A -> Transport Center -> Portal Terminal, whose portal leads to Dark Agon Wastes (Portal Site).
+* Don't explore Dark Agon Wastes in step 1 beyond Portal Site: the test needs the other dark rooms to be unvisited.
+* If the Portal Terminal portal won't activate, Transport Center's portal (to Crossroads) works the same way; use that dark room as the one you stand in instead.
+* Each world has its own map station flag, so only Agon's station matters here. Temple Grounds and the other worlds are not part of this test.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt27_map_rooms_reveal_dark_world_map --iso <vanilla.iso> --variant no_names
+2. Host       python MultiServer.py manual_tests/mt27_map_rooms_reveal_dark_world_map_no_names/mt27_map_rooms_reveal_dark_world_map_no_names.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt27_map_rooms_reveal_dark_world_map_no_names/mt27_map_rooms_reveal_dark_world_map_no_names.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect the client, use Agon Map Station, then take the portal at Portal Terminal to Portal Site and open the pause map.
+   **Expect:** Every Dark Agon Wastes room is drawn.
+   *(exercises: the reveal doesn't depend on unvisited_room_names.)*
+2. **Do:** Hover the cursor over a dark room you have never entered, then over Portal Site.
+   **Expect:** The unvisited room shows no name; Portal Site (visited) does.
+
+Pass if:
+* With unvisited_room_names off the dark rooms are still revealed by the station, but only visited ones show their name.
+
+If it fails, look at:
+* `client/map_reveal_patch.py::reveal_dark_rooms_on_map_station` (the `li r3, 1` write at NTSC 0x8010F428 / PAL 0x8010F5DC)
+* `client/patcher_runner.py::map_reveal_installed` and the `map_rooms_reveal_dark_world_map` key in options.json (a missing key reads as off)
+* `test/test_map_reveal_patch.py`
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).
