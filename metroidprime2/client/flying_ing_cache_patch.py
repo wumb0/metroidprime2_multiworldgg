@@ -59,16 +59,21 @@ FLYING_ING_CACHE_ROOMS = {
 
 DETECTOR_NAME = "DARK VISOR DETECTOR"
 DUMMY_NAME = "Collision Dummy_Dark Visor"
+BLOW_OUT_NAME = "Visor Blow Out"
+GATE_NAME = "Dark Visor Blow Out Gate"
+_GATE_LAYER = "Default"
 
 
 def make_cache_shootable(editor: Any, mlvl: Any, area: Area) -> None:
     """Leaves the cache's first-hit dummy active outside the Dark Visor
     (see module docstring)."""
     from retro_data_structures.enums.echoes import Message, State
-    from retro_data_structures.properties.echoes.objects import Actor
+    from retro_data_structures.properties.echoes.archetypes.EditorProperties import EditorProperties
+    from retro_data_structures.properties.echoes.objects import Actor, Relay
 
     detector = area.get_instance(DETECTOR_NAME)
     dummy = area.get_instance(DUMMY_NAME)
+    blow_out = area.get_instance(BLOW_OUT_NAME)
     hides = [
         c
         for c in detector.connections
@@ -78,9 +83,29 @@ def make_cache_shootable(editor: Any, mlvl: Any, area: Area) -> None:
         f"{area.name}: expected exactly one Exited -> Deactivate from {DETECTOR_NAME!r} to {DUMMY_NAME!r}, "
         f"found {len(hides)}"
     )
+    bursts = [
+        c
+        for c in dummy.connections
+        if c.state == State.Damage and c.target == blow_out.id and c.message in (Message.Activate, Message.Increment)
+    ]
+    assert sorted(c.message.name for c in bursts) == ["Activate", "Increment"], (
+        f"{area.name}: expected one Damage -> Activate and one Damage -> Increment from {DUMMY_NAME!r} to "
+        f"{BLOW_OUT_NAME!r}, found {[c.message.name for c in bursts]}"
+    )
+
     detector.remove_connection(hides[0])
     with dummy.edit_properties(Actor) as props:
         props.editor_properties.active = True
+
+    gate = area.get_layer(_GATE_LAYER).add_instance_with(
+        Relay(editor_properties=EditorProperties(name=GATE_NAME, active=False))
+    )
+    for burst in bursts:
+        dummy.remove_connection(burst)
+        gate.add_connection(State.Zero, burst.message, blow_out)
+    dummy.add_connection(State.Damage, Message.SetToZero, gate)
+    detector.add_connection(State.Entered, Message.Activate, gate)
+    detector.add_connection(State.Exited, Message.Deactivate, gate)
 
 
 def register(area_patcher: AreaPatcher) -> None:

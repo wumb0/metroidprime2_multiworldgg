@@ -205,6 +205,9 @@ class _FakeInstance:
     def remove_connection(self, connection: _FakeConnection) -> None:
         self.connections = [c for c in self.connections if c is not connection]
 
+    def add_connection(self, state: object, message: object, target: _FakeInstance) -> None:
+        self.connections.append(_FakeConnection(state, message, target.id))
+
     def edit_properties(self, type_cls: object) -> Any:
         import contextlib
 
@@ -212,22 +215,42 @@ class _FakeInstance:
         return contextlib.nullcontext(self.props)
 
 
+class _FakeLayer:
+    def __init__(self) -> None:
+        self.added: list[tuple[Any, _FakeInstance]] = []
+
+    def add_instance_with(self, props: Any) -> _FakeInstance:
+        instance = _FakeInstance(0x1000 + len(self.added))
+        instance.props.active = props.editor_properties.active
+        self.added.append((props, instance))
+        return instance
+
+
 class _FakeArea:
     name = "Fake Defiled Shrine"
 
     def __init__(self, instances: dict[str, _FakeInstance]) -> None:
         self._instances = instances
+        self.layers: dict[str, _FakeLayer] = {}
 
     def get_instance(self, name: str) -> _FakeInstance:
         return self._instances[name]
 
+    def get_layer(self, name: str) -> _FakeLayer:
+        return self.layers.setdefault(name, _FakeLayer())
+
 
 @unittest.skipUnless(_RDS_AVAILABLE, "retro_data_structures is not installed")
 class TestMakeCacheShootable(unittest.TestCase):
-    def _area(self, *, extra_hides: int = 0) -> tuple[_FakeArea, _FakeInstance, _FakeInstance]:
+    def _area(
+        self, *, extra_hides: int = 0, bursts: tuple[str, ...] = ("Activate", "Increment")
+    ) -> tuple[_FakeArea, _FakeInstance, _FakeInstance]:
         from retro_data_structures.enums.echoes import Message, State
 
+        blow_out = _FakeInstance(0x77)
         dummy = _FakeInstance(0x52)
+        dummy.connections = [_FakeConnection(State.Damage, Message[name], blow_out.id) for name in bursts]
+        dummy.connections.append(_FakeConnection(State.Damage, Message.Deactivate, 0x8C))
         war_chest = 0x89
         connections = [
             _FakeConnection(State.Entered, Message.Activate, war_chest),
@@ -237,7 +260,13 @@ class TestMakeCacheShootable(unittest.TestCase):
         ]
         connections += [_FakeConnection(State.Exited, Message.Deactivate, dummy.id) for _ in range(extra_hides)]
         detector = _FakeInstance(0x8C, connections)
-        area = _FakeArea({flying_ing_cache_patch.DETECTOR_NAME: detector, flying_ing_cache_patch.DUMMY_NAME: dummy})
+        area = _FakeArea(
+            {
+                flying_ing_cache_patch.DETECTOR_NAME: detector,
+                flying_ing_cache_patch.DUMMY_NAME: dummy,
+                flying_ing_cache_patch.BLOW_OUT_NAME: blow_out,
+            }
+        )
         return area, detector, dummy
 
     def test_dummy_starts_active(self) -> None:
@@ -253,14 +282,49 @@ class TestMakeCacheShootable(unittest.TestCase):
 
         area, detector, dummy = self._area()
         flying_ing_cache_patch.make_cache_shootable(None, None, cast(Any, area))
+        gate = self._gate(area)
         self.assertEqual(
             [(c.state, c.message, c.target) for c in detector.connections],
             [
                 (State.Entered, Message.Activate, 0x89),
                 (State.Exited, Message.Deactivate, 0x89),
                 (State.Entered, Message.Activate, dummy.id),
+                (State.Entered, Message.Activate, gate.id),
+                (State.Exited, Message.Deactivate, gate.id),
             ],
         )
+
+    def _gate(self, area: _FakeArea) -> _FakeInstance:
+        (added,) = area.layers["Default"].added
+        return added[1]
+
+    def test_burst_is_gated_by_the_dark_visor(self) -> None:
+        from retro_data_structures.enums.echoes import Message, State
+
+        area, detector, dummy = self._area()
+        flying_ing_cache_patch.make_cache_shootable(None, None, cast(Any, area))
+        props, gate = area.layers["Default"].added[0]
+        self.assertEqual(props.editor_properties.name, flying_ing_cache_patch.GATE_NAME)
+        self.assertFalse(props.editor_properties.active)
+        self.assertEqual(
+            [(c.state, c.message, c.target) for c in dummy.connections],
+            [
+                (State.Damage, Message.Deactivate, 0x8C),
+                (State.Damage, Message.SetToZero, gate.id),
+            ],
+        )
+        self.assertEqual(
+            [(c.state, c.message, c.target) for c in gate.connections],
+            [(State.Zero, Message.Activate, 0x77), (State.Zero, Message.Increment, 0x77)],
+        )
+        wiring = [(c.state, c.message, c.target) for c in detector.connections]
+        self.assertIn((State.Entered, Message.Activate, gate.id), wiring)
+        self.assertIn((State.Exited, Message.Deactivate, gate.id), wiring)
+
+    def test_refuses_a_room_without_both_burst_messages(self) -> None:
+        area, _, _ = self._area(bursts=("Activate",))
+        with self.assertRaises(AssertionError):
+            flying_ing_cache_patch.make_cache_shootable(None, None, cast(Any, area))
 
     def test_refuses_an_unexpected_room(self) -> None:
         area, _, _ = self._area(extra_hides=1)

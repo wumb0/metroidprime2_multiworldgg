@@ -2076,8 +2076,8 @@ Steps:
 2. **Do:** Walk to the spot described in the notes until the invisible field knocks you back, then back off a few metres.
    **Expect:** You get pushed away from an empty-looking spot.
 3. **Do:** Without locking on, fire Power Beam shots upward through the space above that spot.
-   **Expect:** One shot hits something: the cache cries out, appears and starts flying its route.
-   *(exercises: The first hit kills the 1 HP dummy, which turns the visible cache on (vanilla scripting).)*
+   **Expect:** One shot hits something: the cache cries out, appears and starts flying its route. The screen never whites out or flares.
+   *(exercises: The first hit kills the 1 HP dummy, which turns the visible cache on (vanilla scripting). The Dark Visor's burst of light is gated behind the Dark Visor, so none of it shows in the Combat Visor.)*
 4. **Do:** Destroy the now-visible cache and collect the key it drops.
    **Expect:** The cache bursts, the pickup appears and collecting it checks `Sky Temple Grounds: Defiled Shrine - Pickup (Sky Temple Key 8)` in the client.
 5. **Do:** From the server console run `/send <player> Dark Visor`, leave the room, come back and look around in each visor.
@@ -2112,6 +2112,7 @@ What the build contains:
 
 Notes / derived values:
 * You start with everything, the Dark Visor included.
+* Optional vanilla check: on a fresh New Game, shoot the cache once with the Dark Visor still on. The Dark Visor whites out with a burst of light, as in vanilla, and clears when you leave the visor. That uses the cache up, so restart before the steps below.
 
 Run:
 ```

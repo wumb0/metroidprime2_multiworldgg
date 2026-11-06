@@ -56,8 +56,13 @@ TEST = ManualTest(
         ),
         Step(
             "Without locking on, fire Power Beam shots upward through the space above that spot.",
-            "One shot hits something: the cache cries out, appears and starts flying its route.",
-            why="The first hit kills the 1 HP dummy, which turns the visible cache on (vanilla scripting).",
+            "One shot hits something: the cache cries out, appears and starts flying its route. The screen "
+            "never whites out or flares.",
+            why=(
+                "The first hit kills the 1 HP dummy, which turns the visible cache on (vanilla scripting). "
+                "The Dark Visor's burst of light is gated behind the Dark Visor, so none of it shows in the "
+                "Combat Visor."
+            ),
         ),
         Step(
             "Destroy the now-visible cache and collect the key it drops.",
@@ -73,7 +78,14 @@ TEST = ManualTest(
         "dark_visor": Variant(
             config_sha256="62c89736dd3c39733bbbb9ad13144a0a2293c28e9b43dddf042c7431ccfeb38f",
             start_inventory={"Dark Visor": 1},
-            notes=["You start with everything, the Dark Visor included."],
+            notes=[
+                "You start with everything, the Dark Visor included.",
+                (
+                    "Optional vanilla check: on a fresh New Game, shoot the cache once with the Dark Visor still on. "
+                    "The Dark Visor whites out with a burst of light, as in vanilla, and clears when you leave the "
+                    "visor. That uses the cache up, so restart before the steps below."
+                ),
+            ],
             steps=[
                 Step(
                     "Start New Game, connect the client and switch to the Dark Visor.",
