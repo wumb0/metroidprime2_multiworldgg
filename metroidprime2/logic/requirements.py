@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import cast
+from typing import Any, cast
 
 from .. import constants
 from . import item_mapping
@@ -90,6 +90,15 @@ class StaticContext:
     missile_expansions_unlock_launcher: bool = False
     power_bomb_expansions_unlock_power_bombs: bool = False
     missile_launcher_bonus: int = 0
+    power_bomb_main_bonus: int = 0
+
+
+def extra_pregranted_events(world: Any) -> frozenset[str]:
+    """Events the world's options make true from the start, on top of the
+    always-pregranted ``constants.PREGRANTED_EVENTS``."""
+    if world.options.pre_scan_phazon_site:
+        return frozenset({constants.PHAZON_SITE_BARRIER_EVENT})
+    return frozenset()
 
 
 def build_static_context(
@@ -105,19 +114,22 @@ def build_static_context(
     missile_expansions_unlock_launcher: bool = False,
     power_bomb_expansions_unlock_power_bombs: bool = False,
     missile_launcher_bonus: int = 0,
+    power_bomb_main_bonus: int = 0,
+    extra_pregranted_events: frozenset[str] = frozenset(),
 ) -> StaticContext:
     """Build a ``StaticContext`` from resolved option values.
 
     ``misc``, ``versions`` and ``pregranted_events`` are always filled from
     the frozen constants in ``constants.py`` (v1 has no room/door/gate
-    rando, so these never vary per-seed).
+    rando, so these never vary per-seed); ``extra_pregranted_events`` adds the
+    events an option makes true from the start (``pre_scan_phazon_site``).
     """
     return StaticContext(
         player=player,
         trick_levels=dict(trick_levels),
         misc=dict(constants.STATIC_MISC),
         versions=dict(constants.STATIC_VERSIONS),
-        pregranted_events=frozenset(constants.PREGRANTED_EVENTS),
+        pregranted_events=frozenset(constants.PREGRANTED_EVENTS) | frozenset(extra_pregranted_events),
         damage_strictness=damage_strictness,
         energy_per_tank=energy_per_tank,
         dark_world_base=dark_aether_damage / 6.0,
@@ -128,6 +140,7 @@ def build_static_context(
         missile_expansions_unlock_launcher=missile_expansions_unlock_launcher,
         power_bomb_expansions_unlock_power_bombs=power_bomb_expansions_unlock_power_bombs,
         missile_launcher_bonus=missile_launcher_bonus,
+        power_bomb_main_bonus=power_bomb_main_bonus,
     )
 
 
@@ -351,6 +364,7 @@ class RequirementCompiler:
             self.ctx.missile_expansions_unlock_launcher,
             self.ctx.power_bomb_expansions_unlock_power_bombs,
             self.ctx.missile_launcher_bonus,
+            self.ctx.power_bomb_main_bonus,
         )
 
         if kind == "bool":
@@ -434,6 +448,7 @@ class RequirementCompiler:
                 self.ctx.missile_expansions_unlock_launcher,
                 self.ctx.power_bomb_expansions_unlock_power_bombs,
                 self.ctx.missile_launcher_bonus,
+                self.ctx.power_bomb_main_bonus,
             )
             count_fn: Callable[[object], int]
             if kind == "bool":

@@ -244,7 +244,10 @@ class TestOptionalPickupsOffByDefault(MP2TestBase):
 
 
 class TestOptionalPickupsAllOn(MP2TestBase):
+    # Without Power Bomb dummy slots, which would take the extras' places
+    # instead (TestPowerBombSlots* in test_power_bomb_slots.py).
     options = {
+        "power_bomb_dummy_slots": 0,
         "enable_unlimited_missiles_pickup": True,
         "enable_double_damage_pickup": True,
         "enable_unlimited_beam_ammo_pickup": True,
@@ -308,7 +311,7 @@ class TestTrapsOffByDefault(MP2TestBase):
 
 
 class TestTrapsHalf(MP2TestBase):
-    options = {"trap_percentage": 50}
+    options = {"trap_percentage": 50, "power_bomb_dummy_slots": 0}
 
     def test_half_of_missile_expansions_replaced(self) -> None:
         names = _own_pool_names(self)
@@ -336,7 +339,7 @@ class TestTrapsHalf(MP2TestBase):
 
 
 class TestTrapsCappedByLogic(MP2TestBase):
-    options = {"trap_percentage": 100}
+    options = {"trap_percentage": 100, "power_bomb_dummy_slots": 0}
 
     def test_enough_missile_expansions_remain(self) -> None:
         counts = Counter(_own_pool_names(self))
@@ -347,6 +350,7 @@ class TestTrapsCappedByLogic(MP2TestBase):
 
 class TestTrapsAfterTrim(MP2TestBase):
     options = {
+        "power_bomb_dummy_slots": 0,
         "trap_percentage": 50,
         "enable_unlimited_missiles_pickup": True,
         "enable_double_damage_pickup": True,

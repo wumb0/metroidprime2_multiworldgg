@@ -11,15 +11,16 @@ behavior this module must implement.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from BaseClasses import Item
+from BaseClasses import Item, ItemClassification
 from Options import OptionError
 
 from . import constants
 from .items import ITEM_TABLE, TRAP_ITEM_NAMES
 from .locations import LOCATION_TABLE
-from .options import SkyTempleKeysLocations
+from .options import MissileExpansionProgression, SkyTempleKeysLocations
 
 if TYPE_CHECKING:
     from . import MetroidPrime2World
@@ -48,6 +49,16 @@ _OPTIONAL_PICKUP_OPTIONS: dict[str, str] = {
 # ammo), so traps never replace Missile Expansions below this count even
 # though the Missile Launcher and Seeker Launcher also carry ammo.
 _MIN_MISSILE_EXPANSIONS = 13
+
+# The highest Power Bomb requirement in the logic database is 4: the main
+# pickup's 2 plus 2 more. Power Bomb Expansions turned into dummy slots never
+# take the pool below this many, whatever ``power_bomb_dummy_slots`` says (the
+# main pickup's bonus doesn't count: ``power_bomb_gains_removed_power_bombs``
+# can be off).
+_MIN_POWER_BOMB_EXPANSIONS = 2
+
+_MISSILE_EXPANSION = "Missile Expansion"
+_POWER_BOMB_EXPANSION = "Power Bomb Expansion"
 
 # Guardian pickup_index values (Amorbis, Chykka, Quadraxis), in the order
 # Sky Temple Keys 1-3 are locked onto them for the "all_guardians" mode.
@@ -172,13 +183,34 @@ def _trap_total(world: MetroidPrime2World, expansion_count: int) -> int:
     return min(wanted, max(0, expansion_count - _MIN_MISSILE_EXPANSIONS))
 
 
-def removed_expansion_count(world: MetroidPrime2World) -> int:
-    """Number of Missile Expansions that never reach a location: the ones
-    ``create_item_pool`` drops because the other items already fill (or
-    overfill) the unlocked locations, plus the ones replaced by traps.
-    Computed from the options alone so logic, which is compiled before the
-    pool exists, can agree with the pool.
+@dataclass(frozen=True)
+class ExpansionPlan:
+    """How the Missile/Power Bomb Expansion slots are used, derived from the
+    options alone so logic (compiled before the pool exists) and the patched
+    game agree with ``create_item_pool``.
+
+    The pool is padded or trimmed with Missile Expansions until it fits the
+    locations (``padded``/``trimmed``), a share of what is left becomes traps
+    (``traps``), and the traps and the enabled extra pickups (``extras``) then
+    move onto ``power_bomb_slots`` Power Bomb Expansions' slots instead: that
+    many Power Bomb Expansions are swapped back for the Missile Expansions
+    the traps and extras would have displaced.
     """
+
+    trimmed: int
+    padded: int
+    traps: int
+    extras: int
+    power_bomb_slots: int
+
+    @property
+    def removed_missile_expansions(self) -> int:
+        """Missile Expansions that never reach a location: trimmed or turned
+        into traps, less the ones the Power Bomb slots gave back."""
+        return max(0, self.trimmed + self.traps - self.power_bomb_slots)
+
+
+def expansion_plan(world: MetroidPrime2World) -> ExpansionPlan:
     keys = world.options.sky_temple_keys.value
     locations_mode = world.options.sky_temple_keys_locations.value
     if locations_mode == SkyTempleKeysLocations.option_all_bosses:
@@ -195,7 +227,25 @@ def removed_expansion_count(world: MetroidPrime2World) -> int:
     surplus = pool_size - (len(LOCATION_TABLE) - locked_keys)
     trimmed = max(0, min(surplus, filler_count))
     padded = max(0, -surplus)
-    return trimmed + _trap_total(world, filler_count - trimmed + padded)
+    traps = _trap_total(world, filler_count - trimmed + padded)
+    extras = sum(int(bool(getattr(world.options, option))) for option in _OPTIONAL_PICKUP_OPTIONS.values())
+    power_bomb_slots = min(
+        world.options.power_bomb_dummy_slots.value,
+        extras + traps,
+        max(0, _pool_count_for(_POWER_BOMB_EXPANSION, world) - _MIN_POWER_BOMB_EXPANSIONS),
+    )
+    return ExpansionPlan(trimmed, padded, traps, extras, power_bomb_slots)
+
+
+def removed_expansion_count(world: MetroidPrime2World) -> int:
+    """Number of Missile Expansions that never reach a location: the ones
+    ``create_item_pool`` drops because the other items already fill (or
+    overfill) the unlocked locations, plus the ones replaced by traps, less
+    the ones that gave their slot to a Power Bomb Expansion
+    (``power_bomb_dummy_slots``). Computed from the options alone so logic,
+    which is compiled before the pool exists, can agree with the pool.
+    """
+    return expansion_plan(world).removed_missile_expansions
 
 
 def missile_launcher_bonus(world: MetroidPrime2World) -> int:
@@ -205,6 +255,15 @@ def missile_launcher_bonus(world: MetroidPrime2World) -> int:
     if not world.options.launcher_gains_removed_missiles:
         return 0
     return constants.MISSILES_PER_EXPANSION * removed_expansion_count(world)
+
+
+def power_bomb_main_bonus(world: MetroidPrime2World) -> int:
+    """Extra Power Bombs the main Power Bomb pickup grants, standing in for
+    the Power Bomb Expansions given up as dummy slots; 0 when
+    ``power_bomb_gains_removed_power_bombs`` is off."""
+    if not world.options.power_bomb_gains_removed_power_bombs:
+        return 0
+    return expansion_plan(world).power_bomb_slots
 
 
 def _trap_counts(world: MetroidPrime2World, expansion_count: int) -> dict[str, int]:
@@ -242,6 +301,39 @@ def _apply_traps(world: MetroidPrime2World, pool: list[Item]) -> None:
     for trap_name, count in counts.items():
         for _ in range(count):
             pool[next(replace_indices)] = world.create_item(trap_name)
+
+
+def _apply_power_bomb_slots(world: MetroidPrime2World, pool: list[Item]) -> None:
+    """Swaps ``ExpansionPlan.power_bomb_slots`` Power Bomb Expansions for
+    Missile Expansions: the traps and extra pickups already in the pool took
+    Missile Expansions' places, and this hands those back by taking the
+    Power Bomb Expansions' instead (see ``ExpansionPlan``)."""
+    slots = expansion_plan(world).power_bomb_slots
+    swapped = 0
+    for index in range(len(pool) - 1, -1, -1):
+        if swapped == slots:
+            break
+        if pool[index].name == _POWER_BOMB_EXPANSION:
+            pool[index] = world.create_item(_MISSILE_EXPANSION)
+            swapped += 1
+    assert swapped == slots, f"expected {slots} Power Bomb Expansions in the pool, found {swapped}"
+
+
+def _apply_missile_expansion_progression(world: MetroidPrime2World, pool: list[Item]) -> None:
+    """``missile_expansion_progression: required_only``: every Missile
+    Expansion past the ``_MIN_MISSILE_EXPANSIONS`` logic can ask for becomes a
+    ``useful`` item instead of progression."""
+    if world.options.missile_expansion_progression.value != MissileExpansionProgression.option_required_only:
+        return
+    if hasattr(world.multiworld, "generation_is_fake"):
+        return  # Universal Tracker treats everything as progression.
+    kept = 0
+    for item in pool:
+        if item.name != _MISSILE_EXPANSION:
+            continue
+        kept += 1
+        if kept > _MIN_MISSILE_EXPANSIONS:
+            item.classification = ItemClassification.useful
 
 
 def create_item_pool(world: MetroidPrime2World) -> list[Item]:
@@ -289,6 +381,8 @@ def create_item_pool(world: MetroidPrime2World) -> list[Item]:
         pool = pool[:target]
 
     _apply_traps(world, pool)
+    _apply_power_bomb_slots(world, pool)
+    _apply_missile_expansion_progression(world, pool)
 
     return pool
 

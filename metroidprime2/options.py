@@ -629,6 +629,19 @@ class PreScanElevators(DefaultOnToggle):
     display_name = "Pre-Scan Elevators"
 
 
+class PreScanPhazonSite(Toggle):
+    """If enabled, the three scan posts in Dark Agon Wastes' Phazon Site that
+    lower its laser barrier start out scanned: the room comes up as it does
+    after solving it, with the barrier down and without the cutscene.
+
+    In vanilla the barrier only goes down once all three have been scanned
+    from inside the room. Logic follows: it treats the barrier as already
+    gone, so the Phazon Site's Watering Hole door no longer waits on it.
+    """
+
+    display_name = "Pre-Scan Phazon Site"
+
+
 class MoveWhileScanning(Toggle):
     """If enabled, you can move while Scan Visor is locked onto a scan
     point, instead of the game freezing your movement for the duration of
@@ -712,6 +725,92 @@ class PowerBombExpansionsUnlockPowerBombs(Toggle):
     """
 
     display_name = "Power Bomb Expansions Unlock Power Bombs"
+
+
+class PowerBombDummySlots(Range):
+    """The most Power Bomb Expansions that may be given up as slots for traps
+    and the extra pickups (`enable_unlimited_missiles_pickup`,
+    `enable_double_damage_pickup`, `enable_unlimited_beam_ammo_pickup`),
+    which otherwise all take Missile Expansion slots.
+
+    Each trap and extra pickup in the pool uses a Power Bomb Expansion's
+    slot first, up to this many; the Missile Expansion it would have
+    replaced stays. With no traps and no extra pickups nothing is removed, so
+    the default pool is unchanged. At least two Power Bomb Expansions always
+    remain (Logic needs at most 4 Power Bombs: the main pickup's 2 and 2
+    more), hence the maximum of 6.
+
+    What was given up isn't lost: see `power_bomb_gains_removed_power_bombs`.
+    """
+
+    display_name = "Power Bomb Dummy Slots"
+    range_start = 0
+    range_end = 6
+    default = 3
+
+
+class PowerBombGainsRemovedPowerBombs(DefaultOnToggle):
+    """If enabled, every Power Bomb Expansion given up under
+    `power_bomb_dummy_slots` adds 1 Power Bomb to what the main Power Bomb
+    pickup grants, so your maximum Power Bomb capacity is kept (10, the game's
+    cap).
+
+    Off removes those Power Bombs from the seed entirely. The setting affects
+    logic as well as the in-game grant. The bonus only applies once the main
+    Power Bomb pickup itself is held.
+
+    This is the Power Bomb counterpart of `launcher_gains_removed_missiles`.
+    """
+
+    display_name = "Power Bomb Gains Removed Power Bombs"
+
+
+class MissileExpansionProgression(Choice):
+    """How many Missile Expansions count as progression items.
+
+    All (default): every Missile Expansion does, so they take part in the
+    fill's progression passes, show up in the spoiler playthrough, and can be
+    placed anywhere a required item can, including bosses.
+
+    Required Only: only as many as Logic can ever ask for (13) are
+    progression; every other one becomes a useful item. Those are placed
+    after the progression items, wherever is left, and are never listed in
+    the playthrough. Logic is unchanged and still sound: it counts only the
+    13, and the game gives you all of them regardless. A pool with 13 or
+    fewer Missile Expansions is unaffected.
+    """
+
+    display_name = "Missile Expansion Progression"
+    option_all = 0
+    option_required_only = 1
+    default = option_all
+
+
+class ExtraPowerupPlacement(Choice):
+    """Where Double Damage, Unlimited Missiles and Unlimited Beam Ammo
+    (`enable_double_damage_pickup` and friends) are allowed to end up, so
+    they don't trivialise the early game.
+
+    Anywhere: wherever the fill puts them.
+
+    Late (default): in the last half of the locations of the whole multiworld,
+    ordered by how soon the playthrough reaches them. Very Late: the last
+    quarter.
+
+    The fill can't be told "late", only what it already did can be measured,
+    so this runs after it: any of these items that landed too early is
+    swapped with an item from a late location, which is only ever done when
+    that cannot make the game harder to beat (see the README). If the
+    multiworld has no suitable item to swap with, the item stays where it
+    is, and the generator says so. Another player's items are never moved to
+    somewhere their own rules forbid.
+    """
+
+    display_name = "Extra Powerup Placement"
+    option_anywhere = 0
+    option_late = 1
+    option_very_late = 2
+    default = option_late
 
 
 class EnableUnlimitedMissilesPickup(Toggle):
@@ -918,15 +1017,51 @@ class AnnihilatorAmmoSource(Choice):
     default = 0
 
 
+class IncomingDamageMultiplier(Range):
+    """Base multiplier (in percent) for all damage you take: enemies, bosses,
+    environmental hazards and Dark Aether alike. 100 is vanilla, 200 doubles
+    everything that hurts you, 50 halves it.
+
+    It is applied to the hit itself, before your suits' damage reduction
+    (and Defense Up, see `defense_up_damage_reduction`), so they still
+    reduce the multiplied hit by the same percentage. Not modeled in logic:
+    a value above 100 makes the game harder than Logic assumes, and below
+    100 easier.
+    """
+
+    display_name = "Incoming Damage Multiplier"
+    range_start = 10
+    range_end = 500
+    default = 100
+
+
+class OutgoingDamageMultiplier(Range):
+    """Base multiplier (in percent) for all damage you deal to enemies. 100 is
+    vanilla, 200 doubles it, 50 halves it (so everything takes twice as many
+    hits).
+
+    It scales the same damage sources Double Damage does (beams, missiles,
+    bombs and their charge combos), and is multiplied with Double Damage,
+    not replaced by it: Double Damage at 200 and this at 150 deal 3x. Not
+    modeled in logic.
+    """
+
+    display_name = "Outgoing Damage Multiplier"
+    range_start = 10
+    range_end = 500
+    default = 100
+
+
 class DoubleDamageMultiplier(Range):
     """Damage multiplier (in percent) granted by the Double Damage item
     (open-prime-rando's "Massive Damage" custom item -- see
     ``custom_items.massive_damage_config.damage_increase_multiplier``).
 
-    Default 200 (2.0x, i.e. actual double damage). Note open-prime-rando's
-    own internal default for this field is 1.0 (100%, a no-op) -- this
-    world always sets it explicitly so the item does what its name says
-    unless deliberately changed.
+    Default 200 (2.0x, i.e. actual double damage); 100 makes the item do
+    nothing. open-prime-rando's field is the bonus each copy adds on top of
+    1x, so this world passes ``value / 100 - 1`` (see
+    ``patch_data.double_damage_bonus``). Applied on top of
+    `outgoing_damage_multiplier`.
 
     Double Damage only reaches you if `enable_double_damage_pickup` is on
     or you start with it (e.g. `start_inventory`)."""
@@ -975,6 +1110,10 @@ class MetroidPrime2Options(PerGameCommonOptions):
     missile_expansions_unlock_launcher: MissileExpansionsUnlockLauncher
     launcher_gains_removed_missiles: LauncherGainsRemovedMissiles
     power_bomb_expansions_unlock_power_bombs: PowerBombExpansionsUnlockPowerBombs
+    power_bomb_dummy_slots: PowerBombDummySlots
+    power_bomb_gains_removed_power_bombs: PowerBombGainsRemovedPowerBombs
+    missile_expansion_progression: MissileExpansionProgression
+    extra_powerup_placement: ExtraPowerupPlacement
     split_beam_ammo: SplitBeamAmmo
     enable_unlimited_missiles_pickup: EnableUnlimitedMissilesPickup
     enable_double_damage_pickup: EnableDoubleDamagePickup
@@ -1026,6 +1165,8 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
     beam_ammo_costs: BeamAmmoCosts
     annihilator_ammo_source: AnnihilatorAmmoSource
+    incoming_damage_multiplier: IncomingDamageMultiplier
+    outgoing_damage_multiplier: OutgoingDamageMultiplier
     double_damage_multiplier: DoubleDamageMultiplier
     defense_up_damage_reduction: DefenseUpDamageReduction
 
@@ -1039,6 +1180,7 @@ class MetroidPrime2Options(PerGameCommonOptions):
 
     warp_to_start: WarpToStart
     pre_scan_elevators: PreScanElevators
+    pre_scan_phazon_site: PreScanPhazonSite
     move_while_scanning: MoveWhileScanning
     spring_ball: SpringBall
     spring_ball_button: SpringBallButton
@@ -1081,6 +1223,10 @@ OPTION_GROUPS: list[OptionGroup] = [
             MissileExpansionsUnlockLauncher,
             LauncherGainsRemovedMissiles,
             PowerBombExpansionsUnlockPowerBombs,
+            PowerBombDummySlots,
+            PowerBombGainsRemovedPowerBombs,
+            MissileExpansionProgression,
+            ExtraPowerupPlacement,
             SplitBeamAmmo,
             EnableUnlimitedMissilesPickup,
             EnableDoubleDamagePickup,
@@ -1114,6 +1260,8 @@ OPTION_GROUPS: list[OptionGroup] = [
         [
             BeamAmmoCosts,
             AnnihilatorAmmoSource,
+            IncomingDamageMultiplier,
+            OutgoingDamageMultiplier,
             DoubleDamageMultiplier,
             DefenseUpDamageReduction,
         ],
@@ -1163,7 +1311,7 @@ OPTION_GROUPS: list[OptionGroup] = [
     ),
     OptionGroup(
         "Quality of Life",
-        [WarpToStart, PreScanElevators, MoveWhileScanning, SpringBall, SpringBallButton],
+        [WarpToStart, PreScanElevators, PreScanPhazonSite, MoveWhileScanning, SpringBall, SpringBallButton],
     ),
     OptionGroup(
         "Cosmetic",

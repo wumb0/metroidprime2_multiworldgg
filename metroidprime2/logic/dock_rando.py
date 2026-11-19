@@ -91,12 +91,12 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .. import constants
-from ..item_pool import missile_launcher_bonus
+from ..item_pool import missile_launcher_bonus, power_bomb_main_bonus
 from ..options import damage_strictness_multiplier, dark_damage_per_second
 from .db_reader import GameDatabase, Node, NodeId, load_game_database
 from .item_mapping import event_item_name
 from .regions import CREDITS_EVENT_NODE, _dock_edge, _intra_area_edges, _lock_broken_event_item, dock_weakness_for
-from .requirements import RequirementCompiler, Rule, build_static_context
+from .requirements import RequirementCompiler, Rule, build_static_context, extra_pregranted_events
 
 if TYPE_CHECKING:
     from .. import MetroidPrime2World
@@ -616,7 +616,7 @@ def _build_probe_graph(
         if node.id == CREDITS_EVENT_NODE:
             continue
 
-        if node.node_type == "event" and node.event_name not in constants.PREGRANTED_EVENTS:
+        if node.node_type == "event" and node.event_name not in compiler.ctx.pregranted_events:
             name = event_item_name(db, node.event_name)
             event_names.add(name)
             flag_triggers.setdefault(node.id, []).append(name)
@@ -716,6 +716,8 @@ def _build_compiler(world: MetroidPrime2World, db: GameDatabase) -> RequirementC
             world.options.power_bomb_expansions_unlock_power_bombs
         ),
         missile_launcher_bonus=missile_launcher_bonus(world),
+        power_bomb_main_bonus=power_bomb_main_bonus(world),
+        extra_pregranted_events=extra_pregranted_events(world),
     )
     return RequirementCompiler(db, ctx)
 

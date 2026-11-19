@@ -182,6 +182,7 @@ def expression(
     missile_expansions_unlock_launcher: bool = False,
     power_bomb_expansions_unlock_power_bombs: bool = False,
     missile_launcher_bonus: int = 0,
+    power_bomb_main_bonus: int = 0,
 ) -> tuple[Kind, Expression]:
     """Return ``(kind, callable)`` for a DB item short_name.
 
@@ -202,6 +203,10 @@ def expression(
     ``missile_launcher_bonus`` is the extra missiles the launcher grants for
     Missile Expansions trimmed from the pool (``item_pool.missile_launcher_bonus``);
     ``client/receive_items.compute_desired_capacities`` must grant the same.
+
+    ``power_bomb_main_bonus`` is the Power Bomb counterpart: the extra Power
+    Bombs the main Power Bomb pickup grants for Power Bomb Expansions given up
+    as dummy slots (``item_pool.power_bomb_main_bonus``).
 
     Raises ``KeyError`` for unknown short names.
     """
@@ -265,12 +270,13 @@ def expression(
     if short_name == "PowerBomb":
         unlocked = _effective_power_bomb(player, power_bomb_expansions_unlock_power_bombs)
 
-        def _power_bomb(state, _p=player, _unlocked=unlocked):
+        def _power_bomb(state, _p=player, _unlocked=unlocked, _bonus=power_bomb_main_bonus):
             if not _unlocked(state):
                 return 0
-            # The main pickup carries 2; each expansion adds 1. Without the
-            # main pickup (only reachable with the option on) there is no 2.
-            main = 2 if state.has("Power Bomb", _p) else 0
+            # The main pickup carries 2 plus the bonus for expansions given
+            # up as dummy slots; each expansion adds 1. Without the main
+            # pickup (only reachable with the option on) there is neither.
+            main = 2 + _bonus if state.has("Power Bomb", _p) else 0
             return main + state.count("Power Bomb Expansion", _p)
 
         return ("count", _power_bomb)

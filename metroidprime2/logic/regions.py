@@ -23,14 +23,20 @@ from typing import TYPE_CHECKING
 
 from BaseClasses import ItemClassification, Region
 
-from .. import constants
-from ..item_pool import missile_launcher_bonus, sky_temple_keys_required_count
+from ..item_pool import missile_launcher_bonus, power_bomb_main_bonus, sky_temple_keys_required_count
 from ..items import MetroidPrime2Item
 from ..locations import LOCATION_TABLE, MetroidPrime2Location
 from ..options import damage_strictness_multiplier, dark_damage_per_second
 from .db_reader import DockWeakness, GameDatabase, Node, NodeId, load_game_database
 from .item_mapping import event_item_name
-from .requirements import Impossible, RequirementCompiler, Rule, build_static_context, combine_and
+from .requirements import (
+    Impossible,
+    RequirementCompiler,
+    Rule,
+    build_static_context,
+    combine_and,
+    extra_pregranted_events,
+)
 
 if TYPE_CHECKING:
     from .. import MetroidPrime2World
@@ -420,6 +426,8 @@ def create_regions(world: MetroidPrime2World) -> None:
             world.options.power_bomb_expansions_unlock_power_bombs
         ),
         missile_launcher_bonus=missile_launcher_bonus(world),
+        power_bomb_main_bonus=power_bomb_main_bonus(world),
+        extra_pregranted_events=extra_pregranted_events(world),
     )
     compiler = RequirementCompiler(db, ctx)
 
@@ -451,7 +459,7 @@ def create_regions(world: MetroidPrime2World) -> None:
             location = MetroidPrime2Location(player, loc_data.name, loc_data.code, region)
             region.locations.append(location)
 
-        elif node.node_type == "event" and node.event_name not in constants.PREGRANTED_EVENTS:
+        elif node.node_type == "event" and node.event_name not in compiler.ctx.pregranted_events:
             item_name = event_item_name(db, node.event_name)
             location = MetroidPrime2Location(player, node.ap_name, None, region)
             location.show_in_spoiler = False

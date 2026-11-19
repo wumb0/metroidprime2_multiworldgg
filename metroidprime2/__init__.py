@@ -33,6 +33,7 @@ from .item_pool import (
     STK_ITEM_NAMES,
     create_item_pool,
     missile_launcher_bonus,
+    power_bomb_main_bonus,
     sky_temple_keys_required_count,
 )
 from .items import ITEM_GROUPS, ITEM_TABLE, TRAP_ITEM_NAMES, MetroidPrime2Item, item_name_to_id
@@ -55,6 +56,7 @@ from .options import (
     trick_levels_from_options,
 )
 from .patch_data import _translator_lore_hint_text, make_rando_configuration
+from .placement import defer_extra_powerups
 from .settings import MetroidPrime2Settings
 from .tracker_data import TRACKER_WORLD, decode_randomization, encode_randomization
 from .utils import get_apworld_version
@@ -301,6 +303,10 @@ class MetroidPrime2World(World):
         pass
 
     def post_fill(self) -> None:
+        # extra_powerup_placement: after the fill is the only time "late" is
+        # known (placement.py).
+        defer_extra_powerups(self)
+
         # PLAN.md section Q.4: sky_temple_key_hints="precollected" means
         # every key hint is already known at the start of the game, which
         # AP models as start_hints -- Main.py's output-generation phase
@@ -348,6 +354,12 @@ class MetroidPrime2World(World):
                 # client/map_reveal_patch.py: one DOL write, which
                 # config.json can't carry.
                 "map_rooms_reveal_dark_world_map": bool(self.options.map_rooms_reveal_dark_world_map),
+                # client/damage_multiplier_patch.py: two DOL caves, which
+                # config.json can't carry (percent, 100 == vanilla).
+                "incoming_damage_multiplier": int(self.options.incoming_damage_multiplier.value),
+                "outgoing_damage_multiplier": int(self.options.outgoing_damage_multiplier.value),
+                # client/phazon_site_patch.py: SCLY edit of one room.
+                "pre_scan_phazon_site": bool(self.options.pre_scan_phazon_site),
                 # PLAN.md section S: physically rewires the Sky Temple
                 # Gateway's key-count gate (client/sky_temple_key_gate_
                 # patch.py) -- open-prime-rando has no field for this, so
@@ -415,6 +427,7 @@ class MetroidPrime2World(World):
             slot_data["expansion_totals"]["Energy Tank"], constants.MAX_ENERGY_TANKS
         )
         slot_data["missile_launcher_bonus"] = missile_launcher_bonus(self)
+        slot_data["power_bomb_main_bonus"] = power_bomb_main_bonus(self)
         slot_data.update(encode_randomization(self))
         slot_data["apworld_version"] = get_apworld_version()
 
