@@ -14,3 +14,6 @@ Dockerfile
 decomp/
 randomprime/
 /tools/
+
+# Scratch/investigation dir for ad-hoc tooling (see AGENTS.md convention).
+.investigation/
