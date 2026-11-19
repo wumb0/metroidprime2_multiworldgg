@@ -142,6 +142,7 @@ TEST = ManualTest(
     priority="P0",
     proves="cross-computed capacities (ammo, launcher, progressives) land correctly in the live inventory",
     seed=1_000_006,
+    config_sha256="ee7e96abe41a7df2251a36595df6f2749a668a554d27e4a5a45982f71ec9983e",
     options=presets.merge(
         presets.MAP_OPTIONS,
         {
@@ -168,13 +169,13 @@ TEST = ManualTest(
             split_beam_ammo=True,
             unlock_launcher=False,
             unlock_power_bombs=False,
-            config_sha256="e8940405c62c9f48b0be6c45a46ac15be823623d008cf70486cdd381d301b2ea",
+            config_sha256="25529b91697d338b44e4489199c73c00cc7c6aee466439cd14f9a9fc73f3ed67",
         ),
         "b": _variant(
             split_beam_ammo=False,
             unlock_launcher=True,
             unlock_power_bombs=True,
-            config_sha256="ab3d0f9c673da6e1494ff79d7baa0eb734dd4b229881dd6638e1ad5b42975bf6",
+            config_sha256="71c1c34db043672b7df75f47a9621185c158130b7968288e8bea8ffe8d2e2f75",
         ),
     },
     pass_criteria=[

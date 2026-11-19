@@ -21,7 +21,7 @@ TEST = ManualTest(
         "sends that hint to the server"
     ),
     seed=1_000_015,
-    config_sha256="ff879caf0cf848334ba65b199a8c23045ea11d2e64cc6cf95d115d5fe204ae50",
+    config_sha256="98b5beb8e70216af6e6ea47174d6c6e030ee06110b17926ce45e71637dc87ffd",
     starting_room="Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
@@ -98,7 +98,7 @@ TEST = ManualTest(
     ],
     variants={
         "disabled": Variant(
-            config_sha256="f98c656d0a1d0d4ab890e2d0d6ee37a3dc12f936fc7e365e405100db6a9e0145",
+            config_sha256="dc9973775f064d8f19ab34a65649f61c7e5e35378f7324e88b3a30e2767c5731",
             options={"sky_temple_key_hints": "disabled"},
             steps=[
                 Step(
@@ -109,7 +109,7 @@ TEST = ManualTest(
             pass_criteria=["No pillar reveals a location and no scan sends a hint."],
         ),
         "precollected": Variant(
-            config_sha256="ab5d9e23e309e879b176eefae22562270fc3e99cd09ae7fe5b78f8f6550923f6",
+            config_sha256="1bb4dde60da577df0d5357dfcaf8a7384e57ac64cb2586d87d5cbe5385345496",
             options={"sky_temple_key_hints": "precollected"},
             steps=[
                 Step(

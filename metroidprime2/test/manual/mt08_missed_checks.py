@@ -47,7 +47,7 @@ TEST = ManualTest(
         "their own locations, with nothing dropped and nothing invented"
     ),
     seed=1_000_008,
-    config_sha256="d48d351cebe1dec598fa21029f0daa702c43ac1191c1fc4d33be596732478b52",
+    config_sha256="76ac7e432bc2dd670d3df09ce6243ae663a34c123ef0609aab65a58f82b32b07",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS, presets.FAST_RETRY_OPTIONS, presets.GOD_MODE_OPTIONS
     ),

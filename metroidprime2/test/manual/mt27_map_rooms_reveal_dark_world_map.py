@@ -16,7 +16,7 @@ TEST = ManualTest(
         "(vanilla only maps the light world), and does nothing when the option is off"
     ),
     seed=1_000_027,
-    config_sha256="75e708a9d769e3d26ab9104a5d11f462641980e73d0a0f648db859dd53ba18d3",
+    config_sha256="b14256d57516e75670ab6008ae4a08936684a1d49766a988b6182ede95815077",
     starting_room="Agon Wastes/Mining Plaza/Door to Plaza Access",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
@@ -80,7 +80,7 @@ TEST = ManualTest(
     ],
     variants={
         "off": Variant(
-            config_sha256="1b68650755d648d818df1e24d9f58ed1081a18e0f4c41e1d07895ef965c3a1b3",
+            config_sha256="3d037130a86e82c6047eef86733b320ea12ded3d52af65f78f6134838d84ede3",
             options={"map_rooms_reveal_dark_world_map": False},
             steps=[
                 Step(
@@ -102,7 +102,7 @@ TEST = ManualTest(
             ],
         ),
         "no_names": Variant(
-            config_sha256="addb53a3409b9f832ec837fa3fb7df70af67ffd607e586aed353d55ffeed98bc",
+            config_sha256="f7e3f7124cc3d64ae376ed28646d7b79f6f835836e83d8e7e7e1ef55f609787f",
             options={"unvisited_room_names": False},
             steps=[
                 Step(

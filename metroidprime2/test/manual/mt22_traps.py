@@ -27,6 +27,7 @@ TEST = ManualTest(
         "random moments; none of them replays after a client restart"
     ),
     seed=1_000_022,
+    config_sha256="f1e18e6f7a6a6164cad3facbfa4a3fb454b952263ad606c830a3698d26e418f1",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
         presets.MAP_OPTIONS,

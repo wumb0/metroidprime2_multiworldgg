@@ -17,7 +17,7 @@ TEST = ManualTest(
         "translated scan sends that hint"
     ),
     seed=1_000_016,
-    config_sha256="995ce7020bae1b49091e7878a8297feec23c6ff42dc99fd422b2a5b46989b922",
+    config_sha256="21af423464adbacfe1798a67ce79e51aea246d7b3e585e31dcefe11a5cb9f18f",
     starting_room="Temple Grounds/Meeting Grounds/Door to Service Access",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
@@ -82,7 +82,7 @@ TEST = ManualTest(
             # Searched so Filler1's only progression item lands on a Violet
             # hologram near the start (only base seeds must be unique).
             seed=1_000_021,
-            config_sha256="9bdbffbfcf709ed69d85dec915c8feb4260921071d08312658234f17f79b2214",
+            config_sha256="30a06945c07cf1621684617545963fa700c4a7578df76371c4591a2a1c112a04",
             options={"translator_lore_hints": "any"},
             notes=[
                 (
@@ -113,7 +113,7 @@ TEST = ManualTest(
             ],
         ),
         "lore_colors": Variant(
-            config_sha256="9d618e0f8dd694be580433b9c696c74d7c20851c8c73276b205ed86d325dac79",
+            config_sha256="407b207f8f38438bffc70e704173f3dcf79d565de3297ba9064a29642bf3fc34",
             options={"translator_lore_rando": "full_random"},
             notes=[
                 (
@@ -134,7 +134,7 @@ TEST = ManualTest(
             pass_criteria=["Every checked hologram looks like, and opens with, its spoiler color."],
         ),
         "off": Variant(
-            config_sha256="7fbe3558f3731e847566206f7616ced56926c94b6b2f4089f6cce26f9dd060b6",
+            config_sha256="ce812e8313b0bfe10142650f4ba7f9ad0215209c414139d46ede6dca8249db05",
             options={"translator_lore_hints": "off"},
             steps=[
                 Step(

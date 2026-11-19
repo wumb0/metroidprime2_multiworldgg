@@ -19,7 +19,7 @@ TEST = ManualTest(
         f"{_REQUIRED} keys are held and stays up with {_REQUIRED - 1}"
     ),
     seed=1_000_020,
-    config_sha256="2cf93885ab9e91f5bf9cd5b921609d7d5804b24dbc5e0c054244ed3379565aed",
+    config_sha256="d3b5ac9192c2c7c21d4e78040ee7f61ed2b4742cc9ad046e2a8dcfc0c2f95f3b",
     starting_room="Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,

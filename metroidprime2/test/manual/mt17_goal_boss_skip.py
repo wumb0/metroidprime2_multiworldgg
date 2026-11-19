@@ -16,7 +16,7 @@ TEST = ManualTest(
         "and the client reports the goal on reaching it"
     ),
     seed=1_000_017,
-    config_sha256="708b203c0e03e107823a940a90df07cb6b12c34b1bfab7fcc68e1db97886e902",
+    config_sha256="7fe38c6804481e9f2aadfcee2220b82c096131e51821d5de54ce70f3b4abbb8a",
     starting_room="Sky Temple Grounds/Sky Temple Gateway/Spawn Point/Front of Teleporter",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
@@ -61,7 +61,7 @@ TEST = ManualTest(
     ],
     variants={
         "emperor_ing": Variant(
-            config_sha256="6dee035a82837d5a7ebd424404e21535f1329e6b2afb456499c31ccfe5fe105c",
+            config_sha256="d8f467c90d4760a20b3683bb6f00707d50cb362797539fca2fe5482468958c9e",
             options={"goal": "emperor_ing"},
             steps=[
                 Step(
@@ -94,7 +94,7 @@ TEST = ManualTest(
             ],
         ),
         "keys": Variant(
-            config_sha256="97ae3b9a9e3a3d85ff8c3419441c9f833f2f1a87881d3949692cc6fd5f7a6534",
+            config_sha256="a0ae29227f8ed851b022226adfab863118bff939b7e8af143b3e7ac7ab9bb994",
             options={"goal": "keys"},
             steps=[
                 Step(

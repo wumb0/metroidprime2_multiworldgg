@@ -2324,6 +2324,304 @@ If it fails, look at:
 * `client/patcher_runner.py::map_reveal_installed` and the `map_rooms_reveal_dark_world_map` key in options.json (a missing key reads as off)
 * `test/test_map_reveal_patch.py`
 
+### MT28_DAMAGE_MULTIPLIERS -- `mt28_damage_multipliers` (P1)
+
+*Proves: `incoming_damage_multiplier` scales every hit on Samus (Dark Aether ambience included) at `ApplyLocalDamage` before suit reduction and Defense Up, and `outgoing_damage_multiplier` scales the beams, missiles and bombs the way Double Damage scales them, stacking with it*
+
+Prerequisites for this test:
+* 10 Energy Tanks at 100 energy each means full energy is 1099; note it on the pause screen.
+* Amorbis is in this room. Fight it with fully charged Power Beam shots only, and count shots to kill; the same count applies in the `off` variant run.
+* Run this module back-to-back with `--variant off` for the A/B comparison in the steps.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt28_damage_multipliers --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Dark Agon Wastes/Dark Agon Temple/Door to Dark Agon Temple Access`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `energy_per_tank=100`, `incoming_damage_multiplier=200`, `outgoing_damage_multiplier=200`, `portal_rando=False`, `translator_gate_rando=vanilla`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x10, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* The multiplier is raw damage before the Dark Suit reduction, so the A/B tick rates compare cleanly while the suit keeps you alive either way.
+* Both multipliers are percent options (10-500, default 100 = vanilla); 200 is used here so the difference is unmistakable.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt28_damage_multipliers --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt28_damage_multipliers/mt28_damage_multipliers.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt28_damage_multipliers/mt28_damage_multipliers.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect, spawn in Dark Agon Temple, and stand still without shooting.
+   **Expect:** Energy drops about twice as fast as in the `off` variant run (roughly double the ~6 HP/s dark ambience tick), and a rough 20 s stand still costs about twice the energy.
+2. **Do:** Kill Amorbis with fully charged Power Beam shots, counting shots to the kill.
+   **Expect:** Amorbis dies in roughly half the shots the `off` variant run needs; its health bar drops visibly further per hit.
+3. **Do:** Get hit by Amorbis (sonar pulse / contact) in both runs.
+   **Expect:** Its hits take roughly double the energy in this run.
+4. **Do:** Fire one missile and one Power Bomb at Amorbis (or a wall) in each run.
+   **Expect:** Missiles and bombs are scaled too, not just beams.
+
+Pass if:
+* Incoming dark ambience damage ticks ~2x at `incoming_damage_multiplier: 200`.
+* Amorbis takes ~2x damage per shot and dies in ~half the shots.
+* Missiles and bombs scale like the beams.
+* The `off` variant matches vanilla rates in the same route.
+* No crash, no client traceback.
+
+If it fails, look at:
+* `client/damage_multiplier_patch.py` (the two caves: ApplyLocalDamage hook, ApplyDoubleDamage hook)
+* `client/versions.py::DamageMultiplierAddresses` (ApplyLocalDamage hook NTSC 0x8003DA14 / PAL 0x8003DB64; ApplyDoubleDamage epilogue hook NTSC 0x8018A170)
+* `options.py::incoming_damage_multiplier` / `outgoing_damage_multiplier`
+* `test/test_damage_multiplier_patch.py`
+
+### MT28_DAMAGE_MULTIPLIERS -- `mt28_damage_multipliers_off` (P1)
+
+*Proves: `incoming_damage_multiplier` scales every hit on Samus (Dark Aether ambience included) at `ApplyLocalDamage` before suit reduction and Defense Up, and `outgoing_damage_multiplier` scales the beams, missiles and bombs the way Double Damage scales them, stacking with it*
+
+Prerequisites for this test:
+* 10 Energy Tanks at 100 energy each means full energy is 1099; note it on the pause screen.
+* Amorbis is in this room. Fight it with fully charged Power Beam shots only, and count shots to kill; the same count applies in the `off` variant run.
+* Run this module back-to-back with `--variant off` for the A/B comparison in the steps.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt28_damage_multipliers --iso <vanilla.iso> --variant off
+```
+
+What the build contains:
+* starting room: `Dark Agon Wastes/Dark Agon Temple/Door to Dark Agon Temple Access`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `energy_per_tank=100`, `incoming_damage_multiplier=100`, `outgoing_damage_multiplier=100`, `portal_rando=False`, `translator_gate_rando=vanilla`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x10, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* This is the vanilla-feel A/B half: normal tick rate and vanilla Amorbis shot count.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt28_damage_multipliers --iso <vanilla.iso> --variant off
+2. Host       python MultiServer.py manual_tests/mt28_damage_multipliers_off/mt28_damage_multipliers_off.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt28_damage_multipliers_off/mt28_damage_multipliers_off.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect, spawn in Dark Agon Temple, and stand still without shooting.
+   **Expect:** Energy drops about twice as fast as in the `off` variant run (roughly double the ~6 HP/s dark ambience tick), and a rough 20 s stand still costs about twice the energy.
+2. **Do:** Kill Amorbis with fully charged Power Beam shots, counting shots to the kill.
+   **Expect:** Amorbis dies in roughly half the shots the `off` variant run needs; its health bar drops visibly further per hit.
+3. **Do:** Get hit by Amorbis (sonar pulse / contact) in both runs.
+   **Expect:** Its hits take roughly double the energy in this run.
+4. **Do:** Fire one missile and one Power Bomb at Amorbis (or a wall) in each run.
+   **Expect:** Missiles and bombs are scaled too, not just beams.
+
+Pass if:
+* Incoming dark ambience damage ticks ~2x at `incoming_damage_multiplier: 200`.
+* Amorbis takes ~2x damage per shot and dies in ~half the shots.
+* Missiles and bombs scale like the beams.
+* The `off` variant matches vanilla rates in the same route.
+* No crash, no client traceback.
+
+If it fails, look at:
+* `client/damage_multiplier_patch.py` (the two caves: ApplyLocalDamage hook, ApplyDoubleDamage hook)
+* `client/versions.py::DamageMultiplierAddresses` (ApplyLocalDamage hook NTSC 0x8003DA14 / PAL 0x8003DB64; ApplyDoubleDamage epilogue hook NTSC 0x8018A170)
+* `options.py::incoming_damage_multiplier` / `outgoing_damage_multiplier`
+* `test/test_damage_multiplier_patch.py`
+
+### MT29_PHAZON_SITE_BARRIER -- `mt29_phazon_site_barrier` (P1)
+
+*Proves: with `pre_scan_phazon_site` on, Dark Agon Wastes/Phazon Site loads with the barrier at the Watering Hole door already retracted and its scan cutscene never plays, the three scan posts are left in place but are inert, and the door is usable with zero scans; with it off the vanilla scan-three-then-cutscene chain still works*
+
+Prerequisites for this test:
+* You start in Phazon Site on the Bitter Well side; the barrier and its three scan posts are toward the Watering Hole door.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt29_phazon_site_barrier --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Dark Agon Wastes/Phazon Site/Door to Bitter Well`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `portal_rando=False`, `pre_scan_phazon_site=True`, `translator_gate_rando=vanilla`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* The patch flips the three relay connections to Active in the room SCLY (the same state the cutscene leaves behind); it does not remove the posts or the scan headers.
+* The same mechanism is why the barrier event folds out of the logic: nothing can require a scan that never needs happening.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt29_phazon_site_barrier --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt29_phazon_site_barrier/mt29_phazon_site_barrier.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt29_phazon_site_barrier/mt29_phazon_site_barrier.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game and let Phazon Site finish loading.
+   **Expect:** No scan cutscene plays. The barrier at the Watering Hole door is already gone; the three scan posts stand there visibly solved (glowing).
+2. **Do:** Walk straight to the Watering Hole door without scanning anything and go through.
+   **Expect:** The door works immediately; zero scans were needed.
+3. **Do:** Go back and scan all three posts.
+   **Expect:** Nothing happens: no cutscene, no sound cue, the room state does not change.
+4. **Do:** Save, reload the save, and re-enter the room.
+   **Expect:** Barrier still down, still no cutscene.
+
+Pass if:
+* On: room loads with the barrier down, no cutscene, door usable with zero scans.
+* On: re-scanning the posts is inert; the state survives save/reload.
+* Off: barrier present; three scans -> cutscene -> door opens (vanilla chain intact).
+
+If it fails, look at:
+* `client/phazon_site_patch.py` (SCLY relay solve in the Phazon Site room)
+* `logic/requirements.py::extra_pregranted_events` (folds the barrier event when the option is on)
+* `test/test_phazon_site_patch.py`
+
+### MT29_PHAZON_SITE_BARRIER -- `mt29_phazon_site_barrier_off` (P1)
+
+*Proves: with `pre_scan_phazon_site` on, Dark Agon Wastes/Phazon Site loads with the barrier at the Watering Hole door already retracted and its scan cutscene never plays, the three scan posts are left in place but are inert, and the door is usable with zero scans; with it off the vanilla scan-three-then-cutscene chain still works*
+
+Prerequisites for this test:
+* You start in Phazon Site on the Bitter Well side; the barrier and its three scan posts are toward the Watering Hole door.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt29_phazon_site_barrier --iso <vanilla.iso> --variant off
+```
+
+What the build contains:
+* starting room: `Dark Agon Wastes/Phazon Site/Door to Bitter Well`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `portal_rando=False`, `pre_scan_phazon_site=False`, `translator_gate_rando=vanilla`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* Re-checks the vanilla chain in the same room: barrier present and blocking, scanning the three posts fires the cutscene and opens the door.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt29_phazon_site_barrier --iso <vanilla.iso> --variant off
+2. Host       python MultiServer.py manual_tests/mt29_phazon_site_barrier_off/mt29_phazon_site_barrier_off.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt29_phazon_site_barrier_off/mt29_phazon_site_barrier_off.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game and let Phazon Site finish loading.
+   **Expect:** No scan cutscene plays. The barrier at the Watering Hole door is already gone; the three scan posts stand there visibly solved (glowing).
+2. **Do:** Walk straight to the Watering Hole door without scanning anything and go through.
+   **Expect:** The door works immediately; zero scans were needed.
+3. **Do:** Go back and scan all three posts.
+   **Expect:** Nothing happens: no cutscene, no sound cue, the room state does not change.
+4. **Do:** Save, reload the save, and re-enter the room.
+   **Expect:** Barrier still down, still no cutscene.
+
+Pass if:
+* On: room loads with the barrier down, no cutscene, door usable with zero scans.
+* On: re-scanning the posts is inert; the state survives save/reload.
+* Off: barrier present; three scans -> cutscene -> door opens (vanilla chain intact).
+
+If it fails, look at:
+* `client/phazon_site_patch.py` (SCLY relay solve in the Phazon Site room)
+* `logic/requirements.py::extra_pregranted_events` (folds the barrier event when the option is on)
+* `test/test_phazon_site_patch.py`
+
+### MT30_TEMPLE_GROUNDS_MAP_STATION -- `mt30_temple_grounds_map_station` (P1)
+
+*Proves: `map_rooms_reveal_dark_world_map` works for the Temple Grounds map station in Hive Chamber A even though that station wires teleporters instead of an IsWorldVisible branch: using it draws the unvisited dark Temple Grounds rooms on the map, and the off variant stays vanilla*
+
+Prerequisites for this test:
+* You start in the Hive Chamber A doorway, the room with the Temple Grounds map station. Do not use the station before step 1.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt30_temple_grounds_map_station --iso <vanilla.iso>
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Hive Chamber A/Dock to Hive Access Tunnel`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=off`, `map_rooms_reveal_dark_world_map=True`, `map_visibility=vanilla`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* Temple Grounds' dark half is roughly twenty rooms (the Sky Temple Grounds / Ing side); you never need to enter it here -- seeing it drawn unvisited is the whole point.
+* This station is the odd one out: Agon, Torvus and Sanctuary's stations set the world-wide mMapStationUsed flag directly, while Hive Chamber A's wires fifteen teleporters and would skip that flag. `station_always_marks_world` is what makes it mark the world anyway.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt30_temple_grounds_map_station --iso <vanilla.iso>
+2. Host       python MultiServer.py manual_tests/mt30_temple_grounds_map_station/mt30_temple_grounds_map_station.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt30_temple_grounds_map_station/mt30_temple_grounds_map_station.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, connect, and open the pause map before touching the station.
+   **Expect:** The Temple Grounds rooms near you are drawn as visited light rooms; no dark Temple Grounds room is drawn at all.
+   *(exercises: vanilla: an unvisited room isn't drawn without a map station.)*
+2. **Do:** Use the map station in Hive Chamber A.
+   **Expect:** The station plays its map download.
+3. **Do:** Open the pause map and look at (and hover over) the dark Temple Grounds rooms.
+   **Expect:** Every unvisited dark Temple Grounds room is now drawn and shows its name on hover, exactly like the Agon behaviour in MT27.
+   *(exercises: the patch sets the same map-station-used flag from Hive Chamber A's station hook, and IsWorldVisible stops honouring the dark-world flag.)*
+4. **Do:** Save, quit to the main menu, reload, and open the map again.
+   **Expect:** The dark rooms are still drawn.
+
+Pass if:
+* Before the station no dark Temple Grounds room is drawn.
+* After the station all of them are, with names on hover.
+* The reveal survives a save and reload.
+* The off variant stays vanilla.
+* No client traceback.
+
+If it fails, look at:
+* `client/map_reveal_patch.py::station_always_marks_world` (the AcceptMapStation flag-site `bne`; plus `reveal_dark_rooms_on_map_station` for the IsWorldVisible side)
+* `client/patcher_runner.py::map_reveal_installed` and the `map_rooms_reveal_dark_world_map` key in options.json (a missing key reads as off)
+* `test/test_map_reveal_patch.py`
+
+### MT30_TEMPLE_GROUNDS_MAP_STATION -- `mt30_temple_grounds_map_station_off` (P1)
+
+*Proves: `map_rooms_reveal_dark_world_map` works for the Temple Grounds map station in Hive Chamber A even though that station wires teleporters instead of an IsWorldVisible branch: using it draws the unvisited dark Temple Grounds rooms on the map, and the off variant stays vanilla*
+
+Prerequisites for this test:
+* You start in the Hive Chamber A doorway, the room with the Temple Grounds map station. Do not use the station before step 1.
+
+Build:
+```
+python -m worlds.metroidprime2.test.manual.mt30_temple_grounds_map_station --iso <vanilla.iso> --variant off
+```
+
+What the build contains:
+* starting room: `Temple Grounds/Hive Chamber A/Dock to Hive Access Tunnel`
+* options: `door_lock_rando=False`, `elevator_rando=False`, `item_map_dots=off`, `map_rooms_reveal_dark_world_map=False`, `map_visibility=vanilla`, `portal_rando=False`, `translator_gate_rando=vanilla`, `unvisited_room_names=True`
+* start inventory: `Amber Translator` x1, `Annihilator Beam` x1, `Beam Ammo Expansion` x1, `Boost Ball` x1, `Cannon Ball` x1, `Charge Beam` x1, `Cobalt Translator` x1, `Combat Visor` x1, `Dark Agon Key 1` x1, `Dark Agon Key 2` x1, `Dark Agon Key 3` x1, `Dark Ammo Expansion` x10, `Dark Beam` x1, `Dark Suit` x1, `Dark Torvus Key 1` x1, `Dark Torvus Key 2` x1, `Dark Torvus Key 3` x1, `Dark Visor` x1, `Darkburst` x1, `Double Damage` x1, `Echo Visor` x1, `Emerald Translator` x1, `Energy Tank` x14, `Grapple Beam` x1, `Gravity Boost` x1, `Ing Hive Key 1` x1, `Ing Hive Key 2` x1, `Ing Hive Key 3` x1, `Light Ammo Expansion` x10, `Light Beam` x1, `Light Suit` x1, `Missile Expansion` x33, `Missile Launcher` x1, `Morph Ball` x1, `Morph Ball Bomb` x1, `Power Beam` x1, `Power Bomb` x1, `Power Bomb Expansion` x8, `Progressive Grapple` x2, `Progressive Suit` x2, `Scan Visor` x1, `Screw Attack` x1, `Seeker Launcher` x1, `Sky Temple Key 1` x1, `Sky Temple Key 2` x1, `Sky Temple Key 3` x1, `Sky Temple Key 4` x1, `Sky Temple Key 5` x1, `Sky Temple Key 6` x1, `Sky Temple Key 7` x1, `Sky Temple Key 8` x1, `Sky Temple Key 9` x1, `Sonic Boom` x1, `Space Jump Boots` x1, `Spider Ball` x1, `Sunburst` x1, `Super Missile` x1, `Unlimited Beam Ammo` x1, `Unlimited Missiles` x1, `Violet Translator` x1
+
+Notes / derived values:
+* Temple Grounds' dark half is roughly twenty rooms (the Sky Temple Grounds / Ing side); you never need to enter it here -- seeing it drawn unvisited is the whole point.
+* This station is the odd one out: Agon, Torvus and Sanctuary's stations set the world-wide mMapStationUsed flag directly, while Hive Chamber A's wires fifteen teleporters and would skip that flag. `station_always_marks_world` is what makes it mark the world anyway.
+
+Run:
+```
+1. Build      python -m worlds.metroidprime2.test.manual.mt30_temple_grounds_map_station --iso <vanilla.iso> --variant off
+2. Host       python MultiServer.py manual_tests/mt30_temple_grounds_map_station_off/mt30_temple_grounds_map_station_off.zip
+3. Connect    python Launcher.py "Metroid Prime 2 Client" manual_tests/mt30_temple_grounds_map_station_off/mt30_temple_grounds_map_station_off.apmp2 <vanilla.iso>
+               (the client reuses the already-patched ISO instead of re-patching)
+```
+
+Steps:
+1. **Do:** Start New Game, open the pause map, use the Hive Chamber A map station, then open the pause map again.
+   **Expect:** Light rooms reveal as in vanilla; no dark Temple Grounds room is ever drawn.
+
+Pass if:
+* With the option off, the station never reveals a dark room.
+
+If it fails, look at:
+* `client/map_reveal_patch.py::station_always_marks_world` (the AcceptMapStation flag-site `bne`; plus `reveal_dark_rooms_on_map_station` for the IsWorldVisible side)
+* `client/patcher_runner.py::map_reveal_installed` and the `map_rooms_reveal_dark_world_map` key in options.json (a missing key reads as off)
+* `test/test_map_reveal_patch.py`
+
 ## Suggested runs
 
 * **Smoke** -- `MT01`, `MT03` (boot + goal detection).

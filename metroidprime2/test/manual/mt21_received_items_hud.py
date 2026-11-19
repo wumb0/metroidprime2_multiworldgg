@@ -18,7 +18,7 @@ TEST = ManualTest(
         "(`/send`, `/send_multiple`, `!getitem`) as from Archipelago"
     ),
     seed=1_000_021,
-    config_sha256="f63f8c5bb9b342657e872123d1a7bf39b1f3246b8ecd8201f067de65749d3814",
+    config_sha256="94ea7d3081b9e8b3af8f78d2bd1343cfed76f20932c2b46cb53485b8df908a7f",
     options=presets.merge(presets.NO_RANDO_OPTIONS, presets.MAP_OPTIONS, presets.FAST_RETRY_OPTIONS),
     start_inventory=dict(presets.ALL_ITEMS_START),
     setup=[

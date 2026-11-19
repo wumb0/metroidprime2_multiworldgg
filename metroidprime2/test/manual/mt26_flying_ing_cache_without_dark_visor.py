@@ -18,7 +18,7 @@ TEST = ManualTest(
         "as in vanilla"
     ),
     seed=1_000_026,
-    config_sha256="b421579aa828b419f9c2c0d017843c6ef5fcba6183f99489c502136f1ef5b55e",
+    config_sha256="c01b60f9fc700f5ab72ef95147bedee0b7f3df688798397650aedada9eca5b7c",
     starting_room="Sky Temple Grounds/Defiled Shrine/Door to Shrine Access",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
@@ -76,7 +76,7 @@ TEST = ManualTest(
     ],
     variants={
         "dark_visor": Variant(
-            config_sha256="62c89736dd3c39733bbbb9ad13144a0a2293c28e9b43dddf042c7431ccfeb38f",
+            config_sha256="6a16b1a5859c66abac124df64696144ecdd5cf8ee8f7f957f95c59da38ca1973",
             start_inventory={"Dark Visor": 1},
             notes=[
                 "You start with everything, the Dark Visor included.",
@@ -111,7 +111,7 @@ TEST = ManualTest(
             ],
         ),
         "off": Variant(
-            config_sha256="10a6baf52d8b704f7633eaa6a69a2cc14e4d8b368700e01be7cebffcb8de8b16",
+            config_sha256="f99c1f99cc92264aa8e6f627c3160d2addfc08ab89d9d86d8ee4b8dbb538bd44",
             options={"flying_ing_caches_without_dark_visor": False},
             steps=[
                 Step(

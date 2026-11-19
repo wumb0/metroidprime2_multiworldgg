@@ -15,7 +15,7 @@ TEST = ManualTest(
         "keeps it hidden across a save and reload"
     ),
     seed=1_000_019,
-    config_sha256="648c6312937156d455afd6b6c92283887e94083a6eb0edb7c90dfa24040ff1fa",
+    config_sha256="9c135385f7397e8bc9ac1c49aee3d9b29a7bc16e4540dd548891ff61d2c452cb",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
         presets.FAST_RETRY_OPTIONS,
@@ -59,7 +59,7 @@ TEST = ManualTest(
     ],
     variants={
         "off": Variant(
-            config_sha256="7f465e17f631505b768160837f09e398ae60894df3eb2923e363f6724e4cd9d9",
+            config_sha256="1f173f3fb9bff28695ba5495ca3d8a6d7b4aa13e2a6a0a99f2bb21365347dda1",
             options={"item_map_dots": "off"},
             steps=[
                 Step(
@@ -69,7 +69,7 @@ TEST = ManualTest(
             ],
         ),
         "always": Variant(
-            config_sha256="66855660e22a6e8fe1a226a29b4f7b3b8b95dab36b197b3ef63b4c6d4855bdea",
+            config_sha256="2d685375cc4e6679a72231e606d93cf9d8c0f1bf385221a8630b7f8760de352d",
             options={"item_map_dots": "always"},
             steps=[
                 Step(
@@ -85,7 +85,7 @@ TEST = ManualTest(
             ],
         ),
         "map_station": Variant(
-            config_sha256="c662dc37e00056faa31e74a60873068c7cee9779976c8cb4cc95f4b06a7f363c",
+            config_sha256="387cd00f49add6982122cbcd83ab81a2fbdb19857b7b616a686eb3fb5eac43ef",
             options={"item_map_dots": "map_station"},
             steps=[
                 Step(

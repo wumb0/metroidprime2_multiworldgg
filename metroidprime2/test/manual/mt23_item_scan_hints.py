@@ -25,7 +25,7 @@ TEST = ManualTest(
         "pickup's scan is independent of every other pickup showing the same text"
     ),
     seed=1_000_023,
-    config_sha256="57f67d800b79e536313820236b412a56dbaca557bc67d6c8c31a6f580a8b984c",
+    config_sha256="41385ab8afbcb34e5b0f239462eaa83191d022518071e492dca5589b06ca92aa",
     starting_room="Temple Grounds/Hive Save Station/Save Station",
     options=presets.merge(
         presets.NO_RANDO_OPTIONS,
@@ -89,6 +89,7 @@ TEST = ManualTest(
     ],
     variants={
         "all": Variant(
+            config_sha256="85eaaf2a11f08e7e95b7837ccee702cb3e56b16be018a8b8d16a02d380ecbf98",
             options={"item_scan_hints": "all"},
             steps=[
                 Step(
