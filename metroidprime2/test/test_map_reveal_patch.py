@@ -22,6 +22,11 @@ _OPR_AVAILABLE = importlib.util.find_spec("open_prime_rando") is not None
 _PPC_ASM_AVAILABLE = importlib.util.find_spec("ppc_asm") is not None
 
 _VANILLA = struct.pack(">3I", *map_reveal_patch._VANILLA_DARK_WORLD_CHECK)
+_VANILLA_STATION = struct.pack(">5I", *map_reveal_patch._VANILLA_STATION_FLAG_SITE)
+
+
+def _write_vanilla_station_site(dol: _FakeDol, version: versions.EchoesVersionInfo) -> None:
+    dol.write(version.map_reveal.station_flag_branch - 4, _VANILLA_STATION)
 
 
 @unittest.skipUnless(_PPC_ASM_AVAILABLE, "ppc_asm is not installed")
@@ -46,6 +51,41 @@ class TestDarkRoomReveal(unittest.TestCase):
 
     def test_addresses_are_distinct_per_version(self) -> None:
         self.assertNotEqual(versions.NTSC.map_reveal.dark_world_check, versions.PAL.map_reveal.dark_world_check)
+
+
+@unittest.skipUnless(_PPC_ASM_AVAILABLE, "ppc_asm is not installed")
+class TestStationAlwaysMarksWorld(unittest.TestCase):
+    """Temple Grounds' Hive Chamber A station is connected to fifteen
+    teleporters, and ``AcceptMapStation`` only sets the world's "map station
+    used" flag when it has none -- so the dark reveal never took effect
+    there. The patch makes the flag unconditional."""
+
+    def test_the_branch_over_the_flag_store_becomes_a_nop(self) -> None:
+        for version in versions.VERSIONS:
+            with self.subTest(version.name):
+                dol = _FakeDol()
+                _write_vanilla_station_site(dol, version)
+                address = version.map_reveal.station_flag_branch
+                map_reveal_patch.station_always_marks_world(dol, version.map_reveal)  # type: ignore[arg-type]
+                self.assertEqual(dol.word(address), 0x60000000)  # nop
+                # Everything around it is untouched: the test before, the flag store after.
+                self.assertEqual(dol.word(address - 4), 0x57A0063F)  # clrlwi. r0, r29, 24
+                self.assertEqual(dol.word(address + 4), 0x807F1684)  # lwz r3, 0x1684(r31)
+                self.assertEqual(dol.word(address + 8), 0x38000001)  # li r0, 1
+                self.assertEqual(dol.word(address + 12), 0x98030048)  # stb r0, 0x48(r3)
+
+    def test_refuses_an_unexpected_dol(self) -> None:
+        addresses = versions.NTSC.map_reveal
+        dol = _FakeDol()
+        dol.write(addresses.station_flag_branch - 4, b"\x60\x00\x00\x00" * 5)
+        with self.assertRaises(ValueError):
+            map_reveal_patch.station_always_marks_world(dol, addresses)  # type: ignore[arg-type]
+
+    def test_addresses_are_distinct_per_version_and_in_the_same_function(self) -> None:
+        # The two builds' AcceptMapStation start 0x1B4 apart; the branch is 0xFC into each.
+        self.assertEqual(
+            versions.PAL.map_reveal.station_flag_branch - versions.NTSC.map_reveal.station_flag_branch, 0x1B4
+        )
 
 
 @unittest.skipUnless(_OPR_AVAILABLE, "open-prime-rando is not installed")
@@ -101,6 +141,7 @@ class TestMapRevealInstalled(unittest.TestCase):
         dol = _FakeDol()
         address = versions.NTSC.map_reveal.dark_world_check
         dol.write(address, _VANILLA)
+        _write_vanilla_station_site(dol, versions.NTSC)
         dol_version = SimpleNamespace(echoes_version=EchoesVersion.NTSC_U)
         before = general_changes.change_map_visibility
         with map_reveal_installed(SimpleNamespace(dol=dol), dol_version, **kwargs):
@@ -110,12 +151,22 @@ class TestMapRevealInstalled(unittest.TestCase):
     def test_dark_world_option_alone_writes_the_dol_only(self) -> None:
         dol, before, during = self._install(dark_world=True, great_temple=False)
         self.assertEqual(dol.word(versions.NTSC.map_reveal.dark_world_check), 0x38600001)
+        # The dark rooms need the world flag, which Temple Grounds' station never set.
+        self.assertEqual(dol.word(versions.NTSC.map_reveal.station_flag_branch), 0x60000000)
         self.assertIs(during, before)
 
     def test_unvisited_names_alone_leaves_the_dol_vanilla(self) -> None:
         dol, before, during = self._install(dark_world=False, great_temple=True)
         self.assertEqual(dol.read(versions.NTSC.map_reveal.dark_world_check, 12), _VANILLA)
+        self.assertEqual(dol.read(versions.NTSC.map_reveal.station_flag_branch - 4, 20), _VANILLA_STATION)
         self.assertIsNot(during, before)
+
+    def test_station_flag_alone_leaves_the_dark_world_check_vanilla(self) -> None:
+        # item_map_dots: map_station without the dark reveal.
+        dol, before, during = self._install(dark_world=False, great_temple=False, station_flag=True)
+        self.assertEqual(dol.read(versions.NTSC.map_reveal.dark_world_check, 12), _VANILLA)
+        self.assertEqual(dol.word(versions.NTSC.map_reveal.station_flag_branch), 0x60000000)
+        self.assertIs(during, before)
 
 
 class _DarkWorldOptionTest(MP2TestBase):
