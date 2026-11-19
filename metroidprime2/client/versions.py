@@ -170,6 +170,32 @@ class MapRevealAddresses:
     (``clrlwi; cntlzw; srwi r3, r0, 5``), reached only when the map station
     has been used."""
 
+    station_flag_branch: int
+    """The ``bne`` in ``CScriptSpecialFunction::AcceptMapStation`` (NTSC
+    0x801089D8, PAL 0x80108B8C) that skips ``CMapWorldInfo::mMapStationUsed
+    = true`` whenever the station has connected ``Teleporter`` objects to
+    map one by one (``clrlwi. r0, r29, 24; bne``). Both builds have the
+    same instructions 0xFC bytes into the function; the NTSC/PAL difference
+    is the function's own address."""
+
+
+@dataclass(frozen=True)
+class DamageMultiplierAddresses:
+    """Hook sites for the base damage multipliers
+    (``client/damage_multiplier_patch.py``). Both functions are laid out the
+    same way on NTSC-U and PAL (PAL was found by matching the NTSC
+    instructions, ``hook`` words included); only their addresses differ."""
+
+    local_damage_hook: int
+    """``lhz r0, 0(r20)`` in ``CStateManager::ApplyLocalDamage`` (NTSC
+    0x8003D838) right after the hard mode damage scaling, where every
+    path that damages the player has joined (``f29`` holds the damage)."""
+
+    double_damage_epilogue_hook: int
+    """``lwz r0, 0x14(r1)`` in ``CDamageInfo::ApplyDoubleDamage`` (NTSC
+    0x8018A098), the epilogue both the scaled and the plain copy fall into
+    (``r30`` points at the returned ``CDamageInfo``)."""
+
 
 @dataclass(frozen=True)
 class EchoesVersionInfo:
@@ -188,6 +214,7 @@ class EchoesVersionInfo:
     spring_ball: SpringBallAddresses
     item_map_dots: ItemMapDotAddresses
     map_reveal: MapRevealAddresses
+    damage_multiplier: DamageMultiplierAddresses
     player_freeze: int
     """``CPlayer::Freeze(float timeout, CStateManager&, CAssetId steamTexture,
     uint sfx, CAssetId iceTexture)`` (NTSC symbol ``Freeze__7CPlayerFfR13
@@ -351,7 +378,11 @@ NTSC = EchoesVersionInfo(
         visibility_unused_branch=0x800BB5D8,
         visibility_return=0x800BB648,
     ),
-    map_reveal=MapRevealAddresses(dark_world_check=0x8010F428),
+    map_reveal=MapRevealAddresses(dark_world_check=0x8010F428, station_flag_branch=0x80108AD4),
+    damage_multiplier=DamageMultiplierAddresses(
+        local_damage_hook=0x8003DA14,
+        double_damage_epilogue_hook=0x8018A170,
+    ),
     player_freeze=0x800144A4,
 )
 
@@ -403,7 +434,11 @@ PAL = EchoesVersionInfo(
         visibility_unused_branch=0x800BB66C,
         visibility_return=0x800BB6DC,
     ),
-    map_reveal=MapRevealAddresses(dark_world_check=0x8010F5DC),
+    map_reveal=MapRevealAddresses(dark_world_check=0x8010F5DC, station_flag_branch=0x80108C88),
+    damage_multiplier=DamageMultiplierAddresses(
+        local_damage_hook=0x8003DB64,
+        double_damage_epilogue_hook=0x8018A470,
+    ),
     player_freeze=0x80014540,
 )
 

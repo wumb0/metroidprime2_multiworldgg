@@ -123,6 +123,25 @@ def install_spring_ball(editor: Any, dol_version: Any, button: str) -> None:
     spring_ball_patch.apply_dol_patches(editor.code_cave, version_info.spring_ball, button)
 
 
+def install_damage_multipliers(editor: Any, dol_version: Any, incoming_percent: int, outgoing_percent: int) -> None:
+    """Requests the base damage multiplier code caves
+    (``client/damage_multiplier_patch.py``); a multiplier of 100 requests
+    nothing. DOL-only, so like spring ball the requests just have to be
+    queued before ``_apply_patches``'s ``editor.code_cave.fulfill_requests()``.
+    """
+    from . import damage_multiplier_patch
+
+    if incoming_percent == 100 and outgoing_percent == 100:
+        return
+    version_info = _client_version_info(dol_version, "Damage multiplier", "Damage Multipliers")
+    damage_multiplier_patch.apply_dol_patches(
+        editor.code_cave,
+        version_info.damage_multiplier,
+        incoming_percent=incoming_percent,
+        outgoing_percent=outgoing_percent,
+    )
+
+
 def install_move_while_scanning(editor: Any) -> None:
     """Flips CTWK-Player's ``ScanFreezesGame`` off, mirroring randomprime's
     (undocumented) ``moveWhileScan`` -- open-prime-rando has no field for
@@ -272,18 +291,28 @@ def flying_ing_caches_shootable_installed():
 
 
 @contextlib.contextmanager
-def map_reveal_installed(editor: Any, dol_version: Any, *, dark_world: bool, great_temple: bool):
+def map_reveal_installed(
+    editor: Any, dol_version: Any, *, dark_world: bool, great_temple: bool, station_flag: bool | None = None
+):
     """Context manager installing ``client/map_reveal_patch.py`` for the
     duration of one ``_apply_patches`` call: the DOL write that lets a map
     station reveal dark world rooms (``dark_world``, the
-    ``map_rooms_reveal_dark_world_map`` option), and the Great Temple
-    always-drawn override (``great_temple``, ``unvisited_room_names``; it has
-    no map station)."""
+    ``map_rooms_reveal_dark_world_map`` option), the one that makes every map
+    station set its world's "map station used" flag (``station_flag``, which
+    both that option and ``item_map_dots: map_station`` read; Temple Grounds'
+    station never set it in vanilla -- defaults to ``dark_world``), and the
+    Great Temple always-drawn override (``great_temple``,
+    ``unvisited_room_names``; it has no map station)."""
     from . import map_reveal_patch
 
-    if dark_world:
+    if station_flag is None:
+        station_flag = dark_world
+    if dark_world or station_flag:
         version_info = _client_version_info(dol_version, "Map reveal", "Map Rooms Reveal Dark World Map")
-        map_reveal_patch.reveal_dark_rooms_on_map_station(editor.dol, version_info.map_reveal)
+        if dark_world:
+            map_reveal_patch.reveal_dark_rooms_on_map_station(editor.dol, version_info.map_reveal)
+        if station_flag:
+            map_reveal_patch.station_always_marks_world(editor.dol, version_info.map_reveal)
     with contextlib.ExitStack() as stack:
         if great_temple:
             stack.enter_context(map_reveal_patch.great_temple_always_mapped())
@@ -418,7 +447,7 @@ def patch_iso_with_ap(
     from open_prime_rando.patcher_editor import IsoFileProvider, IsoFileWriter, PatcherEditor
     from retro_data_structures.game_check import Game
 
-    from . import elevator_prescan_patch, item_scan_patch
+    from . import elevator_prescan_patch, item_scan_patch, phazon_site_patch
 
     apmp2_file = os.fspath(apmp2_file)
     input_iso = os.fspath(input_iso)
@@ -443,11 +472,14 @@ def patch_iso_with_ap(
     # int(): .apmp2 files from before the "always" mode carry a bool here.
     item_map_dots = int(apmp2_options.get("item_map_dots", constants.ITEM_MAP_DOTS_OFF))
     map_rooms_reveal_dark_world_map = bool(apmp2_options.get("map_rooms_reveal_dark_world_map", False))
+    incoming_damage_multiplier = int(apmp2_options.get("incoming_damage_multiplier", 100))
+    outgoing_damage_multiplier = int(apmp2_options.get("outgoing_damage_multiplier", 100))
     spring_ball = bool(apmp2_options.get("spring_ball", False))
     spring_ball_button = str(apmp2_options.get("spring_ball_button", "c_stick_up"))
     sky_temple_keys_required = int(apmp2_options.get("sky_temple_keys_required", 9))
     goal = int(apmp2_options.get("goal", constants.GOAL_BOTH_BOSSES))
     flying_ing_caches_without_dark_visor = bool(apmp2_options.get("flying_ing_caches_without_dark_visor", False))
+    pre_scan_phazon_site = bool(apmp2_options.get("pre_scan_phazon_site", False))
     item_scan_hint_indices = [int(index) for index in apmp2_options.get("item_scan_hint_indices", [])]
     translator_lore_colors = {
         int(strg_id): str(color) for strg_id, color in apmp2_options.get("translator_lore_colors", {}).items()
@@ -480,6 +512,7 @@ def patch_iso_with_ap(
     try:
         if spring_ball:
             install_spring_ball(editor, dol_version, spring_ball_button)
+        install_damage_multipliers(editor, dol_version, incoming_damage_multiplier, outgoing_damage_multiplier)
         if move_while_scanning:
             install_move_while_scanning(editor)
         with contextlib.ExitStack() as patches:
@@ -487,13 +520,18 @@ def patch_iso_with_ap(
                 patches.enter_context(
                     warp_to_start_installed(dol_version, configuration.starting_area)
                 )
-            if map_rooms_reveal_dark_world_map or configuration.map_visibility.unvisited_room_names:
+            # Item dots in map_station mode wait on the same per-world flag
+            # the dark reveal reads, so they need Temple Grounds' station to
+            # set it too.
+            map_station_flag = map_rooms_reveal_dark_world_map or item_map_dots == constants.ITEM_MAP_DOTS_MAP_STATION
+            if map_station_flag or configuration.map_visibility.unvisited_room_names:
                 patches.enter_context(
                     map_reveal_installed(
                         editor,
                         dol_version,
                         dark_world=map_rooms_reveal_dark_world_map,
                         great_temple=configuration.map_visibility.unvisited_room_names,
+                        station_flag=map_station_flag,
                     )
                 )
             if item_map_dots != constants.ITEM_MAP_DOTS_OFF:
@@ -504,6 +542,8 @@ def patch_iso_with_ap(
                 patches.enter_context(goal_warp_installed(goal))
             if flying_ing_caches_without_dark_visor:
                 patches.enter_context(flying_ing_caches_shootable_installed())
+            if pre_scan_phazon_site:
+                patches.enter_context(phazon_site_patch.installed())
             if translator_lore_colors:
                 patches.enter_context(translator_lore_colors_installed(translator_lore_colors))
             if item_scan_hint_indices:
