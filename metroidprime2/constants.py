@@ -199,6 +199,12 @@ PREGRANTED_EVENTS = frozenset(
     }
 )
 
+# Dark Agon Wastes / Phazon Site "Phazon Site Barrier": the event that the three
+# scans inside the room set, and what its Watering Hole door waits on. True from
+# the start under ``pre_scan_phazon_site`` (client/phazon_site_patch.py), so
+# logic treats it as pre-granted then.
+PHAZON_SITE_BARRIER_EVENT = "Event21"
+
 # --- static resource contexts ------------------------------------------------
 # misc resources: fixed for v1 (no room/door rando, no drop rando; vanilla
 # beam/visor/movement item placements assumed since those items are not
