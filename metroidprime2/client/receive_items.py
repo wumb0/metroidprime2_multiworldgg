@@ -90,6 +90,7 @@ def compute_desired_capacities(
     missile_expansions_unlock_launcher: bool = False,
     power_bomb_expansions_unlock_power_bombs: bool = False,
     missile_launcher_bonus: int = 0,
+    power_bomb_main_bonus: int = 0,
 ) -> dict[int, int]:
     """Computes the capacity every OPR inventory slot *should* have, given
     the full list of ``(item_name, sender_slot)`` pairs received so far (in
@@ -206,8 +207,9 @@ def compute_desired_capacities(
 
     # Power Bomb: 0 without the main pickup (or, with
     # power_bomb_expansions_unlock_power_bombs, without any expansion);
-    # otherwise 2 for the main pickup plus 1 per expansion.
-    power_bomb_main = 2 if has_power_bomb_main else 0
+    # otherwise 2 (plus the bonus for expansions given up as dummy slots) for
+    # the main pickup and 1 per expansion.
+    power_bomb_main = 2 + power_bomb_main_bonus if has_power_bomb_main else 0
     power_bombs_unlocked = has_power_bomb_main or (
         power_bomb_expansions_unlock_power_bombs and power_bomb_expansions > 0
     )

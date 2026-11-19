@@ -719,6 +719,7 @@ async def _handle_grant_items(ctx: MetroidPrime2Context, inventory: dict[int, tu
         unlock_launcher,
         unlock_power_bombs,
         int(ctx.slot_data.get("missile_launcher_bonus", 0)),
+        int(ctx.slot_data.get("power_bomb_main_bonus", 0)),
     )
     deltas = plan_grants(desired, inventory)
     if ctx.last_announced_index is None and not deltas:
