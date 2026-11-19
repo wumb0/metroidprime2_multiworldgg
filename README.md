@@ -10,7 +10,7 @@ uses.
 
 **Note:** This was almost entirely generated using Claude fable/opus/sonnet. I wanted to play a multiworld with my favorite Metroid games and I had some free credits, so I thought this would be a nice way to use them. I'm happy to spend some tokens/time to fix it if it is broken or buggy, so open issues if you want. 
 
-## Features (v1.4.0)
+## Features (v1.5.0)
 
 **Randomization**
 - Full item shuffle with Randovania's prime2 logic database, including per-trick difficulty
@@ -20,6 +20,12 @@ uses.
   Randovania considers valid).
 - Translator lore hologram color randomization (`translator_lore_rando`).
 - Item scan hints (`item_scan_hints`): scanning a pickup hints the item inside to the server.
+- Extra powerups (Double Damage, Unlimited Missiles/Beam Ammo) can be pushed into the late
+  playthrough instead of wherever the fill drops them (`extra_powerup_placement`), and every
+  Missile Expansion beyond the 13 logic can require can be demoted from progression so they stop
+  being treated as priority items (`missile_expansion_progression`).
+- Traps and extra powerups can consume Power Bomb Expansion slots as well as Missile Expansion
+  ones (`power_bomb_dummy_slots`), keeping the Missile Expansions.
 - Sky Temple Keys: shuffle them into the pool, pre-place them on bosses/guardians, start with some
   pre-collected, and require fewer than 9 to open the Sky Temple Gateway.
 - Goals: both bosses (vanilla), Emperor Ing only, or just opening the Sky Temple Gateway -- the
@@ -45,8 +51,11 @@ uses.
 
 **Quality of life**
 - Hold L+R while declining a save to warp back to your starting room (`warp_to_start`).
-- Pre-scanned elevators, moving while scanning, always-skippable cutscenes.
+- Pre-scanned elevators and Phazon Site scan posts, moving while scanning, always-skippable
+  cutscenes.
 - Optional Spring Ball for Morph Ball.
+- Global damage multipliers: all damage you take (`incoming_damage_multiplier`) and all damage you
+  deal (`outgoing_damage_multiplier`), from 10% to 500%.
 - Item location dots on the in-game map and minimap (`item_map_dots`), a full-map reveal option,
   and a "current location" marker on the tracker map.
 - Varia Suit is always owned and isn't a shuffled item. Energy Tanks are capped at 14 (the game's limit) -- generation fails if
@@ -103,7 +112,7 @@ cd MultiWorldGG
 python -m pytest worlds/metroidprime2/test/
 ```
 
-The suite (800+ tests across `metroidprime2/test/`) covers the logic-DB reader, requirement
+The suite (1200+ tests across `metroidprime2/test/`) covers the logic-DB reader, requirement
 compiler, region/reachability generation, item pool composition, patch data, entrance
 (door lock/elevator/portal/translator gate) randomization, Death Link, hint scans (Sky Temple Key
 and translator lore), goal detection, the DOL/SCLY patches (elevator pre-scan, spring ball, item map
@@ -125,17 +134,22 @@ These are the keys you can set under the `Metroid Prime 2: Echoes:` section of a
 | `sky_temple_keys_required` | Range 1-9 | `9` | How many Sky Temple Keys must actually be held to unlock the Sky Temple Gateway's ring of columns, independent of where (or whether) `sky_temple_keys` makes them findable. Must be no higher than `sky_temple_keys` — silently clamped down to it if higher. |
 | `sky_temple_key_hints` | Choice: `disabled`/`scanned`/`precollected` | `scanned` | Whether the 9 Luminoth pillars in Sky Temple Gateway hint at where each Sky Temple Key really is. `scanned`: scanning a pillar reveals that key's location (your own world or another player's) and sends the hint to the server, the same as any other in-game hint. `precollected`: every key hint is known from the start, without needing to scan anything. `disabled`: pillars show a non-hint instead of the vanilla riddles, which would mislead once keys are shuffled. |
 | `translator_lore_hints` | Choice: `off`/`my_items`/`any` | `my_items` | Whether the 22 colored Luminoth lore holograms hint at where a progression item can be found, the same way the Sky Temple Key pillars do above — scanning one to completion sends the hint to the server. `my_items`: each hologram names where one of your own progression items is, in any player's world. `any`: also includes other players' progression items that landed in your own world. `off`: holograms keep their vanilla lore text. Only progression items are chosen, excluding Missile/Power Bomb/Dark/Light/Beam Ammo Expansions, Energy Tanks, and Sky Temple Keys (Sky Temple Keys are left entirely to the pillars above) — all indistinguishable-copy bulk items where "one of them is at location X" isn't useful. Each remaining item is hinted at most once. |
+| `item_scan_hints` | Choice: `off`/`other_players`/`all` | `all` | Whether scanning a pickup before collecting it sends a hint for the item inside to the server, so it shows up in the hint list like `!hint`. `other_players`: only pickups holding another player's item. `all`: also your own items (your own traps are skipped while `trap_disguise` is on, since hinting one would give it away). `off`: scanning a pickup does nothing special. Each pickup gets its own scan so the game can tell them apart; the scan text is unchanged. |
 | `translator_lore_rando` | Choice: `vanilla`/`full_random` | `vanilla` | Which translator each of the 22 Luminoth lore holograms needs. `full_random`: every hologram independently requires a random one of the four translator colors, and its hologram and glow are recolored to match. Only changes which translator reads a hologram, not what it says (see `translator_lore_hints`). |
 | `progressive_suit` | Toggle (on by default) | on | Combine Dark Suit and Light Suit into two copies of a single Progressive Suit item. |
 | `progressive_grapple` | Toggle | off | Combine Grapple Beam and Screw Attack into two copies of a single Progressive Grapple item. |
 | `missile_expansions_unlock_launcher` | Toggle | off | Receiving any Missile Expansion also unlocks the Missile Launcher itself, so expansions are usable before the launcher is found. Off matches Randovania (expansions grant nothing without the launcher); this also affects logic, not just the in-game grant. |
 | `launcher_gains_removed_missiles` | Toggle (on by default) | on | Every Missile Expansion that never reaches a location (cut to fit the 119 locations when optional pickups are enabled, or replaced by a trap) adds 5 missiles to what the Missile Launcher grants, keeping your maximum missile capacity. Off removes those missiles from the seed. Affects logic as well as the in-game grant; the bonus only applies once the Missile Launcher item itself is held. |
 | `power_bomb_expansions_unlock_power_bombs` | Toggle | off | Receiving any Power Bomb Expansion also unlocks Power Bombs themselves, so expansions are usable before the main Power Bomb pickup is found. Off matches Randovania (expansions grant nothing without the main pickup); this also affects logic, not just the in-game grant. Independent of `missile_expansions_unlock_launcher`. |
+| `power_bomb_dummy_slots` | Range 0-6 | `3` | How many of the traps (`trap_percentage`) and enabled extra pickups below may take a Power Bomb Expansion's slot instead of a Missile Expansion's, so fewer Missile Expansions are lost. Each one used gives its slot back to a Missile Expansion; at least two Power Bomb Expansions always remain (logic needs at most 4 Power Bombs total). With no traps and no extra pickups enabled nothing is given up. What was given up isn't lost — see `power_bomb_gains_removed_power_bombs`. |
+| `power_bomb_gains_removed_power_bombs` | Toggle (on by default) | on | Every Power Bomb Expansion given up under `power_bomb_dummy_slots` adds 1 Power Bomb to what the main Power Bomb pickup grants, keeping your maximum Power Bomb capacity. Off removes those Power Bombs from the seed entirely. Affects logic as well as the in-game grant; the bonus only applies once the main Power Bomb pickup itself is held. The Power Bomb counterpart of `launcher_gains_removed_missiles`. |
+| `missile_expansion_progression` | Choice: `all`/`required_only` | `all` | How many Missile Expansions count as progression items. `all` (vanilla world behavior): every one does, so they take part in the fill's progression passes, appear in the spoiler playthrough, and can be placed anywhere a required item can — including bosses. `required_only`: only the 13 logic can ever ask for stay progression; the rest become useful items placed after the progression fill, wherever is left, and never appear in the playthrough. Logic is unchanged and still sound — it counts only the 13 — and the game grants every one you find regardless. |
+| `extra_powerup_placement` | Choice: `anywhere`/`late`/`very_late` | `late` | Where Double Damage, Unlimited Missiles and Unlimited Beam Ammo are allowed to end up, so they don't trivialise the early game. `anywhere`: wherever the fill puts them. `late`: the last half of the locations of the whole multiworld, ordered by how soon the playthrough reaches them; `very_late`: the last quarter. Runs after the fill: any of these items that landed too early is swapped with an item from a late location, only when that can't make the game harder to beat. If no suitable swap exists the item stays where it is and the generator logs a warning. |
 | `split_beam_ammo` | Toggle (on by default) | on | On: 10 Dark Ammo Expansions + 10 Light Ammo Expansions, 20 ammo each (matches vanilla/Randovania's default). Off: both are replaced by 20 unified Beam Ammo Expansions granting 10 Dark + 10 Light ammo each (Randovania's "Split Beam Ammo Expansions" toggle, inverted) — same total ammo economy, fewer/bigger pickups. |
-| `enable_unlimited_missiles_pickup` | Toggle | off | Add one Unlimited Missiles item to the pool (replacing a Missile Expansion). Missiles cost no ammo once received. Logic never requires it. |
-| `enable_double_damage_pickup` | Toggle | off | Add one Double Damage item to the pool (replacing a Missile Expansion). Damage is multiplied by `double_damage_multiplier` once received. Logic never requires it. |
-| `enable_unlimited_beam_ammo_pickup` | Toggle | off | Add one Unlimited Beam Ammo item to the pool (replacing a Missile Expansion). Dark, Light and Annihilator shots cost no ammo once received. Logic never requires it. |
-| `trap_percentage` | Range 0-100 | 0 | Percentage of the pool's Missile Expansions replaced with traps (see `trap_weights`). At least 13 Missile Expansions always remain, which is what logic can ask for. Traps are never required by logic. |
+| `enable_unlimited_missiles_pickup` | Toggle | off | Add one Unlimited Missiles item to the pool (taking a Missile Expansion's or, while `power_bomb_dummy_slots` allows, a Power Bomb Expansion's slot). Missiles cost no ammo once received. Logic never requires it. Placement is controlled by `extra_powerup_placement`. |
+| `enable_double_damage_pickup` | Toggle | off | Add one Double Damage item to the pool (taking a Missile Expansion's or, while `power_bomb_dummy_slots` allows, a Power Bomb Expansion's slot). Damage is multiplied by `double_damage_multiplier` once received. Logic never requires it. Placement is controlled by `extra_powerup_placement`. |
+| `enable_unlimited_beam_ammo_pickup` | Toggle | off | Add one Unlimited Beam Ammo item to the pool (taking a Missile Expansion's or, while `power_bomb_dummy_slots` allows, a Power Bomb Expansion's slot). Dark, Light and Annihilator shots cost no ammo once received. Logic never requires it. Placement is controlled by `extra_powerup_placement`. |
+| `trap_percentage` | Range 0-100 | 0 | Percentage of the pool's Missile Expansions replaced with traps (see `trap_weights`). At least 13 Missile Expansions always remain, which is what logic can ask for; up to `power_bomb_dummy_slots` traps take Power Bomb Expansions' slots first. Traps are never required by logic. |
 | `trap_weights` | Counter | 1 each | Relative weight of each trap type: `Damage Trap` (removes a random share of your maximum energy, `damage_trap_min_percent` to `damage_trap_max_percent`, never kills), `Ammo Depletion Trap` (zeroes Missiles, Power Bombs, Dark and Light ammo; capacities are unchanged) and `Freeze Trap` (for `freeze_trap_duration` seconds you are frozen in ice at random moments; mashing jump breaks each freeze early). A weight of 0 disables that trap. |
 | `damage_trap_min_percent` | Range 1-100 | 25 | The least a Damage Trap removes, as a percentage of your maximum energy. Each trap picks a random whole percentage between the two options (swapped if min is larger). |
 | `damage_trap_max_percent` | Range 1-100 | 75 | The most a Damage Trap removes, as a percentage of your maximum energy. |
@@ -209,6 +223,7 @@ override just that one. Every trick option shares the same scale: `use_global` (
 |---|---|---|---|
 | `warp_to_start` | Toggle (on by default) | on | Declining to save at a Save Station while holding L+R warps you back to the starting room (Samus' ship in Landing Site, or wherever `starting_room` chose). Declining without L+R held behaves exactly as in vanilla. |
 | `pre_scan_elevators` | Toggle (on by default) | on | Elevators start pre-scanned so you don't need to scan the hologram pillar before using them. Mirrors the same feature in the Metroid Prime 1 randomizer. Purely cosmetic/QoL: Scan Visor is always a starting item and elevators are never logically gated on it, so disabling this only affects whether you have to scan first. |
+| `pre_scan_phazon_site` | Toggle | off | The three scan posts in Dark Agon Wastes' Phazon Site that lower its laser barrier start out scanned: the room comes up as it does after solving it, with the barrier down and without the cutscene. In vanilla the barrier only goes down once all three have been scanned from inside the room. Logic follows: it treats the barrier as already gone, so the Phazon Site's Watering Hole door no longer waits on it. |
 | `move_while_scanning` | Toggle | off | Allow moving while Scan Visor is locked onto a scan point, instead of the game freezing your movement for the duration of the scan. Mirrors the Metroid Prime 1 randomizer's (undocumented) "move while scan" setting. Purely cosmetic/QoL: logic never assumes you can move during a scan either way. |
 | `spring_ball` | Toggle | off | Once you have Morph Ball Bombs, pressing `spring_ball_button` in Morph Ball jumps as high as a bomb jump without laying a bomb. Only works on the ground, with a short cooldown between jumps. Mirrors the Prime 1 randomizer's "when bombs acquired" spring ball. Logic never requires it. |
 | `spring_ball_button` | Choice: `c_stick_up`/`c_stick_down`/`c_stick_left`/`c_stick_right`/`d_pad_up`/`l_trigger` | `c_stick_up` | The button that triggers `spring_ball`. None of these do anything in vanilla Morph Ball. `l_trigger` means a full press, past the click. |
@@ -221,7 +236,9 @@ Cutscenes are always skippable (press Start) -- this isn't a configurable option
 |---|---|---|---|
 | `beam_ammo_costs` | Choice: `vanilla`/`cheap`/`expensive`/`free` | `vanilla` | How much Dark/Light Ammo the Dark Beam, Light Beam, and Annihilator Beam cost per shot. `cheap`/`expensive` halve/double the uncharged, charged, and charge-combo ammo costs; `free` zeroes them (the charge combo's missile cost is untouched either way -- open-prime-rando requires it to stay >=1). Doesn't affect logic, which only cares about ammo capacity, not consumption rate. |
 | `annihilator_ammo_source` | Choice: `both`/`dark_only`/`light_only` | `both` | Which ammo pool(s) the Annihilator Beam draws from per shot. `both` is vanilla (costs Dark and Light Ammo simultaneously); the other two make it cost only one type. Doesn't affect logic (the Annihilator Beam is a simple boolean requirement there). |
-| `double_damage_multiplier` | Range 100-500 (percent) | `200` | Damage multiplier granted by the Double Damage item. Not in the default item pool, so this only matters if a copy reaches you some other way (e.g. `start_inventory`). |
+| `incoming_damage_multiplier` | Range 10-500 (percent) | `100` | Base multiplier for all damage you take: enemies, bosses, environmental hazards and Dark Aether alike. Applied to the hit itself, before suit damage reduction (and Defense Up), so they still reduce the multiplied hit by the same percentage. Hard mode scaling is untouched. Not modeled in logic: above 100 the game is harder than logic assumes, below 100 easier. |
+| `outgoing_damage_multiplier` | Range 10-500 (percent) | `100` | Base multiplier for all damage you deal to enemies. Scales exactly the damage sources Double Damage scales (beams, missiles, bombs and their charge combos — everything routed through the game's Double Damage step), and stacks multiplicatively with it: Double Damage at 200 and this at 150 deal 3x. Not modeled in logic. |
+| `double_damage_multiplier` | Range 100-500 (percent) | `200` | Damage multiplier granted by the Double Damage item. Not in the default item pool, so this only matters if a copy reaches you some other way (e.g. `enable_double_damage_pickup` or `start_inventory`). Applied on top of `outgoing_damage_multiplier`. |
 | `defense_up_damage_reduction` | Range 0-90 (percent) | `0` | Percentage of incoming damage permanently negated by the Defense Up custom item, on top of the Dark Aether/Dark Suit damage math `dark_aether_damage`/`dark_suit_damage` already model. Since Varia Suit's capacity is always locked at exactly 1, this is a single flat value applied from the start of the game, not a stacking pickup. Not modeled in logic -- a non-zero value can only make survival easier than logic assumes, never harder. |
 
 ### Cosmetic

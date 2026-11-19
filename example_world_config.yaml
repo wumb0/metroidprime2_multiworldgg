@@ -93,6 +93,17 @@ requires:
   # isn't useful. Each remaining item is hinted at most once.
   translator_lore_hints: my_items
 
+  # Whether scanning a pickup in the world (before collecting it) sends
+  # a hint for the item inside to the server, so it shows up in the
+  # hint list just as if you had used !hint.
+  # Options: off, other_players, all
+  #   other_players: only pickups holding another player's item.
+  #   all: also pickups holding your own items (your own traps are
+  #        skipped while trap_disguise is on, since hinting one would
+  #        give it away).
+  #   off: scanning a pickup does nothing special.
+  item_scan_hints: all
+
   # Which translator each of the 22 Luminoth lore holograms needs.
   # Options: vanilla, full_random
   #   vanilla: every hologram requires its region's vanilla translator.
@@ -134,6 +145,39 @@ requires:
   # Options: true, false
   power_bomb_expansions_unlock_power_bombs: false
 
+  # How many traps and extra pickups (below) may take a Power Bomb
+  # Expansion's slot instead of a Missile Expansion's, so fewer Missile
+  # Expansions are lost. At least two Power Bomb Expansions always
+  # remain. Nothing is given up when traps are 0 and no extra pickups
+  # are enabled. What was given up is kept by
+  # power_bomb_gains_removed_power_bombs.
+  # Range: 0-6
+  power_bomb_dummy_slots: 3
+
+  # Every Power Bomb Expansion given up by power_bomb_dummy_slots adds
+  # 1 Power Bomb to what the main Power Bomb pickup grants, keeping
+  # your maximum Power Bomb capacity. Off removes those Power Bombs
+  # from the seed. Affects logic too; bonus applies only once the main
+  # Power Bomb pickup is held.
+  # Options: true, false
+  power_bomb_gains_removed_power_bombs: true
+
+  # How many Missile Expansions count as progression items. all: every
+  # one does (can be placed at bosses, shows in the playthrough).
+  # required_only: only the 13 logic can ask for stay progression; the
+  # rest become useful items placed after the progression fill and are
+  # never in the playthrough. Logic is unchanged either way.
+  # Options: all, required_only
+  missile_expansion_progression: all
+
+  # Where Double Damage, Unlimited Missiles and Unlimited Beam Ammo may
+  # end up. anywhere: wherever the fill puts them. late: the last half
+  # of the multiworld's locations by playthrough order (swapped there
+  # after the fill, only when it can't make the game harder).
+  # very_late: the last quarter.
+  # Options: anywhere, late, very_late
+  extra_powerup_placement: late
+
   # On: 10 Dark Ammo Expansions + 10 Light Ammo Expansions, 20 ammo each
   # (matches vanilla/Randovania's default). Off: both are replaced by 20
   # unified Beam Ammo Expansions granting 10 Dark + 10 Light ammo each
@@ -142,8 +186,10 @@ requires:
   # Options: true, false
   split_beam_ammo: true
 
-  # Optional single-copy pickups, each replacing a Missile Expansion in the
-  # pool when on. Logic never requires them.
+  # Optional single-copy pickups, each taking a Missile Expansion's (or,
+  # while power_bomb_dummy_slots allows, a Power Bomb Expansion's) slot
+  # when on. Logic never requires them; where they can end up is
+  # extra_powerup_placement.
   # Options: true, false
   enable_unlimited_missiles_pickup: false
   enable_double_damage_pickup: false
@@ -257,9 +303,25 @@ requires:
   # Options: both, dark_only, light_only
   annihilator_ammo_source: both
 
-  # Damage multiplier (percent) granted by the Double Damage item. Not in
-  # the default item pool, so this only matters if a copy reaches you some
-  # other way (e.g. start_inventory).
+  # Base multiplier (percent) for ALL damage you take: enemies, bosses,
+  # environmental hazards and Dark Aether alike. Applied to the hit
+  # before suit damage reduction (and Defense Up), so they still reduce
+  # the multiplied hit by the same percentage. Not modeled in logic:
+  # above 100 makes the game harder than logic assumes.
+  # Range: 10-500
+  incoming_damage_multiplier: 100
+
+  # Base multiplier (percent) for ALL damage you deal to enemies.
+  # Scales the same damage sources Double Damage does (beams, missiles,
+  # bombs and their charge combos) and stacks with it multiplicatively.
+  # Not modeled in logic.
+  # Range: 10-500
+  outgoing_damage_multiplier: 100
+
+  # Damage multiplier (percent) granted by the Double Damage item. Not
+  # the default item pool, so this only matters if a copy reaches you
+  # some other way (e.g. start_inventory). Applied on top of
+  # outgoing_damage_multiplier.
   # Range: 100-500
   double_damage_multiplier: 200
 
@@ -459,6 +521,13 @@ requires:
   # it, so disabling this only affects whether you have to scan first.
   # Options: true, false
   pre_scan_elevators: true
+
+  # The three scan posts in Dark Agon Wastes' Phazon Site that lower
+  # its laser barrier start out scanned: the room comes up with the
+  # barrier down, without the cutscene. Logic follows and no longer
+  # waits on the barrier for the Watering Hole door.
+  # Options: true, false
+  pre_scan_phazon_site: false
 
   # Allow moving while Scan Visor is locked onto a scan point, instead
   # of the game freezing your movement for the scan's duration. Purely
