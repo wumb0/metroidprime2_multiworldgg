@@ -1974,6 +1974,7 @@ build it once with `--iso` and `--repin`).
 **Fix (`client/map_reveal_patch.py`).**
 - `reveal_dark_rooms_on_map_station` (its own option, `map_rooms_reveal_dark_world_map`, default on; independent of `unvisited_room_names`, which only decides whether revealed rooms show names; an `.apmp2` without the key reads as off): the `clrlwi/cntlzw/srwi r3` triple that computes `!inDarkWorld` (NTSC 0x8010F428, PAL 0x8010F5DC) becomes `li r3, 1; nop; nop`. Refuses a DOL whose three words differ. This also lets `item_map_dots: on` dots follow a station into the dark world; `map_station` mode already read the flag directly.
 - `great_temple_always_mapped` (when `unvisited_room_names` is on): wraps `general_changes.change_map_visibility` and sets every non-`Never` Great Temple MAPA to `Always`. It is always drawn (so its names show) instead of waiting on a station that does not exist.
+- **`station_always_marks_world` (2026-11-19 follow-up: "works in every world except Temple Grounds").** The fix above was necessary but not sufficient for Temple Grounds, and the reason is in `CScriptSpecialFunction::AcceptMapStation`: a station maps what it is *connected* to (each `Play -> Activate` target is a `Teleporter`/TEL1 whose destination area is marked mapped one by one) and only sets the world-wide `CMapWorldInfo::mMapStationUsed` flag when it has **no** such connection. Agon, Torvus and Sanctuary's stations have none and set the flag, which is why they worked; Temple Grounds' Hive Chamber A station wires fifteen (`Map to Temple 0d` ... `Map to Hive Save 04`, all light-world rooms), so it never set the flag and `IsWorldVisible` -- patched or not -- saw "station never used". The fix makes the flag store unconditional: `patcher_runner.py:315` calls `map_reveal_patch.station_always_marks_world(editor.dol, version_info.map_reveal)`, rewriting the `bne` guarding the `stb r0, 0x48(r3)` store in `AcceptMapStation`'s tail (expected five-word pattern `clrlwi./bne/lwz/li/stb`, verified on both ISOs). Gated on `map_rooms_reveal_dark_world_map` like the rest of the module. In-game check: `mt30_temple_grounds_map_station` (+ `off` variant, pinned), which tests exactly this station while MT27 covers a plain flag-setting one.
 
 Verified by patching both real ISOs end to end: patched DOL disassembled at both addresses, Great Temple MAPAs all `Always`, Agon unchanged. Unit tests in `test/test_map_reveal_patch.py`. **Not run in Dolphin.**
 
@@ -2012,3 +2013,62 @@ Verified by patching both real ISOs end to end: patched DOL disassembled at both
 **Logic.** `regions.FLYING_ING_CACHE_DARK_VISOR_REPLACEMENTS`: every edge into the nine key pickups ANDs one top-level `DarkVisor`. With the option on, `_intra_area_edges` replaces it with Trivial, except Battleground: there it becomes `DarkVisor or InvisibleObjects >= 2`, because its Space Jump route rides the moving invisible platforms (the DB's other Dark Visor platform edges use the same form). `_replace_cache_dark_visor` raises if an edge stops having exactly one top-level `DarkVisor`. The dock-rando probe shares `_intra_area_edges`, so it sees the same edges.
 
 **Verification.** `test/test_flying_ing_cache.py`: the table equals the DB's `SkyTempleKey` pickups and the patched rooms; every incoming edge relaxes; reachability without the Dark Visor (none by default, eight with the option, nine with Invisible Objects intermediate); options.json route; the SCLY rewrite on fakes; the hook. The patch was also applied to all nine real rooms from both ISOs and the MREAs round-tripped. Manual test `mt26_flying_ing_cache_without_dark_visor` (+ `dark_visor`, `off` variants, pinned) is **not run in Dolphin**.
+
+## AC. Base damage multipliers (`incoming_damage_multiplier`, `outgoing_damage_multiplier`)
+
+**Request (2026-11-19, TODO):** global multipliers for damage taken (everything: enemies, hazards, bosses) and damage dealt (all weapons).
+
+**Design (`client/damage_multiplier_patch.py`).** Two DOL caves, one per direction, neither with a counterpart in OPR's `DamageChanges`.
+
+- **Incoming:** `CStateManager::ApplyLocalDamage` (NTSC 0x8003D838) is where every hit on Samus -- enemies, hazards, Dark Aether (`kWT_AreaDark`) -- ends up. Right after vanilla's hard-mode scaling branch joins (hook `lhz r0, 0(r20)`, NTSC 0x8003DA14, PAL 0x8003DB64) a cave multiplies the damage in `f29` by the factor. Suit reduction, Defense Up and energy tanks all come after, so it scales the raw hit (`damage * multiplier * (1 - reduction)`); hard mode itself is untouched.
+- **Outgoing:** `CDamageInfo::ApplyDoubleDamage` (NTSC 0x8018A098) returns a copy of a weapon's `CDamageInfo` with damage, radius damage and knockback (offsets 4/8/0x10) scaled by Double Damage, unscaled otherwise; at its epilogue (hook `lwz r0, 0x14(r1)`, NTSC 0x8018A170) the cave scales those same three fields of the returned struct. So the multiplier reaches exactly the sources Double Damage reaches (the beams, missiles and bombs -- the function's eight DOL callers) and stacks with it.
+- The factor is a single-precision float built in `r0` (`lis`/`ori`) and moved to an FPR through the red zone below `r1` (open-prime-rando's Massive Damage trick): no data word, only `r0` and `f0`/`f1`, scratch at both sites. Both hook sites were verified identical in the NTSC-U and PAL disassembly (PAL found by instruction matching); each patch refuses a DOL whose three hook words differ.
+- **Wiring:** options `incoming_damage_multiplier` / `outgoing_damage_multiplier` (Range 10-500%, default 100), through `options.json`; `patcher_runner.install_damage_multipliers` applies either cave only when the percent differs from 100.
+
+**Verification.** `test/test_damage_multiplier_patch.py` (bits, cave assembly, refusal cases, runner wiring). Manual test `mt28_damage_multipliers` (+ `off` variant, pinned). **Not run in Dolphin.**
+
+## AD. Extra powerups placed late (`extra_powerup_placement`)
+
+**Request (2026-11-19, TODO):** Double Damage, Unlimited Missiles and Unlimited Beam Ammo can land in sphere 0 and trivialise a seed; place them later.
+
+**Why post_fill.** These are `useful`, not progression: the fill places progression first, then scatters useful/filler over whatever is left, and "late" is not a property of a location until the whole multiworld is filled. So `placement.py` hooks `post_fill` -- which runs before progression balancing (verified in `MultiWorldGG/Main.py`: `AutoWorld.call_all(multiworld, "post_fill")` precedes the balancing pass) -- when the sphere structure is known:
+
+1. Order every filled, non-event location of the multiworld by logical sphere (`MultiWorld.get_spheres`; locations the playthrough never reaches sort last).
+2. The last `1 - LATE_FRACTION[mode]` of them are "late" locations (half for `late`, three quarters for `very_late`).
+3. Each of this world's extra powerups sitting in an earlier location is swapped with a random late location's item, both ways checked with `Location.can_fill` access off (item rules, `local_items`, exclusions all honoured) and neither location locked. Swap partners are tried non-progression first, then `skip_balancing` progression (Missile/Power Bomb/ammo expansions), then other progression, then traps.
+
+The swap cannot break beatability: the extra powerup isn't progression, and a progression item only ever moves to an earlier sphere -- whose reachability never depended on the item it displaces (full argument in `placement.py`'s module docstring). If no late location can trade, the powerup stays and a warning is logged.
+
+**Options.** `ExtraPowerupPlacement`: `anywhere` / `late` (default) / `very_late`.
+
+**Verification.** `test/test_extra_powerup_placement.py` (sphere ordering, swap legality, option no-ops).
+
+## AE. Power Bomb Expansions as dummy slots (`power_bomb_dummy_slots`)
+
+**Request (2026-11-19, TODO):** traps and the extra pickups currently only consume Missile Expansion slots; let a few Power Bomb Expansions serve as slots too, and give the missed Power Bombs back through the main Power Bomb pickup.
+
+**Design (`item_pool.py` + `patch_data.py`).**
+
+- `power_bomb_dummy_slots` (Range 0-6, default 3): each trap / extra pickup in the pool consumes a Power Bomb Expansion slot first, up to N; at least two expansions always remain (logic needs at most 4 Power Bombs -- the main pickup's 2 plus 2 -- hence the maximum of 6). With no traps and no extra pickups in the pool nothing is removed, so default pools are unchanged.
+- `power_bomb_gains_removed_power_bombs` (default on): the main Power Bomb pickup grants 1 extra Power Bomb per expansion given up, so maximum capacity is preserved (10, the game cap); it applies only once the main pickup is held, and the logic capacity model folds the same bonus. Off removes those Power Bombs from the seed entirely.
+
+**Verification.** `test/test_power_bomb_slots.py` (pool arithmetic, capacity bonus in logic and grant, boundaries).
+
+## AF. Missile Expansions as progression (`missile_expansion_progression`)
+
+**Request (2026-11-19, TODO):** stop surplus Missile Expansions being treated as priority items so the fill doesn't have to put them at bosses.
+
+**Design.** Logic never needs more than 13 Missile Expansions (one per Missile Launcher), yet vanilla pools make all of them progression: they enter the fill's progression passes and show up in the spoiler playthrough. `missile_expansion_progression: required_only` reclassifies every expansion past the 13th to `useful` at pool-build time (`item_pool._apply_missile_expansion_progression`): they fill whatever is left after progression, off bosses by construction, and leave the playthrough listing. Logic is untouched (it only ever counted 13) and the game still grants them all. A pool with <= 13 expansions is unaffected. `all` (default) is the old behaviour.
+
+**Verification.** `test/test_missile_expansion_progression.py` (classification boundary, beatability, spoiler listing).
+
+## AG. Pre-scanned Phazon Site (`pre_scan_phazon_site`)
+
+**Request (2026-11-19, TODO):** Dark Agon Wastes/Phazon Site is walled off from the Watering Hole side until its three scan-post pillars are scanned; offer an option to start with that scan state.
+
+**Design.**
+
+- **Game side (`client/phazon_site_patch.py`):** an SCLY edit of the Phazon Site room, installed via `patcher_runner.register_world_changes` (`phazon_site_patch.installed()`) when `options.json["pre_scan_phazon_site"]` is set. The three scan relays are left in place but their `Activate` state is pre-solved -- the same state the vanilla cutscene leaves behind -- so the room loads with the barrier retracted, the posts scannable but inert, and the reveal cutscene never plays.
+- **Logic side:** `requirements.extra_pregranted_events(world)` returns `{"Phazon Site Barrier"}` (the `header.json` `resource_database.events` name for Event21) when the option is on; the event's location is then not created and every gate reading the event folds to True (Watering Hole door connections and the Bitter Well side).
+
+**Verification.** `test/test_phazon_site_patch.py` (SCLY rewrite on fakes: relays touched once in the solved state, name mismatch writes nothing; logic: barrier location present with the option off, absent and doors unfolded with it on). Manual test `mt29_phazon_site_barrier` (+ `off` variant, pinned). **Not run in Dolphin.**
