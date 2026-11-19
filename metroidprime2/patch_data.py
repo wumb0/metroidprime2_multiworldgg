@@ -20,9 +20,8 @@ and ``custom_items`` (``double_damage_multiplier``/
 ``defense_up_damage_reduction``) ARE included, always explicitly -- see
 ``_beam_configuration``/``_custom_items`` below -- rather than left at
 open-prime-rando's own pydantic defaults, because at least one of those
-defaults is not vanilla-preserving (``MassiveDamageConfig.
-damage_increase_multiplier`` defaults to 1.0, a no-op, not the real
-double-damage value of 2.0)."""
+defaults is not vanilla-preserving (see ``_custom_items`` for what
+``MassiveDamageConfig.damage_increase_multiplier`` really means)."""
 
 from __future__ import annotations
 
@@ -919,6 +918,18 @@ def _beam_configuration(world: MetroidPrime2World) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
+def double_damage_bonus(world: MetroidPrime2World) -> float:
+    """``MassiveDamageConfig.damage_increase_multiplier`` for
+    ``double_damage_multiplier``. That field is the damage each copy *adds*,
+    not the total multiplier: open-prime-rando's Massive Damage cave
+    computes ``bonus * copies + 1.0`` (``custom_items/massive_damage.py``;
+    its own default of 1.0 is what gives vanilla's 2x, and 0.0 would be a
+    no-op). So a 200% option is a bonus of 1.0, and 100% a bonus of 0.0.
+    (Passing ``value / 100`` straight through, as this module once did,
+    made the default Double Damage a 3x multiplier.)"""
+    return world.options.double_damage_multiplier.value / 100 - 1
+
+
 def _custom_items(world: MetroidPrime2World) -> dict[str, Any]:
     """open-prime-rando ``CustomItemsConfig``. ``max_count`` is always 1
     for both -- Defense Up's counter is the Varia Suit inventory slot,
@@ -928,7 +939,7 @@ def _custom_items(world: MetroidPrime2World) -> dict[str, Any]:
     so raising it would have no observable effect."""
     return {
         "massive_damage_config": {
-            "damage_increase_multiplier": world.options.double_damage_multiplier.value / 100,
+            "damage_increase_multiplier": double_damage_bonus(world),
             "max_count": 1,
         },
         "defense_up_config": {

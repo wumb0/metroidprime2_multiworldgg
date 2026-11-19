@@ -166,10 +166,11 @@ class TestMakeRandoConfiguration(MP2TestBase):
         self.assertEqual(45, beams["annihilator"]["ammo_a"])
         self.assertEqual(46, beams["annihilator"]["ammo_b"])
 
-        # Default (200%) must actually double, unlike open-prime-rando's
-        # own internal default of 1.0/100% (a no-op) for this field.
+        # Default (200%) must actually double. open-prime-rando's field is
+        # the bonus each copy adds on top of 1x (its own default of 1.0 is
+        # vanilla's double damage), so 200% is a bonus of 1.0, not 2.0.
         custom_items = self.config["custom_items"]
-        self.assertEqual(2.0, custom_items["massive_damage_config"]["damage_increase_multiplier"])
+        self.assertEqual(1.0, custom_items["massive_damage_config"]["damage_increase_multiplier"])
         self.assertEqual(1, custom_items["massive_damage_config"]["max_count"])
         self.assertEqual(0.0, custom_items["defense_up_config"]["damage_reduction_multiplier"])
         self.assertEqual(1, custom_items["defense_up_config"]["max_count"])
@@ -318,7 +319,7 @@ class TestBeamConfigurationNonDefault(MP2TestBase):
 
     def test_custom_item_multipliers(self) -> None:
         custom_items = self.config["custom_items"]
-        self.assertEqual(3.0, custom_items["massive_damage_config"]["damage_increase_multiplier"])
+        self.assertEqual(2.0, custom_items["massive_damage_config"]["damage_increase_multiplier"])
         self.assertEqual(0.25, custom_items["defense_up_config"]["damage_reduction_multiplier"])
         # max_count is never exposed as an option -- both stay locked at 1
         # regardless (see _custom_items's docstring).
@@ -540,6 +541,7 @@ class TestStartingItemsWithPrecollectedMissileLauncher(MP2TestBase):
 
 class TestStartingLauncherIncludesTrimmedMissiles(MP2TestBase):
     options = {
+        "power_bomb_dummy_slots": 0,
         "enable_unlimited_missiles_pickup": True,
         "enable_double_damage_pickup": True,
         "enable_unlimited_beam_ammo_pickup": True,
